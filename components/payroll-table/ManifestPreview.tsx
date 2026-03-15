@@ -8,6 +8,7 @@ type Props = {
   chunks: ChunkPlan[];
   onConfirm: () => void;
   onCancel: () => void;
+  disabled?: boolean;
 };
 
 function truncateHash(hash: string, chars = 8): string {
@@ -23,7 +24,7 @@ function formatMinorUnits(value: string): string {
   return `$${dollars.toLocaleString()}.${centsStr}`;
 }
 
-export function ManifestPreview({ manifest, chunks, onConfirm, onCancel }: Props) {
+export function ManifestPreview({ manifest, chunks, onConfirm, onCancel, disabled }: Props) {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
@@ -131,15 +132,17 @@ export function ManifestPreview({ manifest, chunks, onConfirm, onCancel }: Props
       <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
         <button
           onClick={onCancel}
-          className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+          disabled={disabled}
+          className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
         >
           Back to Edit
         </button>
         <button
           onClick={onConfirm}
-          className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+          disabled={disabled}
+          className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Confirm & Queue Settlement
+          {disabled ? "Settling..." : "Confirm & Queue Settlement"}
         </button>
       </div>
     </div>
