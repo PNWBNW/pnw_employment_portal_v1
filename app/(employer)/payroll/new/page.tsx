@@ -5,10 +5,19 @@ import Link from "next/link";
 import { PayrollTable } from "@/components/payroll-table/PayrollTable";
 import { PayrollTableToolbar } from "@/components/payroll-table/PayrollTableToolbar";
 import { PayrollTableValidation } from "@/components/payroll-table/PayrollTableValidation";
+import { ManifestPreview } from "@/components/payroll-table/ManifestPreview";
 import type { PayrollTableRow } from "@/components/payroll-table/types";
 import { createEmptyRow, parseDollar, formatDollar } from "@/components/payroll-table/types";
 import { validateTable } from "@/components/payroll-table/validation";
 import { useWorkerStore } from "@/src/stores/worker_store";
+import { useSessionStore } from "@/src/stores/session_store";
+import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
+import { compileManifest } from "@/src/manifest/compiler";
+import { planChunks } from "@/src/manifest/chunk_planner";
+import { VERSIONS } from "@/src/config/programs";
+import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
+import type { PayrollRunManifest } from "@/src/manifest/types";
+import type { ChunkPlan } from "@/src/manifest/types";
 
 const DRAFT_STORAGE_KEY = "pnw_payroll_draft";
 
@@ -25,7 +34,13 @@ export default function NewPayrollPage() {
   const [rows, setRows] = useState<PayrollTableRow[]>([]);
   const [epochId, setEpochId] = useState(todayEpoch);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [compiledManifest, setCompiledManifest] = useState<PayrollRunManifest | null>(null);
+  const [compiledChunks, setCompiledChunks] = useState<ChunkPlan[]>([]);
+  const [compileError, setCompileError] = useState<string | null>(null);
   const workers = useWorkerStore((s) => s.workers);
+  const address = useSessionStore((s) => s.address);
+  const setManifest = usePayrollRunStore((s) => s.setManifest);
+  const updateChunks = usePayrollRunStore((s) => s.updateChunks);
 
   // Restore draft from sessionStorage on mount
   useEffect(() => {
@@ -189,8 +204,37 @@ export default function NewPayrollPage() {
       {/* Validation errors */}
       <PayrollTableValidation validationResults={rowResults} />
 
+      {/* Compile error */}
+      {compileError && (
+        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <p className="font-medium">Compilation Error</p>
+          <pre className="mt-1 whitespace-pre-wrap text-xs">{compileError}</pre>
+        </div>
+      )}
+
+      {/* Manifest Preview */}
+      {compiledManifest && (
+        <ManifestPreview
+          manifest={compiledManifest}
+          chunks={compiledChunks}
+          onCancel={() => {
+            setCompiledManifest(null);
+            setCompiledChunks([]);
+          }}
+          onConfirm={() => {
+            // Store manifest in payroll run store and navigate to run page
+            setManifest(compiledManifest);
+            updateChunks(compiledChunks);
+            // E5: will navigate to run status page
+            alert(
+              `Manifest queued! Batch ID: ${compiledManifest.batch_id.slice(0, 18)}…\nSettlement Coordinator coming in Phase E5.`,
+            );
+          }}
+        />
+      )}
+
       {/* Action buttons */}
-      {rows.length > 0 && (
+      {rows.length > 0 && !compiledManifest && (
         <div className="flex items-center justify-between border-t border-border pt-4">
           <p className="text-sm text-muted-foreground">
             {rows.length} row{rows.length !== 1 ? "s" : ""} ·{" "}
@@ -206,10 +250,37 @@ export default function NewPayrollPage() {
                   : "Fix validation errors first"
               }
               onClick={() => {
-                // E4: will trigger manifest compiler
-                alert(
-                  "Manifest compilation coming in Phase E4. Table is valid and ready.",
-                );
+                setCompileError(null);
+                try {
+                  // Compute a deterministic employer_name_hash from address
+                  const employerNameHash = address
+                    ? toHex(domainHash(DOMAIN_TAGS.DOC, new TextEncoder().encode(address)))
+                    : "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+                  // Apply epoch_id from toolbar to all rows
+                  const rowsWithEpoch = rows.map((r) => ({
+                    ...r,
+                    epoch_id: epochId,
+                  }));
+
+                  const manifest = compileManifest({
+                    rows: rowsWithEpoch,
+                    employer_addr: address ?? "aleo1unknown",
+                    employer_name_hash: employerNameHash,
+                    epoch_id: epochId,
+                    schema_v: VERSIONS.schema_v,
+                    calc_v: VERSIONS.calc_v,
+                    policy_v: VERSIONS.policy_v,
+                  });
+
+                  const chunks = planChunks(manifest);
+                  setCompiledManifest(manifest);
+                  setCompiledChunks(chunks);
+                } catch (err) {
+                  setCompileError(
+                    err instanceof Error ? err.message : "Compilation failed",
+                  );
+                }
               }}
             >
               Validate & Preview Manifest
