@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PayrollTable } from "@/components/payroll-table/PayrollTable";
 import { PayrollTableToolbar } from "@/components/payroll-table/PayrollTableToolbar";
 import { PayrollTableValidation } from "@/components/payroll-table/PayrollTableValidation";
@@ -16,8 +17,14 @@ import { compileManifest } from "@/src/manifest/compiler";
 import { planChunks } from "@/src/manifest/chunk_planner";
 import { VERSIONS } from "@/src/config/programs";
 import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
-import type { PayrollRunManifest } from "@/src/manifest/types";
+import type { PayrollRunManifest, PayrollRunStatus, PayrollRow } from "@/src/manifest/types";
 import type { ChunkPlan } from "@/src/manifest/types";
+import {
+  executeSettlement,
+  type CoordinatorCallbacks,
+} from "@/src/coordinator/settlement_coordinator";
+import { getPrivateKey } from "@/src/stores/session_store";
+import { ENV } from "@/src/config/env";
 
 const DRAFT_STORAGE_KEY = "pnw_payroll_draft";
 
@@ -37,10 +44,15 @@ export default function NewPayrollPage() {
   const [compiledManifest, setCompiledManifest] = useState<PayrollRunManifest | null>(null);
   const [compiledChunks, setCompiledChunks] = useState<ChunkPlan[]>([]);
   const [compileError, setCompileError] = useState<string | null>(null);
+  const [isSettling, setIsSettling] = useState(false);
+  const [settlementStatus, setSettlementStatus] = useState<string | null>(null);
   const workers = useWorkerStore((s) => s.workers);
   const address = useSessionStore((s) => s.address);
   const setManifest = usePayrollRunStore((s) => s.setManifest);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
+  const updateStatus = usePayrollRunStore((s) => s.updateStatus);
+  const router = useRouter();
+  const settlingRef = useRef(false);
 
   // Restore draft from sessionStorage on mount
   useEffect(() => {
@@ -217,20 +229,83 @@ export default function NewPayrollPage() {
         <ManifestPreview
           manifest={compiledManifest}
           chunks={compiledChunks}
+          disabled={isSettling}
           onCancel={() => {
             setCompiledManifest(null);
             setCompiledChunks([]);
           }}
           onConfirm={() => {
-            // Store manifest in payroll run store and navigate to run page
+            if (settlingRef.current) return;
+            settlingRef.current = true;
+            setIsSettling(true);
+            setSettlementStatus("Queuing settlement...");
+
+            // Store manifest in payroll run store
             setManifest(compiledManifest);
             updateChunks(compiledChunks);
-            // E5: will navigate to run status page
-            alert(
-              `Manifest queued! Batch ID: ${compiledManifest.batch_id.slice(0, 18)}…\nSettlement Coordinator coming in Phase E5.`,
-            );
+
+            // Get private key for adapter
+            const privateKey = getPrivateKey();
+            if (!privateKey) {
+              setCompileError("No private key in session. Please reconnect.");
+              setIsSettling(false);
+              settlingRef.current = false;
+              return;
+            }
+
+            const callbacks: CoordinatorCallbacks = {
+              onRunStatusChange: (status: PayrollRunStatus) => {
+                updateStatus(status);
+                setSettlementStatus(`Status: ${status}`);
+              },
+              onChunkUpdate: (chunks: ChunkPlan[]) => {
+                updateChunks(chunks);
+                const settled = chunks.filter((c) => c.status === "settled").length;
+                setSettlementStatus(`Settling: ${settled}/${chunks.length} chunks`);
+              },
+              onRowUpdate: () => {
+                // Row updates handled via chunk updates
+              },
+              onComplete: () => {
+                setSettlementStatus("Settlement complete!");
+                setIsSettling(false);
+                settlingRef.current = false;
+                // Navigate to payroll history after short delay
+                setTimeout(() => router.push("/payroll"), 1500);
+              },
+              onError: (msg: string) => {
+                setSettlementStatus(`Error: ${msg}`);
+                setIsSettling(false);
+                settlingRef.current = false;
+              },
+            };
+
+            // Fire and forget — the coordinator handles its own lifecycle
+            void executeSettlement({
+              manifest: compiledManifest,
+              chunks: compiledChunks,
+              adapterConfig: {
+                endpoint: ENV.ALEO_ENDPOINT,
+                network: ENV.NETWORK,
+                privateKey,
+              },
+              callbacks,
+            });
           }}
         />
+      )}
+
+      {/* Settlement status */}
+      {settlementStatus && (
+        <div className={`rounded-md border p-3 text-sm ${
+          isSettling
+            ? "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+            : settlementStatus.startsWith("Error")
+              ? "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+              : "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200"
+        }`}>
+          <p>{isSettling ? "⏳ " : ""}{settlementStatus}</p>
+        </div>
       )}
 
       {/* Action buttons */}
