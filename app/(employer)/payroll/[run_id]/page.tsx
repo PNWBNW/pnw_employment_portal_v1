@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
@@ -8,6 +8,7 @@ import { RunStatusBanner } from "@/components/run-status/RunStatusBanner";
 import { ChunkStatusList } from "@/components/run-status/ChunkStatusList";
 import { RunSummary } from "@/components/run-status/RunSummary";
 import { retryChunk } from "@/src/coordinator/settlement_coordinator";
+import { mintBatchAnchor } from "@/src/anchor/batch_anchor_finalizer";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
 import type { PayrollRunManifest } from "@/src/manifest/types";
@@ -31,6 +32,10 @@ export default function RunStatusPage() {
   const history = usePayrollRunStore((s) => s.history);
   const restore = usePayrollRunStore((s) => s.restore);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
+  const setAnchor = usePayrollRunStore((s) => s.setAnchor);
+
+  const [anchorLoading, setAnchorLoading] = useState(false);
+  const [anchorError, setAnchorError] = useState<string | null>(null);
 
   // Restore from sessionStorage on mount
   useEffect(() => {
@@ -85,6 +90,31 @@ export default function RunStatusPage() {
     },
     [resolvedManifest, chunks, updateChunks],
   );
+
+  const handleMintAnchor = useCallback(async () => {
+    if (!resolvedManifest) return;
+    const privateKey = getPrivateKey();
+    if (!privateKey) {
+      alert("No private key in session. Please reconnect.");
+      return;
+    }
+
+    setAnchorLoading(true);
+    setAnchorError(null);
+
+    try {
+      const result = await mintBatchAnchor(resolvedManifest, {
+        endpoint: ENV.ALEO_ENDPOINT,
+        network: ENV.NETWORK,
+        privateKey,
+      });
+      setAnchor(result.tx_id, result.nft_id);
+    } catch (err) {
+      setAnchorError(err instanceof Error ? err.message : "Anchor minting failed");
+    } finally {
+      setAnchorLoading(false);
+    }
+  }, [resolvedManifest, setAnchor]);
 
   if (!resolvedManifest) {
     return (
@@ -144,10 +174,9 @@ export default function RunStatusPage() {
       <RunSummary
         manifest={resolvedManifest}
         onExportJson={() => downloadJson(resolvedManifest)}
-        onMintAnchor={() => {
-          // E7: BatchAnchorFinalizer will be wired here
-          alert("Batch anchor minting coming in Phase E7.");
-        }}
+        onMintAnchor={handleMintAnchor}
+        anchorLoading={anchorLoading}
+        anchorError={anchorError}
       />
     </div>
   );
