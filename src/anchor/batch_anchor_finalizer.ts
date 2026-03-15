@@ -64,7 +64,7 @@ export function buildCycleNftParams(manifest: PayrollRunManifest): CycleNftParam
     batch_id: manifest.batch_id,
     batch_root: manifest.row_root,
     epoch_id: manifest.epoch_id,
-    worker_count: String(manifest.row_count),
+    worker_count: manifest.row_count,
     total_gross: manifest.total_gross_amount,
   };
 }
@@ -80,11 +80,11 @@ export function serializeAnchorInputs(
   return [
     params.employer_addr,
     `${nftId}field`,
-    `${params.batch_id}field`,
-    `${params.batch_root}field`,
-    `${params.epoch_id}u32`,
-    `${params.worker_count}u32`,
-    `${params.total_gross}field`,
+    `${String(params.batch_id)}field`,
+    `${String(params.batch_root)}field`,
+    `${String(params.epoch_id)}u32`,
+    `${String(params.worker_count)}u32`,
+    `${String(params.total_gross)}field`,
   ];
 }
 

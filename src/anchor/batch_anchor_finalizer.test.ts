@@ -95,7 +95,7 @@ describe("buildCycleNftParams", () => {
     expect(params.batch_id).toBe(manifest.batch_id);
     expect(params.batch_root).toBe(manifest.row_root);
     expect(params.epoch_id).toBe(manifest.epoch_id);
-    expect(params.worker_count).toBe("3");
+    expect(params.worker_count).toBe(3);
     expect(params.total_gross).toBe(manifest.total_gross_amount);
   });
 });
