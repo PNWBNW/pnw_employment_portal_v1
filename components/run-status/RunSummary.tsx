@@ -6,6 +6,8 @@ type Props = {
   manifest: PayrollRunManifest;
   onExportJson?: () => void;
   onMintAnchor?: () => void;
+  anchorLoading?: boolean;
+  anchorError?: string | null;
 };
 
 function formatMinorUnits(value: string): string {
@@ -25,7 +27,7 @@ function truncateHash(hash: string, len = 16): string {
   return `${hash.slice(0, len)}...`;
 }
 
-export function RunSummary({ manifest, onExportJson, onMintAnchor }: Props) {
+export function RunSummary({ manifest, onExportJson, onMintAnchor, anchorLoading, anchorError }: Props) {
   const isFullySettled = manifest.status === "settled";
   const isAnchored = manifest.status === "anchored";
 
@@ -86,8 +88,22 @@ export function RunSummary({ manifest, onExportJson, onMintAnchor }: Props) {
         {manifest.anchor_tx_id && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">Anchor TX</span>
-            <span className="font-mono" title={manifest.anchor_tx_id}>
+            <a
+              href={`https://explorer.provable.com/transaction/${manifest.anchor_tx_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-blue-600 dark:text-blue-400 hover:underline"
+              title={manifest.anchor_tx_id}
+            >
               {truncateHash(manifest.anchor_tx_id)}
+            </a>
+          </div>
+        )}
+        {manifest.anchor_nft_id && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">NFT ID</span>
+            <span className="font-mono" title={manifest.anchor_nft_id}>
+              {truncateHash(manifest.anchor_nft_id)}
             </span>
           </div>
         )}
@@ -106,10 +122,16 @@ export function RunSummary({ manifest, onExportJson, onMintAnchor }: Props) {
         {isFullySettled && !isAnchored && onMintAnchor && (
           <button
             onClick={onMintAnchor}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90"
+            disabled={anchorLoading}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Mint Batch Anchor
+            {anchorLoading ? "Minting..." : "Mint Batch Anchor"}
           </button>
+        )}
+        {anchorError && (
+          <span className="text-xs text-red-600 dark:text-red-400">
+            {anchorError}
+          </span>
         )}
         {isAnchored && (
           <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
