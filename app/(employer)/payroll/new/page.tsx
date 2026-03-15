@@ -270,8 +270,8 @@ export default function NewPayrollPage() {
                 setSettlementStatus("Settlement complete!");
                 setIsSettling(false);
                 settlingRef.current = false;
-                // Navigate to payroll history after short delay
-                setTimeout(() => router.push("/payroll"), 1500);
+                // Navigate to run status page after short delay
+                setTimeout(() => router.push(`/payroll/${compiledManifest.batch_id}`), 1500);
               },
               onError: (msg: string) => {
                 setSettlementStatus(`Error: ${msg}`);
