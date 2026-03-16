@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
-import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
+import { useOfferStore } from "@/src/stores/offer_store";
 import {
   useAuditStore,
   rehydrateAuditRequests,
   type AuditRequest,
 } from "@/src/stores/audit_store";
+import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
 import { buildMintAuditNftCommand } from "@/src/audit/audit_actions";
 import { generateAuditAuthPdf } from "@/components/pdf/AuditAuthPDF";
 import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
+import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
+import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { useState } from "react";
 
 function truncate(s: string, len = 16): string {
   return s.length <= len ? s : `${s.slice(0, len)}...`;
@@ -18,6 +23,7 @@ function truncate(s: string, len = 16): string {
 
 export default function WorkerDashboardPage() {
   const { address } = useAleoSession();
+  const receivedOffers = useOfferStore((s) => s.receivedOffers);
   const { requests, updateStatus } = useAuditStore();
   const { canSign, signForAudit } = useWalletSigner();
   const [mintCommand, setMintCommand] = useState<string | null>(null);
@@ -27,29 +33,29 @@ export default function WorkerDashboardPage() {
     rehydrateAuditRequests();
   }, []);
 
-  // Filter requests for this worker
+  // Filter audit requests for this worker
   const myRequests = address
     ? requests.filter((r) => r.worker_addr === address)
     : [];
-  const pendingRequests = myRequests.filter(
+  const pendingAuditRequests = myRequests.filter(
     (r) => r.status === "pending_worker",
   );
-  const otherRequests = myRequests.filter(
+  const completedAuditRequests = myRequests.filter(
     (r) => r.status !== "pending_worker",
   );
 
-  async function handleApprove(req: AuditRequest) {
+  // Offer stats
+  const pendingOffers = receivedOffers.filter((o) => o.status === "sent");
+  const activeAgreements = receivedOffers.filter((o) => o.status === "accepted" || o.status === "active");
+
+  async function handleApproveAudit(req: AuditRequest) {
     setSigning(req.auth_id);
 
-    // If wallet signing is available, get a consent signature first
     if (canSign) {
       try {
         await signForAudit(req.auth_id);
-        // Signature proves the worker consented via their wallet
-        // Private key never left the extension
       } catch {
-        // User may have rejected the signing prompt — still allow approval
-        // via the button (non-wallet path)
+        // User may have rejected — still allow non-wallet approval
       }
     }
 
@@ -58,10 +64,6 @@ export default function WorkerDashboardPage() {
     setMintCommand(cmd);
     setSigning(null);
 
-    // In production, this would trigger the actual on-chain NFT mint
-    // via the Layer 2 adapter after both consents are recorded.
-    // For MVP, we show the command and mark as approved.
-    // Simulate mint completion after approval:
     setTimeout(() => {
       updateStatus(
         req.auth_id,
@@ -71,7 +73,7 @@ export default function WorkerDashboardPage() {
     }, 1500);
   }
 
-  function handleDecline(req: AuditRequest) {
+  function handleDeclineAudit(req: AuditRequest) {
     updateStatus(req.auth_id, "declined");
   }
 
@@ -82,17 +84,82 @@ export default function WorkerDashboardPage() {
           Worker Dashboard
         </h1>
         <p className="text-sm text-muted-foreground">
-          View pending audit requests and manage your authorizations.
+          Your identity, offers, and audit authorizations at a glance.
         </p>
       </div>
 
+      {/* Identity card */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          Connected Wallet
+        </h2>
+        <p className="font-mono text-sm text-foreground break-all">
+          {address ?? "Not connected"}
+        </p>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-2xl font-bold text-foreground">{pendingOffers.length}</p>
+          <p className="text-xs text-muted-foreground">Pending Offers</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-2xl font-bold text-foreground">{activeAgreements.length}</p>
+          <p className="text-xs text-muted-foreground">Active Agreements</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-2xl font-bold text-foreground">{pendingAuditRequests.length}</p>
+          <p className="text-xs text-muted-foreground">Pending Audit Requests</p>
+        </div>
+      </div>
+
+      {/* Pending offers */}
+      {pendingOffers.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Pending Offers ({pendingOffers.length})
+            </h2>
+            <Link
+              href="/worker/offers"
+              className="text-xs text-primary hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          {pendingOffers.slice(0, 3).map((tracked) => {
+            const o = tracked.offer;
+            const suffix = INDUSTRY_SUFFIXES[o.industry_code];
+            return (
+              <div
+                key={tracked.computed.agreement_id}
+                className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {suffix?.label ?? `Industry ${o.industry_code}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {PAY_FREQUENCY_LABELS[o.pay_frequency_code]} &middot; From {truncate(o.employer_address)}
+                  </p>
+                </div>
+                <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-400">
+                  Review
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Pending audit requests */}
-      {pendingRequests.length > 0 ? (
+      {pendingAuditRequests.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">
-            Pending Audit Requests ({pendingRequests.length})
+            Pending Audit Requests ({pendingAuditRequests.length})
           </h2>
-          {pendingRequests.map((req) => (
+          {pendingAuditRequests.map((req) => (
             <div
               key={req.auth_id}
               className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 space-y-3"
@@ -102,9 +169,7 @@ export default function WorkerDashboardPage() {
                   {req.scope}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                  <span>
-                    Employer: {truncate(req.employer_addr)}
-                  </span>
+                  <span>Employer: {truncate(req.employer_addr)}</span>
                   <span>
                     Auditor:{" "}
                     {req.auditor_display_name || truncate(req.auditor_addr)}
@@ -128,7 +193,7 @@ export default function WorkerDashboardPage() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleApprove(req)}
+                  onClick={() => handleApproveAudit(req)}
                   disabled={signing === req.auth_id}
                   className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
@@ -139,7 +204,7 @@ export default function WorkerDashboardPage() {
                       : "Approve"}
                 </button>
                 <button
-                  onClick={() => handleDecline(req)}
+                  onClick={() => handleDeclineAudit(req)}
                   disabled={signing === req.auth_id}
                   className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
@@ -153,12 +218,6 @@ export default function WorkerDashboardPage() {
               </div>
             </div>
           ))}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            No pending audit requests.
-          </p>
         </div>
       )}
 
@@ -174,11 +233,11 @@ export default function WorkerDashboardPage() {
         </div>
       )}
 
-      {/* Completed requests */}
-      {otherRequests.length > 0 && (
+      {/* Completed audit requests */}
+      {completedAuditRequests.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">
-            Past Requests ({otherRequests.length})
+            Past Audit Requests ({completedAuditRequests.length})
           </h2>
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-sm">
@@ -199,7 +258,7 @@ export default function WorkerDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {otherRequests.map((req) => (
+                {completedAuditRequests.map((req) => (
                   <tr key={req.auth_id} className="border-b last:border-0">
                     <td className="px-4 py-3">{req.scope}</td>
                     <td className="px-4 py-3">
@@ -242,6 +301,18 @@ export default function WorkerDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Empty state */}
+      {pendingOffers.length === 0 &&
+        pendingAuditRequests.length === 0 &&
+        completedAuditRequests.length === 0 && (
+          <div className="rounded-lg border border-border bg-card p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              No activity yet. When employers send you offers or audit requests,
+              they will appear here.
+            </p>
+          </div>
+        )}
     </div>
   );
 }
