@@ -8,6 +8,7 @@ import {
   queryNameOwner,
   buildRegisterWorkerNameCommand,
   WORKER_PRICE_BASE,
+  DEFAULT_NAMING_FEE,
   USDCX_SCALE,
 } from "@/src/registry/name_registry";
 
@@ -60,8 +61,13 @@ export function RegisterNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-    const command = buildRegisterWorkerNameCommand(hash, WORKER_PRICE_BASE);
-    setCommandPreview(command);
+
+    // Single transaction: register_worker_name internally calls
+    // test_usdcx_stablecoin.aleo/transfer_public(DAO_TREASURY, base + fee)
+    // The USDCx transfer is built into the on-chain transition.
+    const registerCmd = buildRegisterWorkerNameCommand(hash, DEFAULT_NAMING_FEE);
+
+    setCommandPreview(registerCmd);
     setShowCommand(true);
   }
 
@@ -73,7 +79,10 @@ export function RegisterNameStep() {
     setStep("create_profile");
   }
 
-  const costDisplay = `${Number(WORKER_PRICE_BASE) / Number(USDCX_SCALE)} USDCx`;
+  const baseCost = Number(WORKER_PRICE_BASE) / Number(USDCX_SCALE);
+  const feeCost = Number(DEFAULT_NAMING_FEE) / Number(USDCX_SCALE);
+  const totalCost = baseCost + feeCost;
+  const costDisplay = `${totalCost} USDCx`;
 
   return (
     <div className="mx-auto w-full max-w-lg py-12 space-y-6">
@@ -105,7 +114,8 @@ export function RegisterNameStep() {
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-xs font-medium text-foreground">Cost</p>
           <p className="text-xs text-muted-foreground">
-            {costDisplay} (one-time registration fee)
+            {baseCost} USDCx base{feeCost > 0 ? ` + ${feeCost} USDCx naming fee` : ""}
+            {" "}(routed to local DAO treasury)
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
@@ -244,7 +254,9 @@ export function RegisterNameStep() {
           <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
             <p className="text-xs text-blue-300">
               In production, your wallet will prompt you to sign this transaction.
-              The {costDisplay} fee will be deducted from your USDCx balance.
+              The contract internally transfers {costDisplay} to the presiding
+              DAO treasury via test_usdcx_stablecoin.aleo. You must have
+              sufficient USDCx balance. Aleo network execution fees are paid separately.
             </p>
           </div>
 

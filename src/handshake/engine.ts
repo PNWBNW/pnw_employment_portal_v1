@@ -304,16 +304,21 @@ export function recomputeFromOffer(offer: OfferIntent): ComputedAgreementValues 
 // ----------------------------------------------------------------
 // On-chain command builders (preview mode)
 // ----------------------------------------------------------------
+//
+// All agreement lifecycle calls route through pnw_router.aleo,
+// which is the single stable entry surface for the portal.
+// The router delegates to employer_agreement_v2.aleo internally.
+// ----------------------------------------------------------------
 
 /**
- * Build the snarkos command preview for create_job_offer.
+ * Build the snarkos command preview for create_job_offer via pnw_router.
  */
 export function buildCreateJobOfferCommand(
   offer: OfferIntent,
   computed: ComputedAgreementValues,
 ): string {
   return (
-    `snarkos developer execute ${PROGRAMS.layer1.employer_agreement_v2} create_job_offer ` +
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_router} create_job_offer ` +
     `"${computed.agreement_id}" "${computed.parties_key}" ` +
     `${offer.employer_name_hash}field ${offer.worker_name_hash}field ` +
     `${offer.worker_address} ` +
@@ -325,14 +330,14 @@ export function buildCreateJobOfferCommand(
 }
 
 /**
- * Build the snarkos command preview for accept_job_offer.
+ * Build the snarkos command preview for accept_job_offer via pnw_router.
  */
 export function buildAcceptJobOfferCommand(
   agreementId: Bytes32,
   acceptTimeHash: Bytes32,
 ): string {
   return (
-    `snarkos developer execute ${PROGRAMS.layer1.employer_agreement_v2} accept_job_offer ` +
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_router} accept_job_offer ` +
     `<PendingAgreement record> "${acceptTimeHash}"`
   );
 }
