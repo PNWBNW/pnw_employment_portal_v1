@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { EmployerNav } from "@/components/nav/EmployerNav";
@@ -13,6 +13,7 @@ import { TopBar } from "@/components/nav/TopBar";
 export default function EmployerLayout({ children }: { children: ReactNode }) {
   const { isConnected } = useAleoSession();
   const router = useRouter();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!isConnected) {
@@ -26,10 +27,13 @@ export default function EmployerLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <EmployerNav />
+      <EmployerNav
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <TopBar onMenuToggle={() => setMobileNavOpen((prev) => !prev)} />
+        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </div>
     </div>
   );
