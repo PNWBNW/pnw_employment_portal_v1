@@ -27,6 +27,9 @@ export const USDCX_SCALE = 1_000_000n;
 /** Worker name base price: 1 USDCx */
 export const WORKER_PRICE_BASE = 1n * USDCX_SCALE;
 
+/** Default naming fee (routed to presiding DAO treasury alongside base price) */
+export const DEFAULT_NAMING_FEE = 0n; // placeholder — DAO sets this
+
 /** Employer name tiered pricing */
 export const EMPLOYER_PRICES = [
   10n * USDCX_SCALE,   // 1st name
@@ -34,7 +37,7 @@ export const EMPLOYER_PRICES = [
   300n * USDCX_SCALE,  // 3rd name
 ] as const;
 
-/** Employer sellback refund: 75% of base price */
+/** Employer sellback refund: 75% of base price (fees never refunded) */
 export const SELLBACK_REFUND_PERCENT = 75;
 
 // ----------------------------------------------------------------
@@ -205,9 +208,37 @@ export async function queryNameKind(nameHash: Field): Promise<U8 | null> {
 // ----------------------------------------------------------------
 // Command builders (preview mode)
 // ----------------------------------------------------------------
+//
+// Registration requires TWO transactions:
+// 1. USDCx transfer: approve or transfer (base_price + fee_amount) to
+//    the locally presiding DAO treasury address.
+//    → test_usdcx_stablecoin.aleo/transfer_public(dao_treasury, total_amount)
+// 2. Name registration: call the register transition.
+//
+// The base price + naming fee are application-level payments routed to
+// the DAO treasury — they are NOT network fees. Aleo execution fees are
+// paid separately by the caller.
+// ----------------------------------------------------------------
+
+/**
+ * Build the snarkos command preview for the USDCx transfer to DAO treasury.
+ * This must be executed before the registration call.
+ */
+export function buildUsdcxTransferCommand(
+  daoTreasury: Address,
+  totalAmount: bigint,
+): string {
+  return (
+    `snarkos developer execute test_usdcx_stablecoin.aleo transfer_public ` +
+    `${daoTreasury} ${totalAmount}u128`
+  );
+}
 
 /**
  * Build the snarkos command preview for registering a worker name.
+ *
+ * Precondition: caller must have transferred (WORKER_PRICE_BASE + fee_amount)
+ * USDCx to the DAO treasury.
  */
 export function buildRegisterWorkerNameCommand(
   nameHash: Field,
@@ -221,6 +252,9 @@ export function buildRegisterWorkerNameCommand(
 
 /**
  * Build the snarkos command preview for registering an employer name.
+ *
+ * Precondition: caller must have transferred (EMPLOYER_PRICES[count-1] + fee_amount)
+ * USDCx to the DAO treasury. Caller must also be verified via employer_license_registry.
  */
 export function buildRegisterEmployerNameCommand(
   nameHash: Field,
@@ -231,5 +265,18 @@ export function buildRegisterEmployerNameCommand(
   return (
     `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registry} register_employer_name ` +
     `${nameHash}field ${suffixCode}u8 ${count}u8 ${feeAmount}u128`
+  );
+}
+
+/**
+ * Build the snarkos command preview for selling an employer name back to the DAO.
+ * Refund = 75% of base price. Naming fees are never refunded.
+ */
+export function buildSellbackEmployerNameCommand(
+  nameHash: Field,
+): string {
+  return (
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registry} sellback_employer_name ` +
+    `${nameHash}field`
   );
 }
