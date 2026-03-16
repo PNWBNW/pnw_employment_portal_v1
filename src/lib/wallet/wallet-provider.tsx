@@ -16,7 +16,7 @@ export { useWallet };
  * Aleo wallet provider — uses the official @provablehq adapter stack.
  *
  * Adapters:
- * - Shield Wallet (extends LeoWalletAdapter with Shield branding)
+ * - Shield Wallet (official @provablehq/aleo-wallet-adaptor-shield)
  * - Puzzle Wallet (WalletConnect V2)
  *
  * Network and decrypt permission are configured at the provider level.
