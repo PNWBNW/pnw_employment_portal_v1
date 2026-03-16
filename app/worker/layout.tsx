@@ -46,6 +46,12 @@ export default function WorkerLayout({ children }: { children: ReactNode }) {
               Dashboard
             </a>
             <a
+              href="/worker/offers"
+              className="rounded-md px-3 py-1 text-xs hover:bg-accent"
+            >
+              Offers
+            </a>
+            <a
               href="/worker/paystubs"
               className="rounded-md px-3 py-1 text-xs hover:bg-accent"
             >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 
 function truncateAddress(addr: string | null): string {
   if (!addr) return "";
@@ -15,6 +16,16 @@ interface TopBarProps {
 
 export function TopBar({ onMenuToggle }: TopBarProps) {
   const { address, isConnected, disconnect } = useAleoSession();
+  const { disconnect: walletDisconnect } = useWallet();
+
+  const handleDisconnect = async () => {
+    try {
+      await walletDisconnect();
+    } catch {
+      // Wallet adapter may throw if already disconnected
+    }
+    disconnect();
+  };
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
@@ -56,7 +67,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
             </code>
           </div>
           <button
-            onClick={disconnect}
+            onClick={handleDisconnect}
             className="rounded-md border border-input px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
             Disconnect
