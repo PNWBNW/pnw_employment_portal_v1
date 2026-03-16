@@ -149,11 +149,15 @@ export function ConnectWalletModal({ open, onClose }: Props) {
                     {meta.description}
                   </div>
                 </div>
-                {isConnecting && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Connecting...
-                  </span>
-                )}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {isConnecting
+                    ? "Connecting..."
+                    : w.readyState === "Installed"
+                      ? "Detected"
+                      : w.readyState === "NotDetected"
+                        ? "Not found"
+                        : w.readyState}
+                </span>
               </button>
             );
           })}
