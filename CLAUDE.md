@@ -47,11 +47,14 @@ commitment primitives. This portal consumes them. It never owns on-chain logic.
 |------|---------|-------|
 | Node | 20 | LTS |
 | pnpm | 9.x | Package manager |
-| Next.js | 15 (App Router) | Framework |
+| Next.js | 16 (App Router) | Framework |
 | TypeScript | 5.x strict | No `any` except at adapter boundary |
-| Tailwind | 3.x | Styling |
+| Tailwind | 4.x | Styling |
 | shadcn/ui | latest | Component library |
-| Vitest | latest | Tests |
+| Vitest | 4.x | Tests |
+| Wallet adapters | 0.3.0-alpha.3 | @provablehq/aleo-wallet-adaptor-* |
+| Framer Motion | 12.x | Landing page animations |
+| jspdf | 4.x | Client-side PDF generation |
 
 ---
 
@@ -96,6 +99,11 @@ drive chunk-by-chunk on-chain settlement.
 | 2026-03-15 | Single-worker settlement is the canonical settlement primitive |
 | 2026-03-15 | batch_root anchored once per run via existing payroll_nfts.aleo cycle NFT |
 | 2026-03-15 | Tauri desktop packaging deferred to post-MVP |
+| 2026-03-16 | Official @provablehq/aleo-wallet-adaptor-* for wallet connection |
+| 2026-03-16 | WalletMultiButton + WalletModalProvider (official Provable UI) |
+| 2026-03-16 | jspdf replaces @react-pdf/renderer for PDF generation |
+| 2026-03-16 | Cinematic landing page with Framer Motion animations |
+| 2026-03-16 | Mobile wallet connect via in-app browser redirect (Leo/Fox) |
 
 ---
 
@@ -119,11 +127,16 @@ drive chunk-by-chunk on-chain settlement.
 - `app/(employer)/audit/` — request audit authorization
 - `app/(worker)/` — worker-side routes (stub, filled in post-E8)
 
+### Wallet Integration
+- `src/lib/wallet/wallet-provider.tsx` — `AleoWalletProviderWrapper`, `WalletMobileRedirectHandler`
+- `src/lib/wallet/credential-signer.ts` — wallet-based credential signing
+
 ### Components
+- `components/landing/` — cinematic landing page (hero, doors, animations, CTA)
 - `components/payroll-table/` — TanStack Table spreadsheet-style editor
 - `components/run-status/` — chunk-level status tracker
 - `components/key-manager/` — private key + view key session management
-- `components/pdf/` — paystub, credential, audit authorization PDFs
+- `components/pdf/` — paystub, credential, audit authorization PDFs (jspdf)
 
 ### Config
 - `src/config/programs.ts` — mirrors `pnw_mvp_v2/config/testnet.manifest.json`
@@ -180,6 +193,8 @@ Each copied file starts with:
 | E7 | Done | Batch anchor finalizer |
 | E8 | Done | Receipt viewer + credential issuer |
 | E9 | Done | Audit authorization flow |
-| Worker side | ⏳ Pending | After E9 |
+| Post-E9 | Done | Official wallet adapters + cinematic landing page |
+| E10 | ⏳ Pending | End-to-end testnet happy path |
+| Mobile polish | ⏳ Pending | Responsive formatting in employer portal |
 
 See `BUILD_ORDER.md` for exit criteria on each phase.
