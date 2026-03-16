@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface DoorProps {
@@ -10,6 +10,13 @@ interface DoorProps {
 
 function Door({ side, onClick }: DoorProps) {
   const [hovered, setHovered] = useState(false);
+  const [introPlaying, setIntroPlaying] = useState(true);
+
+  // Auto-play the open animation on mount, then close after a beat
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroPlaying(false), 2400);
+    return () => clearTimeout(timer);
+  }, []);
 
   const isEmployer = side === "employer";
   const color = isEmployer ? "var(--pnw-employer)" : "var(--pnw-worker)";
@@ -21,9 +28,32 @@ function Door({ side, onClick }: DoorProps) {
     ? "Manage payroll, credentials & compliance"
     : "View paystubs, agreements & documents";
 
+  // Theme-matched light colors instead of generic yellow/gold
+  const lightBright = isEmployer
+    ? "rgba(37, 99, 235, 0.7)"
+    : "rgba(22, 163, 74, 0.7)";
+  const lightMid = isEmployer
+    ? "rgba(59, 130, 246, 0.5)"
+    : "rgba(34, 197, 94, 0.5)";
+  const lightDim = isEmployer
+    ? "rgba(37, 99, 235, 0.15)"
+    : "rgba(22, 163, 74, 0.15)";
+  const lightGlow = isEmployer
+    ? "rgba(96, 165, 250, 0.9)"
+    : "rgba(74, 222, 128, 0.9)";
+  const lightGlowSoft = isEmployer
+    ? "rgba(59, 130, 246, 0.5)"
+    : "rgba(34, 197, 94, 0.5)";
+
+  // Door is "open" during intro animation OR hover
+  const isOpen = introPlaying || hovered;
+
   // Employer = left-hand swing (hinges on LEFT, opens revealing LEFT edge)
   // Worker   = right-hand swing (hinges on RIGHT, opens revealing RIGHT edge)
   const hingeOrigin = isEmployer ? "right center" : "left center";
+
+  // Intro delay: employer door opens first (0.6s), worker follows (1.0s)
+  const introDelay = isEmployer ? 0.6 : 1.0;
 
   return (
     <motion.button
@@ -32,8 +62,9 @@ function Door({ side, onClick }: DoorProps) {
       onMouseLeave={() => setHovered(false)}
       className="relative cursor-pointer"
       style={{
-        width: "clamp(50px, 6.5vw, 90px)",
-        height: "clamp(70px, 10vw, 140px)",
+        /* Desktop: vw-based. Mobile: larger fixed minimums for tap targets */
+        width: "clamp(60px, 6.5vw, 90px)",
+        height: "clamp(85px, 10vw, 140px)",
         perspective: "800px",
       }}
       whileTap={{ scale: 0.97 }}
@@ -45,21 +76,30 @@ function Door({ side, onClick }: DoorProps) {
           transformOrigin: hingeOrigin,
           transformStyle: "preserve-3d",
         }}
+        initial={{ rotateY: 0 }}
         animate={{
           rotateY: hovered
             ? isEmployer ? -25 : 25
-            : 0,
+            : introPlaying
+              ? isEmployer ? -20 : 20
+              : 0,
         }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        transition={
+          hovered
+            ? { duration: 0.5, ease: [0.4, 0, 0.2, 1] }
+            : introPlaying
+              ? { duration: 0.8, delay: introDelay, ease: [0.4, 0, 0.2, 1] }
+              : { duration: 0.6, ease: [0.4, 0, 0.2, 1] }
+        }
       >
         {/* The door face — semi-transparent overlay matching the painted door */}
         <div
           className="absolute inset-0 rounded-t-sm"
           style={{
-            background: hovered
-              ? `linear-gradient(180deg, rgba(255,240,200,0.08) 0%, rgba(255,220,100,0.04) 100%)`
+            background: isOpen
+              ? `linear-gradient(180deg, ${lightDim} 0%, ${lightDim.replace("0.15", "0.06")} 100%)`
               : "transparent",
-            borderTop: hovered ? "1px solid rgba(255,230,140,0.15)" : "1px solid transparent",
+            borderTop: isOpen ? `1px solid ${lightDim}` : "1px solid transparent",
             transition: "all 0.4s",
           }}
         />
@@ -67,12 +107,16 @@ function Door({ side, onClick }: DoorProps) {
 
       {/* Light pouring from behind the opened door — fixed position, doesn't rotate */}
       <AnimatePresence>
-        {hovered && (
+        {isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+            transition={
+              introPlaying
+                ? { duration: 0.6, delay: introDelay + 0.2 }
+                : { duration: 0.4, delay: 0.1 }
+            }
             className="absolute inset-0 pointer-events-none overflow-visible"
           >
             {/* Bright vertical gap light on the HINGE side (where the opening crack is) */}
@@ -81,8 +125,8 @@ function Door({ side, onClick }: DoorProps) {
               style={{
                 [isEmployer ? "right" : "left"]: "-1px",
                 width: "4px",
-                background: "linear-gradient(180deg, rgba(255,240,180,0.1) 0%, rgba(255,235,150,0.7) 20%, rgba(255,245,200,0.9) 50%, rgba(255,235,150,0.7) 80%, rgba(255,240,180,0.1) 100%)",
-                boxShadow: "0 0 12px rgba(255,220,100,0.6), 0 0 24px rgba(255,200,50,0.3)",
+                background: `linear-gradient(180deg, ${lightDim} 0%, ${lightBright} 20%, ${lightGlow} 50%, ${lightBright} 80%, ${lightDim} 100%)`,
+                boxShadow: `0 0 12px ${lightMid}, 0 0 24px ${lightGlowSoft}`,
                 borderRadius: "2px",
               }}
             />
@@ -91,7 +135,7 @@ function Door({ side, onClick }: DoorProps) {
             <div
               className="absolute inset-0"
               style={{
-                background: `radial-gradient(ellipse at ${isEmployer ? "90%" : "10%"} 50%, rgba(255,230,140,0.35) 0%, rgba(255,210,80,0.15) 30%, transparent 65%)`,
+                background: `radial-gradient(ellipse at ${isEmployer ? "90%" : "10%"} 50%, ${lightMid.replace("0.5", "0.35")} 0%, ${lightDim} 30%, transparent 65%)`,
               }}
             />
 
@@ -101,13 +145,31 @@ function Door({ side, onClick }: DoorProps) {
               style={{
                 bottom: "-20%",
                 height: "35%",
-                background: `radial-gradient(ellipse at 50% 0%, rgba(255,220,100,0.25) 0%, transparent 70%)`,
+                background: `radial-gradient(ellipse at 50% 0%, ${lightMid.replace("0.5", "0.25")} 0%, transparent 70%)`,
                 filter: "blur(6px)",
               }}
             />
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Pulsing hint ring — subtle glow around door to draw attention */}
+      {!hovered && !introPlaying && (
+        <motion.div
+          className="absolute inset-0 rounded-sm pointer-events-none"
+          style={{
+            border: `1px solid ${color}`,
+            opacity: 0,
+          }}
+          animate={{ opacity: [0, 0.4, 0] }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+            repeatDelay: 3,
+            ease: "easeInOut",
+          }}
+        />
+      )}
 
       {/* Tooltip bubble */}
       <AnimatePresence>
@@ -145,6 +207,27 @@ function Door({ side, onClick }: DoorProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* "Click to enter" label that appears after intro finishes */}
+      <AnimatePresence>
+        {!introPlaying && !hovered && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="absolute left-1/2 -translate-x-1/2 z-30 whitespace-nowrap"
+            style={{ bottom: "calc(100% + 6px)" }}
+          >
+            <span
+              className="text-[9px] font-medium tracking-wider uppercase"
+              style={{ color, textShadow: `0 0 8px ${glowColor}` }}
+            >
+              {isEmployer ? "Employer" : "Worker"}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.button>
   );
 }
@@ -159,20 +242,44 @@ export function PortalDoors({
   onWorkerClick,
 }: PortalDoorsProps) {
   return (
-    <div
-      className="absolute z-20 flex gap-[0.5vw]"
-      style={{
-        /* Position over the painted doors in pnw-tree.png.
-           Doors are at ~32% of image height. Image = 150vw tall.
-           On a 16:9 screen, 32% of image = ~85% of viewport height.
-           Use % of hero (h-screen) with a vw-based calculation. */
-        left: "50%",
-        top: "min(48vw, 82vh)",
-        transform: "translate(-50%, -50%)",
-      }}
-    >
-      <Door side="employer" onClick={onEmployerClick} />
-      <Door side="worker" onClick={onWorkerClick} />
-    </div>
+    <>
+      {/* Responsive positioning via CSS.
+          The background image is w-full h-auto, so door Y-position scales with vw.
+          On portrait mobile, the image is narrower → painted doors are higher. */}
+      <style jsx>{`
+        .portal-doors-container {
+          position: absolute;
+          z-index: 20;
+          display: flex;
+          left: 50%;
+          transform: translate(-50%, -50%);
+        }
+        /* Mobile portrait (narrow viewports) */
+        @media (max-width: 639px) {
+          .portal-doors-container {
+            top: 42vw;
+            gap: 2vw;
+          }
+        }
+        /* Tablet */
+        @media (min-width: 640px) and (max-width: 1023px) {
+          .portal-doors-container {
+            top: 46vw;
+            gap: 1vw;
+          }
+        }
+        /* Desktop */
+        @media (min-width: 1024px) {
+          .portal-doors-container {
+            top: min(48vw, 82vh);
+            gap: 0.5vw;
+          }
+        }
+      `}</style>
+      <div className="portal-doors-container">
+        <Door side="employer" onClick={onEmployerClick} />
+        <Door side="worker" onClick={onWorkerClick} />
+      </div>
+    </>
   );
 }
