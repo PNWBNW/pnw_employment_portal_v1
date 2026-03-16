@@ -191,6 +191,18 @@ body {
   100% { top: 100%; opacity: 0; }
 }
 
+@keyframes deep-root-flow {
+  0% { transform: translateY(-33.33%); }
+  100% { transform: translateY(0%); }
+}
+
+@keyframes deep-root-pulse {
+  0% { top: -5%; opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.3; }
+  100% { top: 100%; opacity: 0; }
+}
+
 /* Smooth scroll for the whole page */
 html {
   scroll-behavior: smooth;
