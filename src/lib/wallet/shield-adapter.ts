@@ -2,15 +2,15 @@
  * Shield Wallet Adapter for Aleo.
  *
  * Extends the official @provablehq LeoWalletAdapter (since Shield IS Leo Wallet
- * rebranded by Provable). Overrides name, url, and icon to use Shield branding.
- *
- * Detection: window.leoWallet → window.leo (same as Leo — the underlying
- * Chrome extension is the same, just rebranded).
+ * rebranded by Provable). Overrides:
+ * - Branding: name, url, icon
+ * - Detection: also checks window.aleo and window.shield (not just window.leoWallet)
  *
  * When Provable ships a first-party Shield adapter, replace this file.
  */
 
 import { LeoWalletAdapter } from "@provablehq/aleo-wallet-adaptor-leo";
+import { WalletReadyState } from "@provablehq/aleo-wallet-standard";
 
 const SHIELD_ICON =
   "data:image/svg+xml;base64," +
@@ -22,13 +22,56 @@ const SHIELD_ICON =
     </svg>`,
   );
 
+/** Try every known global where Shield / Leo might inject. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function findShieldProvider(): any | undefined {
+  if (typeof window === "undefined") return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  return w.aleo ?? w.shield ?? w.leoWallet ?? w.leo ?? undefined;
+}
+
 export class ShieldWalletAdapter extends LeoWalletAdapter {
   constructor() {
     super();
-    // Override branding — LeoWalletAdapter types name/icon as const literals,
-    // so we assign in the constructor to avoid TS nominal-type conflicts.
-    (this as any).name = "Shield Wallet";
-    (this as any).url = "https://www.shield.app";
-    (this as any).icon = SHIELD_ICON;
+
+    // Override branding (LeoWalletAdapter types these as const-literals,
+    // so we assign in the constructor to avoid TS nominal-type conflicts).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const self = this as any;
+    self.name = "Shield Wallet";
+    self.url = "https://www.shield.app";
+    self.icon = SHIELD_ICON;
+
+    // The parent constructor set up polling with _checkAvailability(), but
+    // it only checks window.leoWallet / window.leo. Monkey-patch it to
+    // also detect window.aleo and window.shield.
+    const originalCheck: () => boolean = self._checkAvailability.bind(this);
+    self._checkAvailability = (): boolean => {
+      // Try Leo's original check first
+      if (originalCheck()) return true;
+
+      // Also check Shield-specific globals
+      const provider = findShieldProvider();
+      if (provider) {
+        self._leoWallet = provider;
+        self._readyState = WalletReadyState.INSTALLED;
+        self._window = window;
+        return true;
+      }
+
+      // Mobile fallback
+      if (typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        self._readyState = WalletReadyState.LOADABLE;
+        return true;
+      }
+
+      return false;
+    };
+
+    // Run patched check once immediately (parent may have missed Shield globals)
+    if (typeof window !== "undefined") {
+      self._checkAvailability();
+    }
   }
 }
