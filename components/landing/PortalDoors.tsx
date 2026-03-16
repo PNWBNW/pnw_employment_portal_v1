@@ -307,10 +307,10 @@ export function PortalDoors({
             gap: 3vw;
           }
         }
-        /* Desktop */
+        /* Desktop — no vh cap; doors must track the image position exactly */
         @media (min-width: 1024px) {
           .portal-doors-container {
-            top: min(37.9vw, 65vh);
+            top: 37.9vw;
             gap: 3vw;
           }
         }
