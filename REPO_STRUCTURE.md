@@ -73,12 +73,12 @@ app/
 │       └── request/
 │           └── page.tsx          ← new audit authorization request form
 │
-└── (worker)/                     ← worker-authenticated route group (stub, post-E9)
+└── worker/                       ← worker-authenticated route group
     ├── layout.tsx                ← checks worker session
     ├── dashboard/
-    │   └── page.tsx
+    │   └── page.tsx              ← worker dashboard + pending audit requests
     └── paystubs/
-        └── page.tsx
+        └── page.tsx              ← paystub list (decoded via view key)
 ```
 
 ---
@@ -89,29 +89,34 @@ app/
 components/
 │
 ├── ui/                           ← shadcn/ui generated components (do not edit)
-│   ├── button.tsx
-│   ├── table.tsx
-│   ├── dialog.tsx
-│   ├── input.tsx
-│   ├── badge.tsx
-│   ├── card.tsx
-│   ├── tabs.tsx
-│   ├── toast.tsx
-│   ├── form.tsx
-│   └── ... (others as needed)
+│   ├── badge.tsx, button.tsx, card.tsx, dialog.tsx, input.tsx, label.tsx,
+│   ├── select.tsx, separator.tsx, sheet.tsx, table.tsx, tabs.tsx, toast.tsx
 │
 ├── key-manager/
 │   ├── KeyManagerProvider.tsx    ← session context provider; wraps root layout
-│   ├── ConnectWalletModal.tsx    ← wallet connection (Path A)
-│   ├── EnterKeysModal.tsx        ← direct key entry (Path B)
-│   └── useAleoSession.ts         ← hook: { address, view_key, sign }
+│   ├── ConnectWalletModal.tsx    ← legacy custom modal (superseded by WalletModalProvider)
+│   ├── EnterKeysModal.tsx        ← direct key entry (Path B — fallback)
+│   ├── useAleoSession.ts         ← hook: { address, view_key, isConnected, sign }
+│   └── useWalletSigner.ts        ← bridges wallet adapter signing to session
+│
+├── landing/                      ← cinematic landing page components
+│   ├── HeroSection.tsx           ← hero with WalletMultiButton + portal doors
+│   ├── PortalDoors.tsx           ← interactive employer/worker doors over hero image
+│   ├── CinematicSections.tsx     ← scrolling feature sections below the fold
+│   ├── FooterCTA.tsx             ← bottom call-to-action with door entry
+│   ├── AnimatedBirds.tsx         ← flying bird SVG animations
+│   ├── ConstellationOverlay.tsx  ← starfield dots in the sky region
+│   ├── TreeSwayOverlay.tsx       ← subtle wind sway on the tree
+│   └── RootPulse.tsx             ← glowing root/data-flow animation
 │
 ├── payroll-table/
 │   ├── PayrollTable.tsx          ← TanStack Table with inline editing
-│   ├── PayrollTableRow.tsx       ← single editable row
 │   ├── PayrollTableToolbar.tsx   ← add row, import CSV, totals summary
 │   ├── PayrollTableValidation.tsx← per-row + run-level validation display
-│   └── columns.ts                ← TanStack column definitions
+│   ├── ManifestPreview.tsx       ← manifest preview panel (batch_id, row_root, etc.)
+│   ├── columns.ts                ← TanStack column definitions
+│   ├── types.ts                  ← table-specific types
+│   └── validation.ts             ← row validation logic
 │
 ├── run-status/
 │   ├── RunStatusBanner.tsx       ← top-level run state (draft / proving / settled)
@@ -120,14 +125,12 @@ components/
 │   └── RunSummary.tsx            ← totals, anchor hash, timestamp
 │
 ├── pdf/
-│   ├── PaystubPDF.tsx            ← @react-pdf/renderer paystub document
+│   ├── PaystubPDF.tsx            ← jspdf paystub document
+│   ├── PayrollRunPDF.tsx         ← employer payroll run summary PDF
 │   ├── CredentialCertPDF.tsx     ← credential certificate
 │   ├── AuditAuthPDF.tsx          ← audit authorization certificate
-│   └── DownloadPDFButton.tsx     ← renders PDF and triggers download
-│
-├── qr/
-│   ├── OnboardingQRCode.tsx      ← react-qr-code wrapper for onboarding QR
-│   └── OnboardingQRSheet.tsx     ← full sheet: QR + printable instructions
+│   ├── DownloadPDFButton.tsx     ← renders PDF and triggers download
+│   └── pdf_helpers.ts            ← shared PDF utilities
 │
 └── nav/
     ├── EmployerNav.tsx           ← sidebar navigation for employer routes
@@ -142,29 +145,38 @@ components/
 src/
 │
 ├── lib/
-│   └── pnw-adapter/              ← COPIED from pnw_mvp_v2 (see INTEROP.md)
-│       ├── aleo_cli_adapter.ts   ← execution boundary
-│       ├── layer1_adapter.ts     ← L1 program/transition mapping
-│       ├── layer2_adapter.ts     ← L2 program/transition mapping
-│       ├── layer1_router.ts      ← L1 call plan types (WorkerPayArgs, BatchPayrollWorker)
-│       ├── layer2_router.ts      ← L2 call plan types
-│       ├── canonical_encoder.ts  ← TLV encoding + BLAKE3
-│       ├── canonical_types.ts    ← CanonicalHashes type
-│       ├── hash.ts               ← domain-separated hashing
-│       ├── merkle.ts             ← Merkle tree construction + proofs
-│       ├── token_id.ts           ← NFT token ID derivation
-│       ├── aleo_types.ts         ← Address, Field, U8..U128, Bytes32
-│       └── aleo_records.ts       ← opaque record type aliases
+│   ├── pnw-adapter/              ← COPIED from pnw_mvp_v2 (see INTEROP.md)
+│   │   ├── aleo_cli_adapter.ts   ← execution boundary
+│   │   ├── layer1_adapter.ts     ← L1 program/transition mapping
+│   │   ├── layer2_adapter.ts     ← L2 program/transition mapping
+│   │   ├── layer1_router.ts      ← L1 call plan types (WorkerPayArgs, BatchPayrollWorker)
+│   │   ├── layer2_router.ts      ← L2 call plan types
+│   │   ├── canonical_encoder.ts  ← TLV encoding + BLAKE3
+│   │   ├── canonical_types.ts    ← CanonicalHashes type
+│   │   ├── hash.ts + hash.test.ts← domain-separated hashing
+│   │   ├── merkle.ts + merkle.test.ts ← Merkle tree construction + proofs
+│   │   ├── token_id.ts           ← NFT token ID derivation
+│   │   ├── aleo_types.ts         ← Address, Field, U8..U128, Bytes32
+│   │   └── aleo_records.ts       ← opaque record type aliases
+│   │
+│   ├── wallet/                    ← Aleo wallet adapter integration
+│   │   ├── wallet-provider.tsx    ← AleoWalletProviderWrapper + WalletMobileRedirectHandler
+│   │   ├── credential-signer.ts   ← wallet-based credential signing
+│   │   └── credential-signer.test.ts
+│   │
+│   └── utils.ts                   ← shared utility functions (cn, etc.)
 │
 ├── manifest/
 │   ├── types.ts                  ← PayrollRunManifest, PayrollRow, ChunkPlan types
 │   ├── compiler.ts               ← table input → deterministic manifest
 │   ├── chunk_planner.ts          ← manifest → ChunkPlan[]
 │   ├── compiler.test.ts          ← Vitest: row hashing, batch_id determinism
-│   └── chunk_planner.test.ts     ← Vitest: chunking edge cases
+│   ├── chunk_planner.test.ts     ← Vitest: chunking edge cases
+│   └── validation.test.ts        ← Vitest: amount validation rules
 │
 ├── coordinator/
 │   ├── settlement_coordinator.ts ← drives adapter per chunk; run state machine
+│   ├── settlement_coordinator.test.ts
 │   ├── receipt_reconciler.ts     ← maps receipts → manifest rows
 │   └── receipt_reconciler.test.ts← Vitest: payroll_inputs_hash matching
 │
@@ -172,13 +184,24 @@ src/
 │   ├── batch_anchor_finalizer.ts ← mints cycle NFT after all chunks settle
 │   └── batch_anchor_finalizer.test.ts
 │
-├── onboarding/
-│   ├── qr_payload.ts             ← QR code payload schema + encoder/decoder
-│   ├── onboarding_workflow.ts    ← wraps pnw_mvp_v2 onboarding_workflow.ts
-│   └── qr_payload.test.ts
+├── audit/
+│   ├── audit_actions.ts          ← audit authorization request/approve actions
+│   └── audit_actions.test.ts
+│
+├── credentials/
+│   └── credential_actions.ts     ← credential issue/revoke actions
+│
+├── persistence/                   ← encrypted draft storage
+│   ├── index.ts                  ← public API
+│   ├── draft_store.ts            ← session-scoped draft persistence
+│   ├── draft_encryptor.ts        ← AES encryption for drafts
+│   ├── draft_integrity.ts        ← HMAC integrity checks
+│   ├── key_provider.ts           ← key derivation for draft encryption
+│   └── __tests__/                ← Vitest: encryption, integrity, key derivation
 │
 ├── records/
 │   ├── usdcx_scanner.ts          ← scans employer's USDCx records via view key
+│   ├── usdcx_scanner.test.ts
 │   ├── receipt_scanner.ts        ← scans paystub receipts via view key
 │   └── agreement_reader.ts       ← reads employer's agreement records
 │
@@ -189,7 +212,9 @@ src/
 └── stores/
     ├── payroll_run_store.ts       ← Zustand: PayrollRunManifest state machine
     ├── session_store.ts           ← Zustand: Aleo session (address, view_key)
-    └── worker_store.ts            ← Zustand: cached decoded worker records
+    ├── worker_store.ts            ← Zustand: cached decoded worker records
+    ├── credential_store.ts        ← Zustand: credential lifecycle state
+    └── audit_store.ts             ← Zustand: audit request state
 ```
 
 ---
@@ -198,6 +223,10 @@ src/
 
 ```
 public/
+├── images/
+│   ├── pnw-tree.png             ← hero image (1024×1536): tree with painted doors
+│   ├── pnw-hero.png             ← secondary hero image
+│   └── pnw-roots.png            ← root/underground image for scroll sections
 ├── logo.svg
 ├── logo-dark.svg
 └── favicon.ico
