@@ -1,6 +1,8 @@
 "use client";
 
 import type { PayrollRunManifest } from "@/src/manifest/types";
+import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
+import { generatePayrollRunPdf } from "@/components/pdf/PayrollRunPDF";
 
 type Props = {
   manifest: PayrollRunManifest;
@@ -8,6 +10,8 @@ type Props = {
   onMintAnchor?: () => void;
   anchorLoading?: boolean;
   anchorError?: string | null;
+  /** Optional display names keyed by worker_addr */
+  workerNames?: Record<string, string>;
 };
 
 function formatMinorUnits(value: string): string {
@@ -27,7 +31,7 @@ function truncateHash(hash: string, len = 16): string {
   return `${hash.slice(0, len)}...`;
 }
 
-export function RunSummary({ manifest, onExportJson, onMintAnchor, anchorLoading, anchorError }: Props) {
+export function RunSummary({ manifest, onExportJson, onMintAnchor, anchorLoading, anchorError, workerNames }: Props) {
   const isFullySettled = manifest.status === "settled";
   const isAnchored = manifest.status === "anchored";
 
@@ -110,7 +114,7 @@ export function RunSummary({ manifest, onExportJson, onMintAnchor, anchorLoading
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t border-border">
+      <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
         {onExportJson && (
           <button
             onClick={onExportJson}
@@ -119,6 +123,11 @@ export function RunSummary({ manifest, onExportJson, onMintAnchor, anchorLoading
             Export JSON
           </button>
         )}
+        <DownloadPDFButton
+          generatePdf={() => generatePayrollRunPdf({ manifest, workerNames })}
+          fileName={`payroll-run-${manifest.batch_id.slice(0, 12)}`}
+          label="Print Payroll Run"
+        />
         {isFullySettled && !isAnchored && onMintAnchor && (
           <button
             onClick={onMintAnchor}
