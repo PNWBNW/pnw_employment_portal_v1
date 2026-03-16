@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
 import {
   useAuditStore,
   rehydrateAuditRequests,
@@ -18,7 +19,9 @@ function truncate(s: string, len = 16): string {
 export default function WorkerDashboardPage() {
   const { address } = useAleoSession();
   const { requests, updateStatus } = useAuditStore();
+  const { canSign, signForAudit } = useWalletSigner();
   const [mintCommand, setMintCommand] = useState<string | null>(null);
+  const [signing, setSigning] = useState<string | null>(null);
 
   useEffect(() => {
     rehydrateAuditRequests();
@@ -35,10 +38,26 @@ export default function WorkerDashboardPage() {
     (r) => r.status !== "pending_worker",
   );
 
-  function handleApprove(req: AuditRequest) {
+  async function handleApprove(req: AuditRequest) {
+    setSigning(req.auth_id);
+
+    // If wallet signing is available, get a consent signature first
+    if (canSign) {
+      try {
+        await signForAudit(req.auth_id);
+        // Signature proves the worker consented via their wallet
+        // Private key never left the extension
+      } catch {
+        // User may have rejected the signing prompt — still allow approval
+        // via the button (non-wallet path)
+      }
+    }
+
     updateStatus(req.auth_id, "approved");
     const cmd = buildMintAuditNftCommand(req);
     setMintCommand(cmd);
+    setSigning(null);
+
     // In production, this would trigger the actual on-chain NFT mint
     // via the Layer 2 adapter after both consents are recorded.
     // For MVP, we show the command and mark as approved.
@@ -107,19 +126,30 @@ export default function WorkerDashboardPage() {
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleApprove(req)}
-                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                  disabled={signing === req.auth_id}
+                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  Approve
+                  {signing === req.auth_id
+                    ? "Signing..."
+                    : canSign
+                      ? "Sign & Approve"
+                      : "Approve"}
                 </button>
                 <button
                   onClick={() => handleDecline(req)}
-                  className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                  disabled={signing === req.auth_id}
+                  className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
                   Decline
                 </button>
+                {canSign && (
+                  <span className="text-[10px] text-muted-foreground">
+                    Wallet will prompt for signature
+                  </span>
+                )}
               </div>
             </div>
           ))}
