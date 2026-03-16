@@ -28,7 +28,18 @@ function findShieldProvider(): any | undefined {
   if (typeof window === "undefined") return undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const w = window as any;
-  return w.aleo ?? w.shield ?? w.leoWallet ?? w.leo ?? undefined;
+
+  // Log all candidate globals for debugging — remove after Shield integration is confirmed
+  console.debug("[ShieldWallet] Detection check:", {
+    "window.aleo": !!w.aleo,
+    "window.shield": !!w.shield,
+    "window.leoWallet": !!w.leoWallet,
+    "window.leo": !!w.leo,
+    "window.provable": !!w.provable,
+    "window.aleoWallet": !!w.aleoWallet,
+  });
+
+  return w.aleo ?? w.shield ?? w.leoWallet ?? w.leo ?? w.provable ?? w.aleoWallet ?? undefined;
 }
 
 export class ShieldWalletAdapter extends LeoWalletAdapter {
