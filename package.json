@@ -12,15 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@demox-labs/aleo-wallet-adapter-base": "^0.0.23",
-    "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
-    "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
     "@noble/hashes": "^2.0.1",
     "@provablehq/aleo-types": "0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-core": "0.3.0-alpha.3",
-    "@provablehq/aleo-wallet-adaptor-leo": "0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-puzzle": "0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-react": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-shield": "0.3.0-alpha.3",
     "@provablehq/aleo-wallet-standard": "0.3.0-alpha.3",
     "@tanstack/react-table": "^8.21.3",
     "aleo-adapters": "^1.2.1",
