@@ -1,8 +1,11 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect } from "react";
 import Link from "next/link";
 import { useWorkerStore } from "@/src/stores/worker_store";
+import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
+import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
+import { generatePaystubPdf } from "@/components/pdf/PaystubPDF";
 
 function truncate(str: string, len = 16): string {
   if (str.length <= len) return str;
@@ -34,8 +37,21 @@ export default function WorkerDetailPage({
   const decodedId = decodeURIComponent(worker_id);
   const workers = useWorkerStore((s) => s.workers);
   const setDisplayName = useWorkerStore((s) => s.setDisplayName);
+  const history = usePayrollRunStore((s) => s.history);
+  const restore = usePayrollRunStore((s) => s.restore);
+
+  useEffect(() => {
+    restore();
+  }, [restore]);
 
   const worker = workers.find((w) => w.agreement_id === decodedId);
+
+  // Collect payroll rows for this worker from run history
+  const workerPayRows = history.flatMap((manifest) =>
+    manifest.rows
+      .filter((r) => r.agreement_id === decodedId)
+      .map((row) => ({ manifest, row })),
+  );
 
   if (!worker) {
     return (
@@ -163,25 +179,74 @@ export default function WorkerDetailPage({
         <h2 className="mb-3 text-sm font-medium text-card-foreground">
           Pay History
         </h2>
-        {worker.last_payroll_epoch ? (
-          <p className="text-sm text-muted-foreground">
-            Last payroll: Epoch {worker.last_payroll_epoch}
-          </p>
-        ) : (
+        {workerPayRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No payroll history yet. Pay history will be populated from decoded
             paystub receipt records after payroll runs are executed.
           </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="pb-2 text-left font-medium text-muted-foreground">Epoch</th>
+                  <th className="pb-2 text-left font-medium text-muted-foreground">Gross</th>
+                  <th className="pb-2 text-left font-medium text-muted-foreground">Net</th>
+                  <th className="pb-2 text-left font-medium text-muted-foreground">Status</th>
+                  <th className="pb-2 text-left font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workerPayRows.map(({ manifest, row }) => (
+                  <tr key={`${manifest.batch_id}-${row.row_index}`} className="border-b border-border last:border-0">
+                    <td className="py-1.5 font-mono">{manifest.epoch_id}</td>
+                    <td className="py-1.5 font-mono">
+                      ${(Number(row.gross_amount) / 1_000_000).toFixed(2)}
+                    </td>
+                    <td className="py-1.5 font-mono">
+                      ${(Number(row.net_amount) / 1_000_000).toFixed(2)}
+                    </td>
+                    <td className="py-1.5 capitalize">{row.status}</td>
+                    <td className="py-1.5">
+                      <DownloadPDFButton
+                        generatePdf={() =>
+                          generatePaystubPdf({
+                            manifest,
+                            row,
+                            workerDisplayName: worker.display_name,
+                          })
+                        }
+                        fileName={`paystub-epoch-${manifest.epoch_id}-${row.row_index}`}
+                        label="Print Paystub"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Credentials */}
       <div className="rounded-lg border border-border bg-card p-4">
-        <h2 className="mb-3 text-sm font-medium text-card-foreground">
-          Credentials
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-card-foreground">
+            Credentials
+          </h2>
+          <Link
+            href={`/credentials/issue`}
+            className="text-xs text-primary hover:underline"
+          >
+            Issue Credential
+          </Link>
+        </div>
         <p className="text-sm text-muted-foreground">
-          Credential management will be available in Phase E8.
+          View and manage credentials from the{" "}
+          <Link href="/credentials" className="text-primary hover:underline">
+            Credentials page
+          </Link>
+          .
         </p>
       </div>
     </div>
