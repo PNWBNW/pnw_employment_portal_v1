@@ -21,12 +21,9 @@ function Door({ side, onClick }: DoorProps) {
     ? "Manage payroll, credentials & compliance"
     : "View paystubs, agreements & documents";
 
-  // Employer = left-hand swing (hinges left, opens leftward, light spills from LEFT)
-  // Worker   = right-hand swing (hinges right, opens rightward, light spills from RIGHT)
-  const hingeOrigin = isEmployer ? "left center" : "right center";
-  // Opening edge where light spills out
-  const openEdge = isEmployer ? "left" : "right";
-  const lightSide = isEmployer ? "15%" : "85%";
+  // Employer = left-hand swing (hinges on LEFT, opens revealing LEFT edge)
+  // Worker   = right-hand swing (hinges on RIGHT, opens revealing RIGHT edge)
+  const hingeOrigin = isEmployer ? "right center" : "left center";
 
   return (
     <motion.button
@@ -35,94 +32,77 @@ function Door({ side, onClick }: DoorProps) {
       onMouseLeave={() => setHovered(false)}
       className="relative cursor-pointer"
       style={{
-        width: "clamp(60px, 8vw, 100px)",
-        height: "clamp(80px, 12vw, 150px)",
+        width: "clamp(50px, 6.5vw, 90px)",
+        height: "clamp(70px, 10vw, 140px)",
+        perspective: "800px",
       }}
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.97 }}
     >
-      {/* Invisible hit area that rotates to simulate door opening */}
-      <div
+      {/* Door panel — actually rotates in 3D to look like it's opening */}
+      <motion.div
         className="absolute inset-0"
         style={{
           transformOrigin: hingeOrigin,
-          transform: hovered
-            ? `perspective(600px) rotateY(${isEmployer ? "18" : "-18"}deg)`
-            : "perspective(600px) rotateY(0deg)",
-          transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+          transformStyle: "preserve-3d",
         }}
-      />
+        animate={{
+          rotateY: hovered
+            ? isEmployer ? -25 : 25
+            : 0,
+        }}
+        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+      >
+        {/* The door face — semi-transparent overlay matching the painted door */}
+        <div
+          className="absolute inset-0 rounded-t-sm"
+          style={{
+            background: hovered
+              ? `linear-gradient(180deg, rgba(255,240,200,0.08) 0%, rgba(255,220,100,0.04) 100%)`
+              : "transparent",
+            borderTop: hovered ? "1px solid rgba(255,230,140,0.15)" : "1px solid transparent",
+            transition: "all 0.4s",
+          }}
+        />
+      </motion.div>
 
-      {/* Interior light spill — bright warm light pouring from the cracked-open door */}
+      {/* Light pouring from behind the opened door — fixed position, doesn't rotate */}
       <AnimatePresence>
         {hovered && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
             className="absolute inset-0 pointer-events-none overflow-visible"
           >
-            {/* Bright gap light — the crack of the open door on the OPENING edge */}
+            {/* Bright vertical gap light on the HINGE side (where the opening crack is) */}
             <div
-              className="absolute top-[2%] bottom-[2%]"
+              className="absolute top-[5%] bottom-[5%]"
               style={{
-                [openEdge]: "-2px",
-                width: "6px",
-                background: "linear-gradient(180deg, rgba(255,240,180,0.2) 0%, rgba(255,230,120,0.95) 15%, rgba(255,245,200,1) 50%, rgba(255,230,120,0.95) 85%, rgba(255,240,180,0.2) 100%)",
-                boxShadow: "0 0 20px rgba(255,220,100,0.8), 0 0 40px rgba(255,200,50,0.4), 0 0 60px rgba(255,180,30,0.2)",
-                borderRadius: "3px",
-                filter: "blur(0.5px)",
+                [isEmployer ? "right" : "left"]: "-1px",
+                width: "4px",
+                background: "linear-gradient(180deg, rgba(255,240,180,0.1) 0%, rgba(255,235,150,0.7) 20%, rgba(255,245,200,0.9) 50%, rgba(255,235,150,0.7) 80%, rgba(255,240,180,0.1) 100%)",
+                boxShadow: "0 0 12px rgba(255,220,100,0.6), 0 0 24px rgba(255,200,50,0.3)",
+                borderRadius: "2px",
               }}
             />
 
-            {/* Interior warm glow flooding out from the opening side */}
+            {/* Warm interior glow spreading from the open crack */}
             <div
               className="absolute inset-0"
               style={{
-                background: `radial-gradient(ellipse at ${lightSide} 45%, rgba(255,230,140,0.5) 0%, rgba(255,200,80,0.25) 25%, rgba(255,180,50,0.08) 50%, transparent 70%)`,
+                background: `radial-gradient(ellipse at ${isEmployer ? "90%" : "10%"} 50%, rgba(255,230,140,0.35) 0%, rgba(255,210,80,0.15) 30%, transparent 65%)`,
               }}
             />
 
-            {/* Light rays fanning out from the opening edge */}
-            {[...Array(5)].map((_, i) => {
-              const angle = isEmployer
-                ? 20 - i * 10   // fan from left edge rightward
-                : -20 + i * 10; // fan from right edge leftward
-              return (
-                <div
-                  key={i}
-                  className="absolute"
-                  style={{
-                    [openEdge]: "0",
-                    top: `${15 + i * 8}%`,
-                    width: `${60 + i * 10}%`,
-                    height: "2px",
-                    background: `linear-gradient(${isEmployer ? "to right" : "to left"}, rgba(255,230,140,${0.5 - i * 0.08}), transparent)`,
-                    transform: `rotate(${angle}deg)`,
-                    transformOrigin: `${openEdge} center`,
-                    filter: "blur(1px)",
-                  }}
-                />
-              );
-            })}
-
-            {/* Floor light pool — light spilling onto the ground below the door */}
+            {/* Ground light pool */}
             <div
-              className="absolute left-[-20%] right-[-20%]"
+              className="absolute left-[-30%] right-[-30%]"
               style={{
-                bottom: "-15%",
-                height: "30%",
-                background: `radial-gradient(ellipse at ${isEmployer ? "35%" : "65%"} 0%, rgba(255,220,100,0.3) 0%, rgba(255,200,80,0.1) 50%, transparent 80%)`,
-                filter: "blur(4px)",
-              }}
-            />
-
-            {/* Subtle portal-colored accent at base */}
-            <div
-              className="absolute bottom-0 left-0 right-0 h-[8%]"
-              style={{
-                background: `linear-gradient(to top, ${glowColor}, transparent)`,
-                opacity: 0.5,
+                bottom: "-20%",
+                height: "35%",
+                background: `radial-gradient(ellipse at 50% 0%, rgba(255,220,100,0.25) 0%, transparent 70%)`,
+                filter: "blur(6px)",
               }}
             />
           </motion.div>
@@ -180,13 +160,15 @@ export function PortalDoors({
 }: PortalDoorsProps) {
   return (
     <div
-      className="absolute z-20 flex gap-[1vw]"
+      className="absolute z-20 flex gap-[0.5vw]"
       style={{
-        /* Image is w-full h-auto (1024x1536 = 2:3 ratio).
-           Image height = 150vw. Doors in image are at ~25% = 37vw from top. */
+        /* Position over the painted doors in pnw-tree.png.
+           Doors are at ~32% of image height. Image = 150vw tall.
+           On a 16:9 screen, 32% of image = ~85% of viewport height.
+           Use % of hero (h-screen) with a vw-based calculation. */
         left: "50%",
-        top: "min(37vw, 70vh)",
-        transform: "translate(-52%, -50%)",
+        top: "min(48vw, 82vh)",
+        transform: "translate(-50%, -50%)",
       }}
     >
       <Door side="employer" onClick={onEmployerClick} />
