@@ -8,7 +8,6 @@ import { ConnectWalletModal } from "@/components/key-manager/ConnectWalletModal"
 import { HeroSection } from "@/components/landing/HeroSection";
 import { CinematicSections } from "@/components/landing/CinematicSections";
 import { FooterCTA } from "@/components/landing/FooterCTA";
-import { DeepRoots } from "@/components/landing/DeepRoots";
 
 export default function LandingPage() {
   const { isConnected } = useAleoSession();
@@ -32,31 +31,45 @@ export default function LandingPage() {
   const handlePortalClick = useCallback(
     (portal: "employer" | "worker") => {
       setPortalChoice(portal);
-      // Show wallet connect first, with manual key fallback
       setShowWallet(true);
     },
     []
   );
 
   return (
-    <div className="relative hide-scrollbar" style={{ background: "#000" }}>
-      {/* Deep root streams — span entire page, behind content */}
-      <DeepRoots />
+    <div className="relative hide-scrollbar">
+      {/* Single tall background image spanning the entire page.
+          Trees at top, roots at bottom — scrolls naturally with content.
+          object-fit: contain ensures no side cropping on wide screens. */}
+      <div
+        className="absolute inset-0 z-0 overflow-hidden"
+        style={{ background: "var(--pnw-navy-950)" }}
+      >
+        <img
+          src="/images/pnw-tree.png"
+          alt=""
+          className="w-full h-full object-contain object-top"
+          draggable={false}
+        />
+      </div>
 
-      {/* Hero: full viewport with image, doors, trees, roots */}
-      <HeroSection
-        onEmployerClick={() => handlePortalClick("employer")}
-        onWorkerClick={() => handlePortalClick("worker")}
-      />
+      {/* All content layers on top of the background */}
+      <div className="relative z-10">
+        {/* Hero: viewport-height section with doors, constellations */}
+        <HeroSection
+          onEmployerClick={() => handlePortalClick("employer")}
+          onWorkerClick={() => handlePortalClick("worker")}
+        />
 
-      {/* Cinematic scroll sections — 6 descriptors */}
-      <CinematicSections />
+        {/* Cinematic scroll sections — 6 descriptors over the roots */}
+        <CinematicSections />
 
-      {/* Final CTA at the deepest root */}
-      <FooterCTA
-        onEmployerClick={() => handlePortalClick("employer")}
-        onWorkerClick={() => handlePortalClick("worker")}
-      />
+        {/* Final CTA at the deepest root */}
+        <FooterCTA
+          onEmployerClick={() => handlePortalClick("employer")}
+          onWorkerClick={() => handlePortalClick("worker")}
+        />
+      </div>
 
       {/* Auth modals */}
       <ConnectWalletModal
