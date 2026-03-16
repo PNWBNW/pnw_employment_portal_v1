@@ -1,61 +1,73 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { EnterKeysModal } from "@/components/key-manager/EnterKeysModal";
 import { ConnectWalletModal } from "@/components/key-manager/ConnectWalletModal";
+import { HeroSection } from "@/components/landing/HeroSection";
+import { CinematicSections } from "@/components/landing/CinematicSections";
+import { FooterCTA } from "@/components/landing/FooterCTA";
 
 export default function LandingPage() {
   const { isConnected } = useAleoSession();
   const router = useRouter();
   const [showKeys, setShowKeys] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
+  const [portalChoice, setPortalChoice] = useState<
+    "employer" | "worker" | null
+  >(null);
 
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && portalChoice === "employer") {
+      router.push("/dashboard");
+    } else if (isConnected && portalChoice === "worker") {
+      router.push("/worker/dashboard");
+    } else if (isConnected) {
       router.push("/dashboard");
     }
-  }, [isConnected, router]);
+  }, [isConnected, portalChoice, router]);
+
+  const handlePortalClick = useCallback(
+    (portal: "employer" | "worker") => {
+      setPortalChoice(portal);
+      // Show wallet connect first, with manual key fallback
+      setShowWallet(true);
+    },
+    []
+  );
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background">
-      <div className="mx-4 w-full max-w-sm space-y-6 text-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            PNW Employment Portal
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Privacy-first payroll for Proven National Workers
-          </p>
-        </div>
+    <div className="relative hide-scrollbar" style={{ background: "#000" }}>
+      {/* Hero: full viewport with image, doors, birds, trees, roots */}
+      <HeroSection
+        onEmployerClick={() => handlePortalClick("employer")}
+        onWorkerClick={() => handlePortalClick("worker")}
+      />
 
-        <div className="space-y-3">
-          <button
-            onClick={() => setShowWallet(true)}
-            className="w-full rounded-md border border-input bg-card px-4 py-3 text-sm font-medium text-card-foreground hover:bg-accent"
-          >
-            Connect Wallet
-          </button>
+      {/* Cinematic scroll sections — 6 descriptors */}
+      <CinematicSections />
 
-          <button
-            onClick={() => setShowKeys(true)}
-            className="w-full rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Enter Keys Manually
-          </button>
-        </div>
+      {/* Final CTA at the deepest root */}
+      <FooterCTA
+        onEmployerClick={() => handlePortalClick("employer")}
+        onWorkerClick={() => handlePortalClick("worker")}
+      />
 
-        <p className="text-xs text-muted-foreground">
-          Keys are stored in session memory only. Closing this tab clears all
-          session data.
-        </p>
-      </div>
-
-      <EnterKeysModal open={showKeys} onClose={() => setShowKeys(false)} />
+      {/* Auth modals */}
       <ConnectWalletModal
         open={showWallet}
-        onClose={() => setShowWallet(false)}
+        onClose={() => {
+          setShowWallet(false);
+          if (!isConnected) setPortalChoice(null);
+        }}
+      />
+      <EnterKeysModal
+        open={showKeys}
+        onClose={() => {
+          setShowKeys(false);
+          if (!isConnected) setPortalChoice(null);
+        }}
       />
     </div>
   );
