@@ -21,10 +21,12 @@ function Door({ side, onClick }: DoorProps) {
     ? "Manage payroll, credentials & compliance"
     : "View paystubs, agreements & documents";
 
-  // The door "opens" from the hinge side — employer hinges left, worker hinges right
+  // Employer = left-hand swing (hinges left, opens leftward, light spills from LEFT)
+  // Worker   = right-hand swing (hinges right, opens rightward, light spills from RIGHT)
   const hingeOrigin = isEmployer ? "left center" : "right center";
-  // Light spills from the opening edge
-  const lightSide = isEmployer ? "85%" : "15%";
+  // Opening edge where light spills out
+  const openEdge = isEmployer ? "left" : "right";
+  const lightSide = isEmployer ? "15%" : "85%";
 
   return (
     <motion.button
@@ -38,13 +40,13 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.98 }}
     >
-      {/* Completely invisible hit area — NO border, NO background, NO outline */}
+      {/* Invisible hit area that rotates to simulate door opening */}
       <div
         className="absolute inset-0"
         style={{
           transformOrigin: hingeOrigin,
           transform: hovered
-            ? `perspective(600px) rotateY(${isEmployer ? "-15" : "15"}deg)`
+            ? `perspective(600px) rotateY(${isEmployer ? "18" : "-18"}deg)`
             : "perspective(600px) rotateY(0deg)",
           transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
@@ -60,11 +62,11 @@ function Door({ side, onClick }: DoorProps) {
             transition={{ duration: 0.5 }}
             className="absolute inset-0 pointer-events-none overflow-visible"
           >
-            {/* Bright gap light — the crack of the open door */}
+            {/* Bright gap light — the crack of the open door on the OPENING edge */}
             <div
               className="absolute top-[2%] bottom-[2%]"
               style={{
-                [isEmployer ? "right" : "left"]: "-2px",
+                [openEdge]: "-2px",
                 width: "6px",
                 background: "linear-gradient(180deg, rgba(255,240,180,0.2) 0%, rgba(255,230,120,0.95) 15%, rgba(255,245,200,1) 50%, rgba(255,230,120,0.95) 85%, rgba(255,240,180,0.2) 100%)",
                 boxShadow: "0 0 20px rgba(255,220,100,0.8), 0 0 40px rgba(255,200,50,0.4), 0 0 60px rgba(255,180,30,0.2)",
@@ -73,7 +75,7 @@ function Door({ side, onClick }: DoorProps) {
               }}
             />
 
-            {/* Interior warm glow flooding out */}
+            {/* Interior warm glow flooding out from the opening side */}
             <div
               className="absolute inset-0"
               style={{
@@ -81,24 +83,23 @@ function Door({ side, onClick }: DoorProps) {
               }}
             />
 
-            {/* Light rays fanning out from the gap */}
+            {/* Light rays fanning out from the opening edge */}
             {[...Array(5)].map((_, i) => {
               const angle = isEmployer
-                ? -20 + i * 10  // fan from right edge leftward
-                : 20 - i * 10; // fan from left edge rightward
-              const rayHeight = 50 + i * 12;
+                ? 20 - i * 10   // fan from left edge rightward
+                : -20 + i * 10; // fan from right edge leftward
               return (
                 <div
                   key={i}
                   className="absolute"
                   style={{
-                    [isEmployer ? "right" : "left"]: "0",
+                    [openEdge]: "0",
                     top: `${15 + i * 8}%`,
                     width: `${60 + i * 10}%`,
                     height: "2px",
-                    background: `linear-gradient(${isEmployer ? "to left" : "to right"}, rgba(255,230,140,${0.5 - i * 0.08}), transparent)`,
+                    background: `linear-gradient(${isEmployer ? "to right" : "to left"}, rgba(255,230,140,${0.5 - i * 0.08}), transparent)`,
                     transform: `rotate(${angle}deg)`,
-                    transformOrigin: isEmployer ? "right center" : "left center",
+                    transformOrigin: `${openEdge} center`,
                     filter: "blur(1px)",
                   }}
                 />
@@ -111,7 +112,7 @@ function Door({ side, onClick }: DoorProps) {
               style={{
                 bottom: "-15%",
                 height: "30%",
-                background: "radial-gradient(ellipse at 50% 0%, rgba(255,220,100,0.3) 0%, rgba(255,200,80,0.1) 50%, transparent 80%)",
+                background: `radial-gradient(ellipse at ${isEmployer ? "35%" : "65%"} 0%, rgba(255,220,100,0.3) 0%, rgba(255,200,80,0.1) 50%, transparent 80%)`,
                 filter: "blur(4px)",
               }}
             />
