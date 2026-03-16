@@ -52,7 +52,7 @@ export function generatePaystubPdf(input: PaystubPdfInput): jsPDF {
   doc.text("Earnings Summary", PAGE_MARGIN, y);
   y += 6;
 
-  const amountRows = [
+  const amountRows: [string, string][] = [
     ["Gross Pay", formatMinorUnits(row.gross_amount)],
     ["Tax Withheld", `(${formatMinorUnits(row.tax_withheld)})`],
     ["Fees", `(${formatMinorUnits(row.fee_amount)})`],
