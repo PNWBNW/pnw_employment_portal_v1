@@ -27,10 +27,6 @@ const WALLET_META: Record<string, WalletMeta> = {
     description: "Private wallet by Provable (recommended)",
     recommended: true,
   },
-  "Leo Wallet": {
-    label: "Leo Wallet",
-    description: "Browser extension by Provable",
-  },
   "Puzzle Wallet": {
     label: "Puzzle Wallet",
     description: "WalletConnect V2 — mobile & extension",
@@ -169,21 +165,12 @@ export function ConnectWalletModal({ open, onClose }: Props) {
               <p className="mt-1 text-xs text-muted-foreground">
                 Install{" "}
                 <a
-                  href="https://shield.app"
+                  href="https://www.shield.app"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"
                 >
                   Shield Wallet
-                </a>{" "}
-                or{" "}
-                <a
-                  href="https://leo.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Leo Wallet
                 </a>{" "}
                 to connect.
               </p>
