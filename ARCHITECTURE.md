@@ -230,17 +230,39 @@ This portal inherits the privacy model from `pnw_mvp_v2`:
 
 ## Authentication Model
 
-Two paths, both supported from day one:
+Two paths, both supported:
 
-**Path A — Wallet Connection**
-User connects a compatible Aleo wallet (Shield, Puzzle, Leo Wallet, or any wallet
-that exposes `address`, `view_key`, and a signing interface). The private key never
-leaves the wallet. The portal receives address + view key for the session.
+**Path A — Wallet Connection (Primary)**
+Uses the official `@provablehq/aleo-wallet-adaptor-*` stack (v0.3.0-alpha.3).
+Five wallets are supported: Shield, Puzzle, Leo, Fox, Soter.
+
+The wallet integration follows the exact pattern from the
+[Aleo Dev Toolkit](https://aleo-dev-toolkit-react-app.vercel.app/wallet):
+
+```
+AleoWalletProvider (wallets, network, decryptPermission, programs)
+  └── WalletModalProvider
+        └── WalletMobileRedirectHandler  ← PNW custom: handles LOADABLE → deep-link
+              └── App children
+```
+
+- `WalletMultiButton` (from `@provablehq/aleo-wallet-adaptor-react-ui`) renders a
+  connect/disconnect button with wallet icon and address display
+- `WalletModalProvider` provides the pre-built connection modal showing all 5 wallets
+- `useWallet()` hook exposes: `connected`, `address`, `signMessage`, `decrypt`,
+  `requestRecords`, `executeTransaction`, `transactionStatus`, `switchNetwork`,
+  `requestTransactionHistory`, `transitionViewKeys`, `executeDeployment`
+- On mobile, Leo and Fox adapters are configured with `isMobile: true` +
+  `mobileWebviewUrl` so they open our dApp inside their in-app browser where
+  `window.leoWallet` / `window.foxwallet` gets injected
+
+The private key never leaves the wallet. The portal receives address from the
+wallet connection event and bridges it to the session store.
 
 **Path B — Direct Key Entry (CLI / Codespace / testing)**
 User pastes private key + view key into a session-only input. Portal holds them in
-`sessionStorage` (cleared on tab close). This path is needed for testnet testing
-where wallet extensions may not be available.
+`sessionStorage` (cleared on tab close). This path is retained as a fallback for
+testnet testing where wallet extensions may not be available.
 
 **Common session interface:**
 ```typescript
@@ -253,6 +275,27 @@ type AleoSession = {
 
 ---
 
+## Wallet Provider Layer
+
+**File:** `src/lib/wallet/wallet-provider.tsx`
+
+Central provider component (`AleoWalletProviderWrapper`) that:
+- Instantiates all 5 wallet adapters (with mobile config for Leo/Fox)
+- Wraps children in `AleoWalletProvider` → `WalletModalProvider`
+- Includes `WalletMobileRedirectHandler` — detects when a LOADABLE wallet (mobile
+  browser, no extension) fails to connect and redirects to the wallet's in-app
+  browser URL so `window.<wallet>` gets injected
+- Overrides wallet adapter CSS variables in `globals.css` to match PNW's dark navy
+  design system (employer blue primary, navy surfaces, slate text)
+
+**Additional wallet files:**
+- `src/lib/wallet/credential-signer.ts` — wraps `useWallet().signMessage` for
+  credential signing flows
+- `components/key-manager/useWalletSigner.ts` — hook bridging wallet signing to
+  session interface
+
+---
+
 ## Key-Manager Component
 
 `components/key-manager/` handles session state for both auth paths. It:
@@ -260,6 +303,9 @@ type AleoSession = {
 - Clears on tab close automatically
 - Shows a warning if the user tries to navigate away mid-run
 - Exposes `useAleoSession()` hook to all downstream components
+- `ConnectWalletModal.tsx` — legacy custom modal (superseded by WalletModalProvider
+  but retained for reference)
+- `useWalletSigner.ts` — bridges wallet adapter signing to session interface
 
 ---
 

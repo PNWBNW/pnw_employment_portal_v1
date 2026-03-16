@@ -37,10 +37,10 @@ pnw_employment_portal_v1/
 ```
 
 ### Exit Criteria
-- [ ] `pnpm dev` starts with no errors
-- [ ] `pnpm tsc --noEmit` passes
-- [ ] `pnpm test` runs (0 tests, no failures)
-- [ ] shadcn Button and Table components render in `app/page.tsx` (smoke test)
+- [x] `pnpm dev` starts with no errors
+- [x] `pnpm tsc --noEmit` passes
+- [x] `pnpm test` runs (0 tests, no failures)
+- [x] shadcn Button and Table components render in `app/page.tsx` (smoke test)
 
 ---
 
@@ -80,12 +80,12 @@ app/(employer)/dashboard/page.tsx
 ```
 
 ### Exit Criteria
-- [ ] Navigating to `/` shows login/connect UI
-- [ ] Entering any valid Aleo private key + view key → session created → redirect to `/employer/dashboard`
-- [ ] Dashboard shows truncated address from session
-- [ ] "Disconnect" clears session and redirects to `/`
-- [ ] Refreshing the page preserves session (sessionStorage)
-- [ ] Closing the tab clears the session
+- [x] Navigating to `/` shows login/connect UI
+- [x] Entering any valid Aleo private key + view key → session created → redirect to `/employer/dashboard`
+- [x] Dashboard shows truncated address from session
+- [x] "Disconnect" clears session and redirects to `/`
+- [x] Refreshing the page preserves session (sessionStorage)
+- [x] Closing the tab clears the session
 
 ---
 
@@ -121,10 +121,10 @@ app/(employer)/dashboard/page.tsx        (updated)
 ```
 
 ### Exit Criteria
-- [ ] Worker list page loads and shows at least one decoded worker (testnet)
-- [ ] Dashboard shows correct USDCx balance (matches testnet record)
-- [ ] Clicking a worker shows agreement status correctly
-- [ ] Agreement status matches on-chain state (verify against Provable Explorer)
+- [x] Worker list page loads and shows at least one decoded worker (testnet)
+- [x] Dashboard shows correct USDCx balance (matches testnet record)
+- [x] Clicking a worker shows agreement status correctly
+- [x] Agreement status matches on-chain state (verify against Provable Explorer)
 
 ---
 
@@ -160,12 +160,12 @@ app/(employer)/payroll/page.tsx        (history list — stub)
 ```
 
 ### Exit Criteria
-- [ ] Can add 25 rows to the payroll table without performance degradation
-- [ ] Row validation: `net !== gross - tax - fee` shows red X with tooltip
-- [ ] Duplicate `(agreement_id, epoch_id)` shows error
-- [ ] Totals row updates correctly as amounts change
-- [ ] Import CSV with 5 rows populates the table correctly
-- [ ] "Save Draft" persists table to sessionStorage; survives refresh
+- [x] Can add 25 rows to the payroll table without performance degradation
+- [x] Row validation: `net !== gross - tax - fee` shows red X with tooltip
+- [x] Duplicate `(agreement_id, epoch_id)` shows error
+- [x] Totals row updates correctly as amounts change
+- [x] Import CSV with 5 rows populates the table correctly
+- [x] "Save Draft" persists table to sessionStorage; survives refresh
 
 ---
 
@@ -210,11 +210,11 @@ src/stores/payroll_run_store.ts
 ```
 
 ### Exit Criteria
-- [ ] `pnpm test` passes all compiler + chunk_planner tests
-- [ ] Same 3-row table always produces the same batch_id
-- [ ] Adding a worker changes batch_id
-- [ ] Manifest preview shows in UI after clicking "Validate"
-- [ ] `PayrollValidationError` messages appear as inline row validation in the table
+- [x] `pnpm test` passes all compiler + chunk_planner tests
+- [x] Same 3-row table always produces the same batch_id
+- [x] Adding a worker changes batch_id
+- [x] Manifest preview shows in UI after clicking "Validate"
+- [x] `PayrollValidationError` messages appear as inline row validation in the table
 
 ---
 
@@ -256,12 +256,12 @@ src/lib/pnw-adapter/layer1_cli_adapter.ts  (new — not from pnw_mvp_v2)
 ```
 
 ### Exit Criteria
-- [ ] `pnpm test` passes receipt reconciler tests
-- [ ] Single-worker payroll run executes successfully on testnet
-- [ ] `WorkerPayArgs.batch_id` and `row_hash` are populated from manifest
-- [ ] Receipt returned from Layer 1 maps back to manifest row correctly
-- [ ] Chunk retry works: simulate timeout → auto-retry → success
-- [ ] Double-pay guard: re-running same epoch → `conflict` status on row, run continues
+- [x] `pnpm test` passes receipt reconciler tests
+- [x] Single-worker payroll run executes successfully on testnet
+- [x] `WorkerPayArgs.batch_id` and `row_hash` are populated from manifest
+- [x] Receipt returned from Layer 1 maps back to manifest row correctly
+- [x] Chunk retry works: simulate timeout → auto-retry → success
+- [x] Double-pay guard: re-running same epoch → `conflict` status on row, run continues
 
 ---
 
@@ -296,10 +296,10 @@ app/(employer)/payroll/page.tsx            (populated)
 ```
 
 ### Exit Criteria
-- [ ] 3-worker run: all three chunks show status updates in real time
-- [ ] Failed chunk shows error message + retry button
-- [ ] After all settled: "Mint Batch Anchor" button appears
-- [ ] Payroll history list shows all completed runs from session
+- [x] 3-worker run: all three chunks show status updates in real time
+- [x] Failed chunk shows error message + retry button
+- [x] After all settled: "Mint Batch Anchor" button appears
+- [x] Payroll history list shows all completed runs from session
 
 ---
 
@@ -325,11 +325,11 @@ src/anchor/batch_anchor_finalizer.test.ts
 ```
 
 ### Exit Criteria
-- [ ] `pnpm test` passes finalizer tests
-- [ ] Batch anchor NFT successfully minted on testnet
-- [ ] NFT's `root` field matches manifest `row_root`
-- [ ] `anchor_tx_id` stored in manifest + shown in UI
-- [ ] Manifest status updates to "anchored"
+- [x] `pnpm test` passes finalizer tests
+- [x] Batch anchor NFT successfully minted on testnet
+- [x] NFT's `root` field matches manifest `row_root`
+- [x] `anchor_tx_id` stored in manifest + shown in UI
+- [x] Manifest status updates to "anchored"
 
 ---
 
@@ -365,10 +365,10 @@ app/(employer)/credentials/[credential_id]/page.tsx
 ```
 
 ### Exit Criteria
-- [ ] Payroll run PDF downloads with correct amounts, tx ID, batch anchor hash, QR code
-- [ ] Credential minted on testnet; certificate PDF shows correct scope + expiry
-- [ ] Credential revoked on testnet; status on detail page updates to REVOKED
-- [ ] No private data appears in any PDF (raw addresses, keys)
+- [x] Payroll run PDF downloads with correct amounts, tx ID, batch anchor hash, QR code
+- [x] Credential minted on testnet; certificate PDF shows correct scope + expiry
+- [x] Credential revoked on testnet; status on detail page updates to REVOKED
+- [x] No private data appears in any PDF (raw addresses, keys)
 
 ---
 
@@ -403,11 +403,11 @@ app/(worker)/paystubs/page.tsx
 ```
 
 ### Exit Criteria
-- [ ] Employer submits audit request; pending request visible on employer audit page
-- [ ] Worker (via stub UI) can approve the request
-- [ ] AuditAuthorizationNFT minted on testnet after both consent
-- [ ] Audit authorization certificate PDF downloads
-- [ ] Worker can see their paystubs (decoded from receipt records via view key)
+- [x] Employer submits audit request; pending request visible on employer audit page
+- [x] Worker (via stub UI) can approve the request
+- [x] AuditAuthorizationNFT minted on testnet after both consent
+- [x] Audit authorization certificate PDF downloads
+- [x] Worker can see their paystubs (decoded from receipt records via view key)
 
 ---
 
@@ -435,18 +435,39 @@ This is the Portal Phase 4 exit criteria.
 
 ---
 
+## Post-E9 — Wallet Integration + Landing Page
+
+**Goal:** Replace manual key entry as primary auth with official Provable wallet
+adapters (Shield, Puzzle, Leo, Fox, Soter) and build an immersive landing page.
+
+### Completed
+- Official `@provablehq/aleo-wallet-adaptor-*` packages integrated (all 5 wallets)
+- `WalletMultiButton` + `WalletModalProvider` from `@provablehq/aleo-wallet-adaptor-react-ui`
+- Mobile deep-link handler (`WalletMobileRedirectHandler`) for LOADABLE wallets
+- Leo/Fox configured with `isMobile` + `mobileWebviewUrl` for in-app browser connect
+- Cinematic landing page with hero image, animated portal doors, constellation overlay, animated birds, root pulse, tree sway
+- `EnterKeysModal` retained as fallback auth path for testnet/CLI
+
+### Pending
+- Mobile responsive formatting within employer portal pages
+- Shield in-app browser deep-link (waiting on Shield adapter to expose URL scheme)
+- E10 end-to-end testnet happy path
+
+---
+
 ## Summary Table
 
-| Phase | Goal | New On-Chain Calls | Key Deliverable |
-|-------|------|-------------------|-----------------|
-| E0 | Bootstrap | None | Working Next.js app |
-| E1 | Session | None | Key manager + auth guard |
-| E2 | Read data | None (read only) | Worker list + balances |
-| E3 | Table UI | None | Payroll table editor |
-| E4 | Compiler | None | PayrollRunManifest + tests |
-| E5 | Execute | payroll_core | End-to-end settlement |
-| E6 | Status UI | None | Chunk tracking + retry |
-| E7 | Anchor | payroll_nfts (cycle) | Batch root NFT |
-| E8 | Docs + Creds | credential_nft | PDFs + credentials |
-| E9 | Audit + Worker | audit_nft | Dual-consent audit |
-| E10 | E2E testnet | All | Happy path confirmed |
+| Phase | Goal | New On-Chain Calls | Key Deliverable | Status |
+|-------|------|-------------------|-----------------|--------|
+| E0 | Bootstrap | None | Working Next.js app | Done |
+| E1 | Session | None | Key manager + auth guard | Done |
+| E2 | Read data | None (read only) | Worker list + balances | Done |
+| E3 | Table UI | None | Payroll table editor | Done |
+| E4 | Compiler | None | PayrollRunManifest + tests | Done |
+| E5 | Execute | payroll_core | End-to-end settlement | Done |
+| E6 | Status UI | None | Chunk tracking + retry | Done |
+| E7 | Anchor | payroll_nfts (cycle) | Batch root NFT | Done |
+| E8 | Docs + Creds | credential_nft | PDFs + credentials | Done |
+| E9 | Audit + Worker | audit_nft | Dual-consent audit | Done |
+| Post-E9 | Wallet + UX | None | Official wallet adapters + landing page | Done |
+| E10 | E2E testnet | All | Happy path confirmed | Pending |
