@@ -171,15 +171,15 @@ Each copied file starts with:
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| E1 | ⏳ Pending | Scaffold + key manager + config |
-| E2 | ⏳ Pending | Worker list + agreement status |
-| E3 | ⏳ Pending | Payroll table UI |
-| E4 | ⏳ Pending | Manifest compiler |
-| E5 | ⏳ Pending | Settlement Coordinator |
-| E6 | ⏳ Pending | Run status UI |
-| E7 | ⏳ Pending | Batch anchor finalizer |
-| E8 | ⏳ Pending | Receipt viewer + credential issuer |
-| E9 | ⏳ Pending | Audit authorization flow |
+| E1 | Done | Scaffold + key manager + config |
+| E2 | Done | Worker list + agreement status |
+| E3 | Done | Payroll table UI |
+| E4 | Done | Manifest compiler |
+| E5 | Done | Settlement Coordinator |
+| E6 | Done | Run status UI |
+| E7 | Done | Batch anchor finalizer |
+| E8 | Done | Receipt viewer + credential issuer |
+| E9 | Done | Audit authorization flow |
 | Worker side | ⏳ Pending | After E9 |
 
 See `BUILD_ORDER.md` for exit criteria on each phase.
