@@ -8,6 +8,7 @@ import { ConnectWalletModal } from "@/components/key-manager/ConnectWalletModal"
 import { HeroSection } from "@/components/landing/HeroSection";
 import { CinematicSections } from "@/components/landing/CinematicSections";
 import { FooterCTA } from "@/components/landing/FooterCTA";
+import { DeepRoots } from "@/components/landing/DeepRoots";
 
 export default function LandingPage() {
   const { isConnected } = useAleoSession();
@@ -39,7 +40,10 @@ export default function LandingPage() {
 
   return (
     <div className="relative hide-scrollbar" style={{ background: "#000" }}>
-      {/* Hero: full viewport with image, doors, birds, trees, roots */}
+      {/* Deep root streams — span entire page, behind content */}
+      <DeepRoots />
+
+      {/* Hero: full viewport with image, doors, trees, roots */}
       <HeroSection
         onEmployerClick={() => handlePortalClick("employer")}
         onWorkerClick={() => handlePortalClick("worker")}

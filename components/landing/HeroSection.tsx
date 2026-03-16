@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { AnimatedBirds } from "./AnimatedBirds";
 import { TreeSwayOverlay } from "./TreeSwayOverlay";
 import { PortalDoors } from "./PortalDoors";
 import { RootPulse } from "./RootPulse";
@@ -50,9 +49,6 @@ export function HeroSection({
 
           {/* Tree wind sway */}
           <TreeSwayOverlay />
-
-          {/* Flying birds */}
-          <AnimatedBirds />
 
           {/* Root pulse along tree roots */}
           <RootPulse />
