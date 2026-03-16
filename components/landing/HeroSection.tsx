@@ -4,7 +4,6 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { TreeSwayOverlay } from "./TreeSwayOverlay";
 import { PortalDoors } from "./PortalDoors";
-import { RootPulse } from "./RootPulse";
 import { ConstellationOverlay } from "./ConstellationOverlay";
 
 interface HeroSectionProps {
@@ -22,43 +21,24 @@ export function HeroSection({
     offset: ["start start", "end start"],
   });
 
-  // Parallax: image moves up slower than scroll
-  const imageY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
-  // Fade the hero slightly as user scrolls away
+  // Fade the hero overlays as user scrolls away
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.3]);
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-hidden" style={{ height: "140vh" }}>
-      {/* Background image with parallax — all overlays INSIDE so they track */}
-      <motion.div
-        className="absolute inset-0 w-full h-[120%]"
-        style={{ y: imageY }}
-      >
-        {/* The hero image itself */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: "url('/images/pnw-hero.png')",
-          }}
+    <div ref={containerRef} className="relative h-screen w-full">
+      {/* Overlays positioned over the top portion of the background image */}
+      <motion.div className="absolute inset-0" style={{ opacity: heroOpacity }}>
+        {/* Constellation dots in sky */}
+        <ConstellationOverlay />
+
+        {/* Tree wind sway */}
+        <TreeSwayOverlay />
+
+        {/* Interactive doors — positioned over the painted doors */}
+        <PortalDoors
+          onEmployerClick={onEmployerClick}
+          onWorkerClick={onWorkerClick}
         />
-
-        {/* All interactive/decorative overlays move with the image */}
-        <motion.div className="absolute inset-0" style={{ opacity: heroOpacity }}>
-          {/* Constellation dots in sky */}
-          <ConstellationOverlay />
-
-          {/* Tree wind sway */}
-          <TreeSwayOverlay />
-
-          {/* Root pulse along tree roots */}
-          <RootPulse />
-
-          {/* Interactive doors — positioned over the painted doors */}
-          <PortalDoors
-            onEmployerClick={onEmployerClick}
-            onWorkerClick={onWorkerClick}
-          />
-        </motion.div>
       </motion.div>
 
       {/* Bottom tagline — stays fixed in viewport */}
@@ -102,15 +82,6 @@ export function HeroSection({
           </div>
         </motion.div>
       </motion.div>
-
-      {/* Blend the hero bottom into the roots image below — no hard cut */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-64 z-20 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(180deg, transparent 0%, rgba(3,8,16,0.3) 50%, rgba(3,8,16,0.6) 100%)",
-        }}
-      />
     </div>
   );
 }
