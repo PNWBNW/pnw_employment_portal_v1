@@ -103,12 +103,12 @@ export function HeroSection({
         </motion.div>
       </motion.div>
 
-      {/* Very subtle gradient at the very bottom — image keeps showing */}
+      {/* Blend the hero bottom into the roots image below — no hard cut */}
       <div
-        className="absolute bottom-0 left-0 right-0 h-48 z-20 pointer-events-none"
+        className="absolute bottom-0 left-0 right-0 h-64 z-20 pointer-events-none"
         style={{
           background:
-            "linear-gradient(180deg, transparent 0%, rgba(3,8,16,0.5) 60%, rgba(3,8,16,0.85) 100%)",
+            "linear-gradient(180deg, transparent 0%, rgba(3,8,16,0.3) 50%, rgba(3,8,16,0.6) 100%)",
         }}
       />
     </div>
