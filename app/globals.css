@@ -1,6 +1,41 @@
 @import "tailwindcss";
 
 :root {
+  /* === PNW Brand Primitive Tokens === */
+  /* Extracted from hero image palette */
+  --pnw-gold-100: #fef9e7;
+  --pnw-gold-300: #f6d365;
+  --pnw-gold-500: #d4a012;
+  --pnw-gold-700: #92710a;
+  --pnw-forest-100: #e8f5e9;
+  --pnw-forest-300: #81c784;
+  --pnw-forest-500: #2e7d32;
+  --pnw-forest-700: #1b4332;
+  --pnw-forest-900: #0d2818;
+  --pnw-cyan-200: #80deea;
+  --pnw-cyan-400: #00e5ff;
+  --pnw-cyan-500: #00bcd4;
+  --pnw-cyan-600: #0097a7;
+  --pnw-navy-800: #0a1628;
+  --pnw-navy-900: #060e1a;
+  --pnw-navy-950: #030810;
+  --pnw-sky-200: #bae6fd;
+  --pnw-sky-400: #38bdf8;
+
+  /* === Semantic Tokens === */
+  --pnw-employer: #2563eb;
+  --pnw-employer-glow: rgba(37, 99, 235, 0.6);
+  --pnw-worker: #16a34a;
+  --pnw-worker-glow: rgba(22, 163, 74, 0.6);
+  --pnw-root-pulse: var(--pnw-cyan-400);
+  --pnw-root-pulse-dim: rgba(0, 229, 255, 0.15);
+  --pnw-hero-overlay: rgba(6, 14, 26, 0.4);
+  --pnw-section-bg: var(--pnw-navy-900);
+  --pnw-section-text: #e2e8f0;
+  --pnw-section-heading: #ffffff;
+  --pnw-section-accent: var(--pnw-cyan-400);
+
+  /* === Existing Design System Tokens === */
   --background: #ffffff;
   --foreground: #0f172a;
   --muted: #f1f5f9;
@@ -82,3 +117,85 @@ body {
 * {
   border-color: var(--border);
 }
+
+/* === PNW Landing Page Animations === */
+
+@keyframes bird-fly-1 {
+  0% { transform: translate(0, 0) scaleX(1); }
+  25% { transform: translate(25vw, -3vh) scaleX(1); }
+  50% { transform: translate(55vw, 1vh) scaleX(1); }
+  75% { transform: translate(80vw, -2vh) scaleX(1); }
+  100% { transform: translate(110vw, -4vh) scaleX(1); }
+}
+
+@keyframes bird-fly-2 {
+  0% { transform: translate(0, 0) scaleX(-1); }
+  25% { transform: translate(-20vw, -4vh) scaleX(-1); }
+  50% { transform: translate(-45vw, 0vh) scaleX(-1); }
+  75% { transform: translate(-75vw, -3vh) scaleX(-1); }
+  100% { transform: translate(-110vw, -1vh) scaleX(-1); }
+}
+
+@keyframes bird-flap {
+  0%, 100% { d: path("M0,5 Q5,0 10,5 Q15,2 20,5"); }
+  50% { d: path("M0,5 Q5,8 10,5 Q15,7 20,5"); }
+}
+
+@keyframes tree-sway {
+  0%, 100% { transform: skewX(0deg) translateX(0); }
+  33% { transform: skewX(0.4deg) translateX(1px); }
+  66% { transform: skewX(-0.3deg) translateX(-0.5px); }
+}
+
+@keyframes tree-sway-alt {
+  0%, 100% { transform: skewX(0deg); }
+  40% { transform: skewX(-0.5deg); }
+  70% { transform: skewX(0.3deg); }
+}
+
+@keyframes root-pulse {
+  0% { opacity: 0.15; filter: brightness(1); }
+  50% { opacity: 0.7; filter: brightness(1.6); }
+  100% { opacity: 0.15; filter: brightness(1); }
+}
+
+@keyframes root-flow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 0% 100%; }
+}
+
+@keyframes binary-rain {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+@keyframes door-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(255,255,255,0.1); }
+  50% { box-shadow: 0 0 30px rgba(255,255,255,0.25); }
+}
+
+@keyframes constellation {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes float-up {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse-down {
+  0% { top: 0%; opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Smooth scroll for the whole page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
