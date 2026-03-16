@@ -109,13 +109,18 @@ function ScrollSection({
       ref={ref}
       className="relative min-h-screen flex items-center justify-center px-6"
     >
-      {/* Background depth gradient — gets darker as you scroll deeper */}
+      {/* Background depth gradient — first section is semi-transparent to blend with hero */}
       <div
         className="absolute inset-0"
         style={{
-          background: `linear-gradient(180deg,
-            rgba(3,8,16,${0.85 + index * 0.02}) 0%,
-            rgba(${6 - index},${14 - index * 2},${26 - index * 3},${0.92 + index * 0.01}) 100%)`,
+          background: index === 0
+            ? `linear-gradient(180deg,
+                rgba(3,8,16,0.4) 0%,
+                rgba(3,8,16,0.75) 40%,
+                rgba(3,8,16,0.92) 100%)`
+            : `linear-gradient(180deg,
+                rgba(3,8,16,${0.88 + index * 0.02}) 0%,
+                rgba(${6 - index},${14 - index * 2},${26 - index * 3},${0.94 + index * 0.01}) 100%)`,
         }}
       />
 
