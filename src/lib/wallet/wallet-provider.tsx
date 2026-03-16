@@ -2,31 +2,25 @@
 
 import { type ReactNode, useMemo } from "react";
 import {
-  WalletProvider as AleoWalletProvider,
+  AleoWalletProvider,
   useWallet,
-} from "@demox-labs/aleo-wallet-adapter-react";
-import { WalletAdapterNetwork } from "@demox-labs/aleo-wallet-adapter-base";
-import {
-  PuzzleWalletAdapter,
-  FoxWalletAdapter,
-  SoterWalletAdapter,
-} from "aleo-adapters";
+} from "@provablehq/aleo-wallet-adaptor-react";
+import { Network } from "@provablehq/aleo-types";
+import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
+import { PuzzleWalletAdapter } from "@provablehq/aleo-wallet-adaptor-puzzle";
 import { ShieldWalletAdapter } from "./shield-adapter";
 
 export { useWallet };
 
 /**
- * Aleo wallet provider.
+ * Aleo wallet provider — uses the official @provablehq adapter stack.
  *
- * Configures adapters for all available wallets:
- * - Shield Wallet (primary — built by Provable, successor to Leo Wallet)
- * - Puzzle Wallet (via aleo-adapters, WalletConnect V2)
- * - Fox Wallet (via aleo-adapters)
- * - Soter Wallet (via aleo-adapters)
+ * Adapters:
+ * - Shield Wallet (extends LeoWalletAdapter with Shield branding)
+ * - Puzzle Wallet (WalletConnect V2)
  *
- * Shield Wallet is the rebranded Leo Wallet by Provable. It uses the same
- * browser extension / provider interface (window.leoWallet / window.leo).
- * We no longer list Leo separately — Shield IS Leo.
+ * Network and decrypt permission are configured at the provider level.
+ * Individual connect() calls do not need to pass these.
  */
 export function AleoWalletProviderWrapper({
   children,
@@ -38,17 +32,7 @@ export function AleoWalletProviderWrapper({
       new ShieldWalletAdapter(),
       new PuzzleWalletAdapter({
         appName: "PNW Employment Portal",
-        programIdPermissions: {
-          [WalletAdapterNetwork.TestnetBeta]: [
-            "payroll_core.aleo",
-            "payroll_nfts.aleo",
-            "credential_nfts.aleo",
-            "audit_authorization.aleo",
-          ],
-        },
       }),
-      new FoxWalletAdapter({ appName: "PNW Employment Portal" }),
-      new SoterWalletAdapter({ appName: "PNW Employment Portal" }),
     ],
     [],
   );
@@ -56,8 +40,15 @@ export function AleoWalletProviderWrapper({
   return (
     <AleoWalletProvider
       wallets={wallets}
-      network={WalletAdapterNetwork.TestnetBeta}
+      network={Network.TESTNET}
       autoConnect={false}
+      decryptPermission={DecryptPermission.AutoDecrypt}
+      programs={[
+        "payroll_core.aleo",
+        "payroll_nfts.aleo",
+        "credential_nfts.aleo",
+        "audit_authorization.aleo",
+      ]}
     >
       {children}
     </AleoWalletProvider>
