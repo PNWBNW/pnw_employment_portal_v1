@@ -12,6 +12,7 @@ import {
   FoxWalletAdapter,
   SoterWalletAdapter,
 } from "aleo-adapters";
+import { ShieldWalletAdapter } from "./shield-adapter";
 
 export { useWallet };
 
@@ -19,12 +20,15 @@ export { useWallet };
  * Aleo wallet provider.
  *
  * Configures adapters for all available wallets:
- * - Leo Wallet (via @demox-labs)
- * - Puzzle Wallet (via aleo-adapters)
+ * - Shield Wallet (primary — built by Provable, uses Leo Wallet provider)
+ * - Leo Wallet (fallback — same provider as Shield)
+ * - Puzzle Wallet (via aleo-adapters, WalletConnect V2)
  * - Fox Wallet (via aleo-adapters)
  * - Soter Wallet (via aleo-adapters)
  *
- * Shield Wallet adapter can be added here once it ships.
+ * Shield and Leo share the same browser extension and provider interface.
+ * The ShieldWalletAdapter wraps LeoWalletAdapter with Shield branding.
+ * When Provable ships a dedicated Shield adapter, swap it in here.
  */
 export function AleoWalletProviderWrapper({
   children,
@@ -33,6 +37,7 @@ export function AleoWalletProviderWrapper({
 }) {
   const wallets = useMemo(
     () => [
+      new ShieldWalletAdapter({ appName: "PNW Employment Portal" }),
       new LeoWalletAdapter({ appName: "PNW Employment Portal" }),
       new PuzzleWalletAdapter({
         appName: "PNW Employment Portal",

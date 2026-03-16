@@ -12,6 +12,7 @@ import {
 } from "@/src/stores/credential_store";
 import { issueCredential } from "@/src/credentials/credential_actions";
 import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
+import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
 
 const CREDENTIAL_TYPES = Object.entries(CREDENTIAL_TYPE_LABELS) as [
   CredentialType,
@@ -27,6 +28,7 @@ export default function IssueCredentialPage() {
   const setIssuing = useCredentialStore((s) => s.setIssuing);
   const issueError = useCredentialStore((s) => s.issueError);
   const setIssueError = useCredentialStore((s) => s.setIssueError);
+  const { canSign, signForCredential } = useWalletSigner();
 
   const activeWorkers = workers.filter((w) => w.status === "active");
 
@@ -36,6 +38,7 @@ export default function IssueCredentialPage() {
   const [scope, setScope] = useState("");
   const [expiresEpoch, setExpiresEpoch] = useState("");
   const [commandPreview, setCommandPreview] = useState<string | null>(null);
+  const [signatureProof, setSignatureProof] = useState<string | null>(null);
 
   const selectedWorker = workers.find((w) => w.agreement_id === workerAgreementId);
 
@@ -78,6 +81,18 @@ export default function IssueCredentialPage() {
         employerNameHash,
         currentEpoch,
       );
+
+      // If wallet signing is available, get a signature proof
+      if (canSign) {
+        try {
+          const proof = await signForCredential(credential.credential_id);
+          credential.signature_proof = proof.signature;
+          setSignatureProof(proof.signature);
+        } catch {
+          // Wallet signing is optional — continue without it
+          // User may have rejected the signing prompt
+        }
+      }
 
       addCredential(credential);
       setCommandPreview(command_preview);
@@ -208,8 +223,13 @@ export default function IssueCredentialPage() {
           {commandPreview && (
             <div className="rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950">
               <p className="text-xs font-medium text-green-800 dark:text-green-300">
-                Credential created — redirecting to detail page…
+                Credential created{signatureProof ? " (wallet-signed)" : ""} — redirecting to detail page…
               </p>
+              {signatureProof && (
+                <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                  Signed by wallet — private key never exposed
+                </p>
+              )}
               <p className="mt-1 break-all font-mono text-xs text-green-700 dark:text-green-400">
                 {commandPreview}
               </p>

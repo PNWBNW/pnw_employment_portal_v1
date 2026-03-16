@@ -47,6 +47,9 @@ export type CredentialRecord = {
   status: CredentialStatus;
   tx_id?: string;       // mint tx
   revoke_tx_id?: string; // revoke tx (if revoked)
+
+  // Wallet signature proof (if signed via wallet adapter)
+  signature_proof?: string;
 };
 
 // ---------------------------------------------------------------------------
