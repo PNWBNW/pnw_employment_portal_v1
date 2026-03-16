@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { cn } from "@/src/lib/utils";
+
+const WORKER_NAV = [
+  { href: "/worker/dashboard", label: "Dashboard" },
+  { href: "/worker/offers", label: "Offers" },
+  { href: "/worker/paystubs", label: "Paystubs" },
+] as const;
 
 /**
  * Worker route group layout with session guard.
@@ -11,6 +19,7 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 export default function WorkerLayout({ children }: { children: ReactNode }) {
   const { isConnected, address } = useAleoSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isConnected) {
@@ -39,24 +48,23 @@ export default function WorkerLayout({ children }: { children: ReactNode }) {
             </span>
           )}
           <nav className="flex gap-2">
-            <a
-              href="/worker/dashboard"
-              className="rounded-md px-3 py-1 text-xs hover:bg-accent"
-            >
-              Dashboard
-            </a>
-            <a
-              href="/worker/offers"
-              className="rounded-md px-3 py-1 text-xs hover:bg-accent"
-            >
-              Offers
-            </a>
-            <a
-              href="/worker/paystubs"
-              className="rounded-md px-3 py-1 text-xs hover:bg-accent"
-            >
-              Paystubs
-            </a>
+            {WORKER_NAV.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs transition-colors",
+                    isActive
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </header>
