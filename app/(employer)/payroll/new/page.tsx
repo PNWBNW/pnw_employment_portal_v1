@@ -25,6 +25,15 @@ import {
 } from "@/src/coordinator/settlement_coordinator";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
+import {
+  SessionKeyProvider,
+  encryptDraft,
+  decryptDraft,
+  saveDraft as saveDraftToDb,
+  listDrafts,
+  deleteDraft,
+} from "@/src/persistence";
+import type { DraftEnvelope } from "@/src/persistence";
 
 const DRAFT_STORAGE_KEY = "pnw_payroll_draft";
 
@@ -41,6 +50,9 @@ export default function NewPayrollPage() {
   const [rows, setRows] = useState<PayrollTableRow[]>([]);
   const [epochId, setEpochId] = useState(todayEpoch);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [draftSaveMsg, setDraftSaveMsg] = useState<string | null>(null);
+  const [savedDrafts, setSavedDrafts] = useState<DraftEnvelope[]>([]);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [compiledManifest, setCompiledManifest] = useState<PayrollRunManifest | null>(null);
   const [compiledChunks, setCompiledChunks] = useState<ChunkPlan[]>([]);
   const [compileError, setCompileError] = useState<string | null>(null);
@@ -48,13 +60,14 @@ export default function NewPayrollPage() {
   const [settlementStatus, setSettlementStatus] = useState<string | null>(null);
   const workers = useWorkerStore((s) => s.workers);
   const address = useSessionStore((s) => s.address);
+  const viewKey = useSessionStore((s) => s.viewKey);
   const setManifest = usePayrollRunStore((s) => s.setManifest);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
   const updateStatus = usePayrollRunStore((s) => s.updateStatus);
   const router = useRouter();
   const settlingRef = useRef(false);
 
-  // Restore draft from sessionStorage on mount
+  // Restore draft from sessionStorage on mount (fast, same-tab recovery)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
@@ -75,6 +88,12 @@ export default function NewPayrollPage() {
       sessionStorage.removeItem(DRAFT_STORAGE_KEY);
     }
   }, []);
+
+  // Load list of encrypted drafts from IndexedDB when session is available
+  useEffect(() => {
+    if (!address) return;
+    listDrafts(address).then(setSavedDrafts).catch(() => {});
+  }, [address]);
 
   // Validation
   const { rowResults, allValid } = useMemo(
@@ -154,18 +173,89 @@ export default function NewPayrollPage() {
   const clearAll = useCallback(() => {
     setRows([]);
     setDraftSaved(false);
+    setActiveDraftId(null);
     sessionStorage.removeItem(DRAFT_STORAGE_KEY);
   }, []);
 
-  const saveDraft = useCallback(() => {
+  // Save draft to sessionStorage (fast, same-tab) AND encrypted IndexedDB (cross-session)
+  const saveDraft = useCallback(async () => {
     if (typeof window === "undefined") return;
+
+    // Always save to sessionStorage for same-tab recovery
     sessionStorage.setItem(
       DRAFT_STORAGE_KEY,
       JSON.stringify({ rows, epochId }),
     );
+
+    // If we have a view key, also save encrypted to IndexedDB
+    if (viewKey && address) {
+      try {
+        const keyProvider = new SessionKeyProvider(viewKey);
+        const envelope = await encryptDraft(
+          rows,
+          epochId,
+          address,
+          keyProvider,
+          activeDraftId ?? undefined,
+        );
+        await saveDraftToDb(envelope);
+        setActiveDraftId(envelope.draftId);
+        // Refresh draft list
+        const drafts = await listDrafts(address);
+        setSavedDrafts(drafts);
+        setDraftSaveMsg("Draft encrypted and saved");
+      } catch (err) {
+        setDraftSaveMsg(
+          `Session saved. Encrypted save failed: ${err instanceof Error ? err.message : "unknown"}`,
+        );
+      }
+    } else {
+      setDraftSaveMsg("Draft saved to session (connect wallet for encrypted save)");
+    }
+
     setDraftSaved(true);
-    setTimeout(() => setDraftSaved(false), 2000);
-  }, [rows, epochId]);
+    setTimeout(() => {
+      setDraftSaved(false);
+      setDraftSaveMsg(null);
+    }, 3000);
+  }, [rows, epochId, viewKey, address, activeDraftId]);
+
+  // Load an encrypted draft from IndexedDB
+  const loadEncryptedDraft = useCallback(
+    async (envelope: DraftEnvelope) => {
+      if (!viewKey) return;
+      try {
+        const keyProvider = new SessionKeyProvider(viewKey);
+        const payload = await decryptDraft(envelope, keyProvider);
+        setRows(payload.rows);
+        setEpochId(payload.epochId);
+        setActiveDraftId(envelope.draftId);
+        // Also save to sessionStorage for same-tab consistency
+        sessionStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({ rows: payload.rows, epochId: payload.epochId }),
+        );
+      } catch (err) {
+        setCompileError(
+          `Failed to decrypt draft: ${err instanceof Error ? err.message : "unknown"}. Wrong view key?`,
+        );
+      }
+    },
+    [viewKey],
+  );
+
+  // Delete an encrypted draft
+  const removeEncryptedDraft = useCallback(
+    async (draftId: string) => {
+      await deleteDraft(draftId);
+      if (address) {
+        const drafts = await listDrafts(address);
+        setSavedDrafts(drafts);
+      }
+      if (activeDraftId === draftId) setActiveDraftId(null);
+    },
+    [address, activeDraftId],
+  );
 
   return (
     <div className="space-y-4">
@@ -201,8 +291,49 @@ export default function NewPayrollPage() {
       {/* Draft saved indicator */}
       {draftSaved && (
         <p className="text-xs text-green-600 dark:text-green-400">
-          Draft saved to session.
+          {draftSaveMsg ?? "Draft saved."}
         </p>
+      )}
+
+      {/* Saved encrypted drafts list */}
+      {savedDrafts.length > 0 && !compiledManifest && (
+        <div className="rounded-md border border-border p-3">
+          <p className="mb-2 text-sm font-medium text-foreground">
+            Saved Drafts (encrypted)
+          </p>
+          <div className="space-y-1">
+            {savedDrafts.map((d) => (
+              <div
+                key={d.draftId}
+                className={`flex items-center justify-between rounded px-2 py-1 text-xs ${
+                  d.draftId === activeDraftId
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <span>
+                  Epoch {d.epochId} · {d.rowCount} row
+                  {d.rowCount !== 1 ? "s" : ""} ·{" "}
+                  {new Date(d.savedAt).toLocaleDateString()}
+                </span>
+                <span className="flex gap-2">
+                  <button
+                    className="underline hover:text-foreground"
+                    onClick={() => loadEncryptedDraft(d)}
+                  >
+                    Load
+                  </button>
+                  <button
+                    className="underline text-red-500 hover:text-red-700"
+                    onClick={() => removeEncryptedDraft(d.draftId)}
+                  >
+                    Delete
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Table */}
