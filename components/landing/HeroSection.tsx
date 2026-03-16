@@ -42,21 +42,21 @@ export function HeroSection({
         />
       </motion.div>
 
-      {/* Bottom section — wallet button + tagline */}
+      {/* Top-right wallet button — away from the doors */}
+      <motion.div
+        className="absolute top-4 right-4 z-40"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.2, duration: 0.8 }}
+      >
+        <WalletMultiButton />
+      </motion.div>
+
+      {/* Bottom section — tagline */}
       <motion.div
         className="absolute bottom-12 left-0 right-0 z-30 text-center"
         style={{ opacity: heroOpacity }}
       >
-        {/* Official Provable WalletMultiButton — connect/disconnect */}
-        <motion.div
-          className="flex justify-center mb-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2, duration: 0.8 }}
-        >
-          <WalletMultiButton />
-        </motion.div>
-
         <motion.p
           className="text-sm sm:text-base font-light tracking-[0.2em] uppercase"
           style={{ color: "rgba(255,255,255,0.7)" }}
