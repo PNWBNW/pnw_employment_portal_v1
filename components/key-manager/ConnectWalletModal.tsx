@@ -1,13 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  useWallet,
-} from "@demox-labs/aleo-wallet-adapter-react";
-import {
-  DecryptPermission,
-  WalletAdapterNetwork,
-} from "@demox-labs/aleo-wallet-adapter-base";
+import { useWallet } from "@/src/lib/wallet/wallet-provider";
+import { Network } from "@provablehq/aleo-types";
 import { useAleoSession } from "./useAleoSession";
 
 type Props = {
@@ -31,54 +26,46 @@ const WALLET_META: Record<string, WalletMeta> = {
     label: "Puzzle Wallet",
     description: "WalletConnect V2 — mobile & extension",
   },
-  "Fox Wallet": {
-    label: "Fox Wallet",
-    description: "Multi-chain extension & mobile",
-  },
-  "Soter Wallet": {
-    label: "Soter Wallet",
-    description: "Aleo digital wallet",
-  },
 };
 
 /**
  * Wallet connection modal (Path A).
  *
- * Supports Shield (primary), Leo, Puzzle, Fox, and Soter wallets.
- * Shield Wallet is listed first as the recommended option.
+ * Uses @provablehq/aleo-wallet-adaptor-react — the official Provable adapter
+ * stack that Shield wallet is designed to work with.
  *
  * Connection grants: address + decrypt permission + signMessage capability.
  * Private key never leaves the wallet extension.
  */
 export function ConnectWalletModal({ open, onClose }: Props) {
-  const { wallets, select, connect, publicKey, connected } = useWallet();
+  const { wallets, selectWallet, connect, address, connected } = useWallet();
   const { connect: sessionConnect } = useAleoSession();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // When wallet connects successfully, bridge to our session store
   useEffect(() => {
-    if (connected && publicKey && connecting) {
-      // Wallet adapter provides address via publicKey.
+    if (connected && address && connecting) {
+      // Wallet adapter provides address directly.
       // View key is accessed through the wallet's decrypt API on demand —
       // no need to store it separately when using wallet connection.
       // The wallet handles all signing and decryption internally.
-      sessionConnect("", "", publicKey);
+      sessionConnect("", "", address);
       setConnecting(null);
       onClose();
     }
-  }, [connected, publicKey, connecting, sessionConnect, onClose]);
+  }, [connected, address, connecting, sessionConnect, onClose]);
 
   const handleSelect = useCallback(
     async (walletName: string) => {
       setError(null);
       setConnecting(walletName);
       try {
-        await select(walletName as never);
-        await connect(
-          DecryptPermission.AutoDecrypt,
-          WalletAdapterNetwork.TestnetBeta,
-        );
+        // selectWallet tells the provider which adapter to use.
+        // connect() then triggers the wallet's authorization popup.
+        // Network and decrypt permission are configured at the provider level.
+        selectWallet(walletName as never);
+        await connect(Network.TESTNET);
       } catch (err) {
         setError(
           err instanceof Error
@@ -88,7 +75,7 @@ export function ConnectWalletModal({ open, onClose }: Props) {
         setConnecting(null);
       }
     },
-    [select, connect],
+    [selectWallet, connect],
   );
 
   if (!open) return null;
