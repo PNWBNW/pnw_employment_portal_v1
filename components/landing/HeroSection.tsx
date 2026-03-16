@@ -24,49 +24,50 @@ export function HeroSection({
   });
 
   // Parallax: image moves up slower than scroll
-  const imageY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  const imageY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
   // Fade the hero slightly as user scrolls away
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.3]);
 
   return (
-    <div ref={containerRef} className="relative h-screen w-full overflow-hidden">
-      {/* Background image with parallax */}
+    <div ref={containerRef} className="relative w-full overflow-hidden" style={{ height: "140vh" }}>
+      {/* Background image with parallax — all overlays INSIDE so they track */}
       <motion.div
-        className="absolute inset-0 w-full h-[130%]"
+        className="absolute inset-0 w-full h-[120%]"
         style={{ y: imageY }}
       >
+        {/* The hero image itself */}
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
             backgroundImage: "url('/images/pnw-hero.png')",
           }}
         />
+
+        {/* All interactive/decorative overlays move with the image */}
+        <motion.div className="absolute inset-0" style={{ opacity: heroOpacity }}>
+          {/* Constellation dots in sky */}
+          <ConstellationOverlay />
+
+          {/* Tree wind sway */}
+          <TreeSwayOverlay />
+
+          {/* Flying birds */}
+          <AnimatedBirds />
+
+          {/* Root pulse along tree roots */}
+          <RootPulse />
+
+          {/* Interactive doors — positioned over the painted doors */}
+          <PortalDoors
+            onEmployerClick={onEmployerClick}
+            onWorkerClick={onWorkerClick}
+          />
+        </motion.div>
       </motion.div>
 
-      {/* Animated overlays — all within the hero viewport */}
-      <motion.div className="absolute inset-0" style={{ opacity: heroOpacity }}>
-        {/* Constellation dots in sky */}
-        <ConstellationOverlay />
-
-        {/* Tree wind sway */}
-        <TreeSwayOverlay />
-
-        {/* Flying birds */}
-        <AnimatedBirds />
-
-        {/* Root pulse in lower half */}
-        <RootPulse />
-
-        {/* Interactive doors */}
-        <PortalDoors
-          onEmployerClick={onEmployerClick}
-          onWorkerClick={onWorkerClick}
-        />
-      </motion.div>
-
-      {/* Bottom tagline */}
+      {/* Bottom tagline — stays fixed in viewport */}
       <motion.div
-        className="absolute bottom-8 left-0 right-0 z-30 text-center"
+        className="absolute bottom-12 left-0 right-0 z-30 text-center"
         style={{ opacity: heroOpacity }}
       >
         <motion.p
@@ -106,12 +107,12 @@ export function HeroSection({
         </motion.div>
       </motion.div>
 
-      {/* Gradient transition to dark sections below */}
+      {/* Very subtle gradient at the very bottom — image keeps showing */}
       <div
-        className="absolute bottom-0 left-0 right-0 h-32 z-20 pointer-events-none"
+        className="absolute bottom-0 left-0 right-0 h-48 z-20 pointer-events-none"
         style={{
           background:
-            "linear-gradient(180deg, transparent 0%, var(--pnw-navy-950) 100%)",
+            "linear-gradient(180deg, transparent 0%, rgba(3,8,16,0.5) 60%, rgba(3,8,16,0.85) 100%)",
         }}
       />
     </div>

@@ -34,17 +34,17 @@ function Door({ side, onClick }: DoorProps) {
       whileHover={{ scale: 1.03 }}
       whileTap={{ scale: 0.98 }}
     >
-      {/* Door base shape */}
+      {/* Invisible hit area — no visible border or background until hover */}
       <div
         className="absolute inset-0 rounded-t-lg transition-all duration-500"
         style={{
-          border: `2px solid ${color}`,
+          border: hovered ? `2px solid ${color}` : "2px solid transparent",
           background: hovered
-            ? `linear-gradient(180deg, ${glowColor} 0%, rgba(255,255,255,0.15) 50%, ${glowColor} 100%)`
-            : "rgba(0,0,0,0.3)",
+            ? `linear-gradient(180deg, ${glowColor} 0%, rgba(255,255,255,0.1) 50%, ${glowColor} 100%)`
+            : "transparent",
           boxShadow: hovered
-            ? `0 0 40px ${glowColor}, inset 0 0 30px rgba(255,255,255,0.2)`
-            : `0 0 10px rgba(0,0,0,0.3)`,
+            ? `0 0 40px ${glowColor}, inset 0 0 30px rgba(255,255,255,0.15)`
+            : "none",
           transform: hovered
             ? "perspective(400px) rotateY(-8deg)"
             : "perspective(400px) rotateY(0deg)",
@@ -52,14 +52,13 @@ function Door({ side, onClick }: DoorProps) {
           transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
-        {/* Door handle */}
+        {/* Door handle — only visible on hover */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3 rounded-full"
+          className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3 rounded-full transition-all duration-500"
           style={{
             [isEmployer ? "right" : "left"]: "15%",
-            background: hovered ? "#ffd700" : "#8b8b8b",
+            background: hovered ? "#ffd700" : "transparent",
             boxShadow: hovered ? "0 0 8px #ffd700" : "none",
-            transition: "all 0.5s",
           }}
         />
 
@@ -79,7 +78,6 @@ function Door({ side, onClick }: DoorProps) {
                   background: `radial-gradient(ellipse at ${isEmployer ? "80%" : "20%"} 60%, rgba(255,220,100,0.4) 0%, transparent 70%)`,
                 }}
               />
-              {/* Light rays */}
               {[...Array(3)].map((_, i) => (
                 <div
                   key={i}
@@ -127,7 +125,6 @@ function Door({ side, onClick }: DoorProps) {
               </p>
               <p className="text-[10px] text-gray-300 mt-0.5">{sublabel}</p>
             </div>
-            {/* Arrow */}
             <div
               className="mx-auto w-0 h-0"
               style={{
@@ -158,8 +155,8 @@ export function PortalDoors({
       style={{
         /* Position over the two doors in the hero image center */
         left: "50%",
-        top: "50%",
-        transform: "translate(-52%, -18%)",
+        top: "55%",
+        transform: "translate(-52%, -50%)",
       }}
     >
       <Door side="employer" onClick={onEmployerClick} />
