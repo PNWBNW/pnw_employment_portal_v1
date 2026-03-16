@@ -182,8 +182,11 @@ export function PortalDoors({
     <div
       className="absolute z-20 flex gap-[1vw]"
       style={{
+        /* Image is w-full h-auto (1024x1536 = 2:3 ratio).
+           Image height = 150vw. Doors are at ~38% from top of image = 57vw.
+           Hero is h-screen, so position as percentage of viewport. */
         left: "50%",
-        top: "55%",
+        top: "57vw",
         transform: "translate(-52%, -50%)",
       }}
     >
