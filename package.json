@@ -12,8 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@demox-labs/aleo-wallet-adapter-base": "^0.0.23",
+    "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
+    "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
     "@noble/hashes": "^2.0.1",
     "@tanstack/react-table": "^8.21.3",
+    "aleo-adapters": "^1.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jspdf": "^4.2.0",
