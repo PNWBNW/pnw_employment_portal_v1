@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@/src/lib/wallet/wallet-provider";
 import { Network } from "@provablehq/aleo-types";
 import { useAleoSession } from "./useAleoSession";
@@ -34,48 +34,62 @@ const WALLET_META: Record<string, WalletMeta> = {
  * Uses @provablehq/aleo-wallet-adaptor-react — the official Provable adapter
  * stack that Shield wallet is designed to work with.
  *
+ * The connect flow is two-phase to avoid a race condition:
+ *   1. handleSelect → selectWallet(name)   (async state update)
+ *   2. useEffect    → connect(network)      (fires after React reconciles)
+ *
  * Connection grants: address + decrypt permission + signMessage capability.
  * Private key never leaves the wallet extension.
  */
 export function ConnectWalletModal({ open, onClose }: Props) {
-  const { wallets, selectWallet, connect, address, connected } = useWallet();
+  const { wallets, selectWallet, connect, address, connected, wallet } =
+    useWallet();
   const { connect: sessionConnect } = useAleoSession();
-  const [connecting, setConnecting] = useState<string | null>(null);
+  const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const connectAttempted = useRef(false);
 
-  // When wallet connects successfully, bridge to our session store
+  // Phase 2: Once the provider picks up the selected wallet, trigger connect().
+  // This fires on re-render AFTER selectWallet has propagated.
   useEffect(() => {
-    if (connected && address && connecting) {
-      // Wallet adapter provides address directly.
-      // View key is accessed through the wallet's decrypt API on demand —
-      // no need to store it separately when using wallet connection.
-      // The wallet handles all signing and decryption internally.
-      sessionConnect("", "", address);
-      setConnecting(null);
-      onClose();
-    }
-  }, [connected, address, connecting, sessionConnect, onClose]);
+    if (!pendingWallet || !wallet) return;
+    if (wallet.adapter.name !== pendingWallet) return;
+    if (connectAttempted.current) return;
 
-  const handleSelect = useCallback(
-    async (walletName: string) => {
-      setError(null);
-      setConnecting(walletName);
+    connectAttempted.current = true;
+
+    (async () => {
       try {
-        // selectWallet tells the provider which adapter to use.
-        // connect() then triggers the wallet's authorization popup.
-        // Network and decrypt permission are configured at the provider level.
-        selectWallet(walletName as never);
         await connect(Network.TESTNET);
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : `Failed to connect ${walletName}`,
-        );
-        setConnecting(null);
+        const msg =
+          err instanceof Error ? err.message : `Failed to connect ${pendingWallet}`;
+        setError(msg);
+        setPendingWallet(null);
+        connectAttempted.current = false;
       }
+    })();
+  }, [pendingWallet, wallet, connect]);
+
+  // Phase 3: When connected, bridge to our session store and close.
+  useEffect(() => {
+    if (connected && address && pendingWallet) {
+      sessionConnect("", "", address);
+      setPendingWallet(null);
+      connectAttempted.current = false;
+      onClose();
+    }
+  }, [connected, address, pendingWallet, sessionConnect, onClose]);
+
+  // Phase 1: User clicks a wallet — select it and let the effects handle connect.
+  const handleSelect = useCallback(
+    (walletName: string) => {
+      setError(null);
+      connectAttempted.current = false;
+      setPendingWallet(walletName);
+      selectWallet(walletName as never);
     },
-    [selectWallet, connect],
+    [selectWallet],
   );
 
   if (!open) return null;
@@ -92,28 +106,28 @@ export function ConnectWalletModal({ open, onClose }: Props) {
         </p>
 
         <div className="space-y-2">
-          {wallets.map((wallet) => {
-            const meta: WalletMeta = WALLET_META[wallet.adapter.name] ?? {
-              label: wallet.adapter.name,
+          {wallets.map((w) => {
+            const meta: WalletMeta = WALLET_META[w.adapter.name] ?? {
+              label: w.adapter.name,
               description: "Aleo wallet",
             };
-            const isConnecting = connecting === wallet.adapter.name;
+            const isConnecting = pendingWallet === w.adapter.name;
 
             return (
               <button
-                key={wallet.adapter.name}
-                onClick={() => handleSelect(wallet.adapter.name)}
-                disabled={isConnecting}
+                key={w.adapter.name}
+                onClick={() => handleSelect(w.adapter.name)}
+                disabled={!!pendingWallet}
                 className={`flex w-full items-center gap-3 rounded-md border px-4 py-3 text-sm text-card-foreground hover:bg-accent disabled:opacity-50 ${
                   meta.recommended
                     ? "border-primary bg-primary/5"
                     : "border-input"
                 }`}
               >
-                {wallet.adapter.icon ? (
+                {w.adapter.icon ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={wallet.adapter.icon}
+                    src={w.adapter.icon}
                     alt={meta.label}
                     className="h-7 w-7 rounded-full"
                   />
@@ -174,7 +188,12 @@ export function ConnectWalletModal({ open, onClose }: Props) {
             Signing & decryption happen inside your wallet
           </p>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setPendingWallet(null);
+              connectAttempted.current = false;
+              setError(null);
+              onClose();
+            }}
             className="rounded-md border border-input px-4 py-2 text-sm hover:bg-accent"
           >
             Close
