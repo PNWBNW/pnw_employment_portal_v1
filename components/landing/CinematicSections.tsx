@@ -109,40 +109,20 @@ function ScrollSection({
       ref={ref}
       className="relative min-h-screen flex items-center justify-center px-6"
     >
-      {/* Background depth gradient — first section is semi-transparent to blend with hero */}
+      {/* Background — semi-transparent so DeepRoots streams show through */}
       <div
         className="absolute inset-0"
         style={{
           background: index === 0
             ? `linear-gradient(180deg,
-                rgba(3,8,16,0.4) 0%,
-                rgba(3,8,16,0.75) 40%,
-                rgba(3,8,16,0.92) 100%)`
+                rgba(3,8,16,0.3) 0%,
+                rgba(3,8,16,0.65) 40%,
+                rgba(3,8,16,0.82) 100%)`
             : `linear-gradient(180deg,
-                rgba(3,8,16,${0.88 + index * 0.02}) 0%,
-                rgba(${6 - index},${14 - index * 2},${26 - index * 3},${0.94 + index * 0.01}) 100%)`,
+                rgba(3,8,16,${0.75 + index * 0.02}) 0%,
+                rgba(3,8,16,${0.82 + index * 0.02}) 100%)`,
         }}
       />
-
-      {/* Faint vertical binary columns in background */}
-      <div className="absolute inset-0 overflow-hidden opacity-[0.04]">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute font-mono text-[10px] text-cyan-400 leading-loose"
-            style={{
-              left: `${12 + i * 16}%`,
-              top: 0,
-              height: "100%",
-              animation: `binary-rain ${6 + i * 2}s linear ${i * 1.5}s infinite`,
-            }}
-          >
-            {"10110010110100101".split("").map((c, j) => (
-              <div key={j}>{c}</div>
-            ))}
-          </div>
-        ))}
-      </div>
 
       {/* Horizontal accent line */}
       <motion.div
