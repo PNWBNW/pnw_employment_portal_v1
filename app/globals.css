@@ -203,6 +203,43 @@ body {
   100% { top: 100%; opacity: 0; }
 }
 
+/* === Wallet Adapter UI Customization === */
+/* Override the official @provablehq/aleo-wallet-adaptor-react-ui CSS variables
+   to match PNW's dark navy design system. */
+:root {
+  /* Primary — PNW employer blue */
+  --wallet-adapter-primary: #2563eb;
+  --wallet-adapter-primary-hover: #1d4ed8;
+  --wallet-adapter-primary-foreground: #ffffff;
+  /* Background & surfaces — PNW navy palette */
+  --wallet-adapter-background: var(--pnw-navy-950);
+  --wallet-adapter-surface: var(--pnw-navy-900);
+  --wallet-adapter-surface-hover: var(--pnw-navy-800);
+  --wallet-adapter-surface-light: #1e293b;
+  /* Text */
+  --wallet-adapter-text: #e2e8f0;
+  --wallet-adapter-text-secondary: #94a3b8;
+  /* Borders */
+  --wallet-adapter-border: #1e293b;
+  --wallet-adapter-border-light: #334155;
+  /* Secondary actions */
+  --wallet-adapter-secondary: #2563eb;
+  --wallet-adapter-secondary-hover: #1d4ed8;
+  /* Accents */
+  --wallet-adapter-accent-green: #16a34a;
+  --wallet-adapter-accent-blue: #38bdf8;
+  /* Radii */
+  --wallet-adapter-radius-sm: 6px;
+  --wallet-adapter-radius: 8px;
+  --wallet-adapter-radius-lg: 12px;
+  --wallet-adapter-radius-xl: 32px;
+  /* Shadows */
+  --wallet-adapter-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --wallet-adapter-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --wallet-adapter-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --wallet-adapter-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
+
 /* Smooth scroll for the whole page */
 html {
   scroll-behavior: smooth;
