@@ -37,34 +37,36 @@ export default function LandingPage() {
   );
 
   return (
-    <div className="relative hide-scrollbar">
-      {/* Single tall background image spanning the entire page.
-          Trees at top, roots at bottom — scrolls naturally with content.
-          object-fit: contain ensures no side cropping on wide screens. */}
-      <div
-        className="absolute inset-0 z-0 overflow-hidden"
-        style={{ background: "var(--pnw-navy-950)" }}
-      >
+    <div
+      className="relative hide-scrollbar"
+      style={{ background: "var(--pnw-navy-950)" }}
+    >
+      {/* Background: the tall pnw-tree.png at full width, natural height.
+          Positioned at top, scrolls with the page. Fades to dark at bottom. */}
+      <div className="absolute top-0 left-0 right-0 z-0">
         <img
           src="/images/pnw-tree.png"
           alt=""
-          className="w-full h-full object-contain object-top"
+          className="w-full h-auto block"
           draggable={false}
+          style={{
+            maskImage:
+              "linear-gradient(180deg, black 0%, black 70%, rgba(0,0,0,0.6) 85%, rgba(0,0,0,0.2) 95%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(180deg, black 0%, black 70%, rgba(0,0,0,0.6) 85%, rgba(0,0,0,0.2) 95%, transparent 100%)",
+          }}
         />
       </div>
 
-      {/* All content layers on top of the background */}
+      {/* All content layers on top */}
       <div className="relative z-10">
-        {/* Hero: viewport-height section with doors, constellations */}
         <HeroSection
           onEmployerClick={() => handlePortalClick("employer")}
           onWorkerClick={() => handlePortalClick("worker")}
         />
 
-        {/* Cinematic scroll sections — 6 descriptors over the roots */}
         <CinematicSections />
 
-        {/* Final CTA at the deepest root */}
         <FooterCTA
           onEmployerClick={() => handlePortalClick("employer")}
           onWorkerClick={() => handlePortalClick("worker")}
