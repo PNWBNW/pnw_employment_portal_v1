@@ -14,17 +14,19 @@ type WalletMeta = {
   label: string;
   description: string;
   recommended?: boolean;
+  mobileRecommended?: boolean;
 };
 
 const WALLET_META: Record<string, WalletMeta> = {
   "Shield Wallet": {
     label: "Shield Wallet",
-    description: "Private wallet by Provable (recommended)",
+    description: "Private wallet by Provable — extension & mobile app",
     recommended: true,
   },
   "Puzzle Wallet": {
     label: "Puzzle Wallet",
     description: "WalletConnect V2 — mobile & extension",
+    mobileRecommended: true,
   },
 };
 
@@ -50,8 +52,8 @@ function useIsMobile() {
  *   1. handleSelect → selectWallet(name)   (async state update)
  *   2. useEffect    → connect(network)      (fires after React reconciles)
  *
- * On mobile, when Shield extension is not detected, we show a deep-link to
- * open the Shield mobile app for signing.
+ * On mobile, Shield is available as a mobile app (Google Play / App Store).
+ * Puzzle Wallet also supports mobile via WalletConnect V2.
  *
  * Connection grants: address + decrypt permission + signMessage capability.
  * Private key never leaves the wallet extension.
@@ -110,6 +112,9 @@ export function ConnectWalletModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  // Keep Shield first (recommended), Puzzle second
+  const sortedWallets = wallets;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="mx-4 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
@@ -122,13 +127,12 @@ export function ConnectWalletModal({ open, onClose }: Props) {
         </p>
 
         <div className="space-y-2">
-          {wallets.map((w) => {
+          {sortedWallets.map((w) => {
             const meta: WalletMeta = WALLET_META[w.adapter.name] ?? {
               label: w.adapter.name,
               description: "Aleo wallet",
             };
             const isConnecting = pendingWallet === w.adapter.name;
-            const isShield = w.adapter.name === "Shield Wallet";
             const notDetected = w.readyState === "NotDetected";
 
             return (
@@ -172,11 +176,9 @@ export function ConnectWalletModal({ open, onClose }: Props) {
                     ? "Connecting..."
                     : w.readyState === "Installed"
                       ? "Detected"
-                      : notDetected && isMobile && isShield
-                        ? "Open app"
-                        : notDetected
-                          ? "Not found"
-                          : w.readyState}
+                      : notDetected
+                        ? "Not found"
+                        : w.readyState}
                 </span>
               </button>
             );
@@ -203,14 +205,14 @@ export function ConnectWalletModal({ open, onClose }: Props) {
           )}
         </div>
 
-        {/* Mobile deep-link section for Shield */}
-        {isMobile && (
+        {/* Mobile: show download links when wallet not detected */}
+        {isMobile && wallets.some((w) => w.readyState === "NotDetected") && (
           <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3">
             <p className="text-xs font-medium text-card-foreground mb-2">
-              On mobile? Sign in with Shield app:
+              Don&apos;t have a wallet? Get Shield:
             </p>
             <a
-              href="https://shield.app/connect"
+              href="https://www.shield.app"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -227,11 +229,40 @@ export function ConnectWalletModal({ open, onClose }: Props) {
               >
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              Open Shield Wallet
+              Download Shield Wallet
             </a>
             <p className="text-[10px] text-muted-foreground mt-2 text-center">
-              Shield will prompt you to approve a signature login
+              Available on Google Play, App Store, and as a browser extension
             </p>
+          </div>
+        )}
+
+        {/* Desktop: show install link when Shield not detected */}
+        {!isMobile && wallets.some((w) => w.adapter.name === "Shield Wallet" && w.readyState === "NotDetected") && (
+          <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-center">
+            <p className="text-xs text-muted-foreground mb-1.5">
+              Shield Wallet not detected
+            </p>
+            <a
+              href="https://www.shield.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Install Shield Wallet extension
+            </a>
           </div>
         )}
 

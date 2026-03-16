@@ -56,10 +56,12 @@ function Door({ side, onClick }: DoorProps) {
       onMouseLeave={() => setHovered(false)}
       className="relative cursor-pointer"
       style={{
-        /* Sized to match the painted doors in pnw-tree.png.
-           The doors are roughly 3.2vw wide x 5.5vw tall at desktop scale. */
-        width: "clamp(28px, 3.2vw, 48px)",
-        height: "clamp(50px, 5.5vw, 82px)",
+        /* Pixel-measured from pnw-tree.png (1024×1536):
+           Blue door: 28px wide × 41px tall → 2.73vw × 4.0vw
+           Green door: ~20px wide × ~27px tall → 1.95vw × 2.64vw
+           Using average + slight padding for clickable area. */
+        width: "clamp(24px, 2.8vw, 42px)",
+        height: "clamp(38px, 4.2vw, 64px)",
         perspective: "600px",
       }}
       whileTap={{ scale: 0.97 }}
@@ -276,36 +278,40 @@ export function PortalDoors({
 }: PortalDoorsProps) {
   return (
     <>
-      {/* Responsive positioning via CSS.
-          The background image is w-full h-auto, so door Y-position scales with vw.
-          On portrait mobile, the image is narrower → painted doors are higher. */}
+      {/* Positioning measured from pnw-tree.png pixel analysis:
+          Image: 1024×1536 → displayed w-full h-auto → height = 150vw.
+          Blue door center:  x=48.0%, y=37.6vw (px 492, 385)
+          Green door center: x=53.5%, y=38.2vw (px 548, 391)
+          Combined center:   x=50.8%, y=37.9vw
+          Gap between doors: 3.13vw (32px) */}
       <style jsx>{`
         .portal-doors-container {
           position: absolute;
           z-index: 20;
           display: flex;
-          left: 50%;
+          /* Slightly right of 50% — doors in image are at 50.8% horizontal */
+          left: 50.8%;
           transform: translate(-50%, -50%);
         }
         /* Mobile portrait (narrow viewports) */
         @media (max-width: 639px) {
           .portal-doors-container {
-            top: 42vw;
-            gap: 1vw;
+            top: 37.9vw;
+            gap: 3vw;
           }
         }
         /* Tablet */
         @media (min-width: 640px) and (max-width: 1023px) {
           .portal-doors-container {
-            top: 46vw;
-            gap: 0.6vw;
+            top: 37.9vw;
+            gap: 3vw;
           }
         }
         /* Desktop */
         @media (min-width: 1024px) {
           .portal-doors-container {
-            top: min(48vw, 82vh);
-            gap: 0.4vw;
+            top: min(37.9vw, 65vh);
+            gap: 3vw;
           }
         }
       `}</style>

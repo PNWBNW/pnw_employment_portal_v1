@@ -3,21 +3,31 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useWallet } from "@/src/lib/wallet/wallet-provider";
+import { useWalletModal } from "@provablehq/aleo-wallet-adaptor-react-ui";
 import { EnterKeysModal } from "@/components/key-manager/EnterKeysModal";
-import { ConnectWalletModal } from "@/components/key-manager/ConnectWalletModal";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { CinematicSections } from "@/components/landing/CinematicSections";
 import { FooterCTA } from "@/components/landing/FooterCTA";
 
 export default function LandingPage() {
-  const { isConnected } = useAleoSession();
+  const { isConnected, connect: sessionConnect } = useAleoSession();
+  const { connected, address } = useWallet();
+  const { setVisible: setWalletModalVisible } = useWalletModal();
   const router = useRouter();
   const [showKeys, setShowKeys] = useState(false);
-  const [showWallet, setShowWallet] = useState(false);
   const [portalChoice, setPortalChoice] = useState<
     "employer" | "worker" | null
   >(null);
 
+  // Bridge wallet connection to session store
+  useEffect(() => {
+    if (connected && address && !isConnected) {
+      sessionConnect("", "", address);
+    }
+  }, [connected, address, isConnected, sessionConnect]);
+
+  // Navigate when session is active
   useEffect(() => {
     if (isConnected && portalChoice === "employer") {
       router.push("/dashboard");
@@ -31,9 +41,10 @@ export default function LandingPage() {
   const handlePortalClick = useCallback(
     (portal: "employer" | "worker") => {
       setPortalChoice(portal);
-      setShowWallet(true);
+      // Open the official Provable wallet modal (handles Shield, Puzzle, Fox, etc.)
+      setWalletModalVisible(true);
     },
-    []
+    [setWalletModalVisible],
   );
 
   return (
@@ -73,14 +84,7 @@ export default function LandingPage() {
         />
       </div>
 
-      {/* Auth modals */}
-      <ConnectWalletModal
-        open={showWallet}
-        onClose={() => {
-          setShowWallet(false);
-          if (!isConnected) setPortalChoice(null);
-        }}
-      />
+      {/* Manual key entry fallback */}
       <EnterKeysModal
         open={showKeys}
         onClose={() => {
