@@ -18,7 +18,7 @@ export function FooterCTA({ onEmployerClick, onWorkerClick }: FooterCTAProps) {
       className="relative min-h-[60vh] flex items-center justify-center px-6"
       style={{
         background:
-          "linear-gradient(180deg, rgba(3,8,16,0.85) 0%, rgba(0,0,0,0.92) 100%)",
+          "linear-gradient(180deg, rgba(3,8,16,0.6) 0%, rgba(0,0,0,0.75) 100%)",
       }}
     >
       {/* Faint root glow from above */}

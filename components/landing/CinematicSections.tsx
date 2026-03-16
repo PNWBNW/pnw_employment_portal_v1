@@ -109,18 +109,18 @@ function ScrollSection({
       ref={ref}
       className="relative min-h-screen flex items-center justify-center px-6"
     >
-      {/* Background — semi-transparent so DeepRoots streams show through */}
+      {/* Background — very transparent so roots and image continue through */}
       <div
         className="absolute inset-0"
         style={{
           background: index === 0
             ? `linear-gradient(180deg,
-                rgba(3,8,16,0.3) 0%,
-                rgba(3,8,16,0.65) 40%,
-                rgba(3,8,16,0.82) 100%)`
+                rgba(3,8,16,0.15) 0%,
+                rgba(3,8,16,0.45) 40%,
+                rgba(3,8,16,0.6) 100%)`
             : `linear-gradient(180deg,
-                rgba(3,8,16,${0.75 + index * 0.02}) 0%,
-                rgba(3,8,16,${0.82 + index * 0.02}) 100%)`,
+                rgba(3,8,16,${0.5 + index * 0.03}) 0%,
+                rgba(3,8,16,${0.6 + index * 0.03}) 100%)`,
         }}
       />
 
