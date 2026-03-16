@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@/src/lib/wallet/wallet-provider";
 import { Network } from "@provablehq/aleo-types";
 import { useAleoSession } from "./useAleoSession";
@@ -28,6 +28,18 @@ const WALLET_META: Record<string, WalletMeta> = {
   },
 };
 
+/** Rough mobile detection (touch + narrow viewport) */
+function useIsMobile() {
+  return useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (window.matchMedia("(max-width: 768px)").matches &&
+        "ontouchstart" in window)
+    );
+  }, []);
+}
+
 /**
  * Wallet connection modal (Path A).
  *
@@ -37,6 +49,9 @@ const WALLET_META: Record<string, WalletMeta> = {
  * The connect flow is two-phase to avoid a race condition:
  *   1. handleSelect → selectWallet(name)   (async state update)
  *   2. useEffect    → connect(network)      (fires after React reconciles)
+ *
+ * On mobile, when Shield extension is not detected, we show a deep-link to
+ * open the Shield mobile app for signing.
  *
  * Connection grants: address + decrypt permission + signMessage capability.
  * Private key never leaves the wallet extension.
@@ -48,6 +63,7 @@ export function ConnectWalletModal({ open, onClose }: Props) {
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const connectAttempted = useRef(false);
+  const isMobile = useIsMobile();
 
   // Phase 2: Once the provider picks up the selected wallet, trigger connect().
   // This fires on re-render AFTER selectWallet has propagated.
@@ -112,6 +128,8 @@ export function ConnectWalletModal({ open, onClose }: Props) {
               description: "Aleo wallet",
             };
             const isConnecting = pendingWallet === w.adapter.name;
+            const isShield = w.adapter.name === "Shield Wallet";
+            const notDetected = w.readyState === "NotDetected";
 
             return (
               <button
@@ -154,9 +172,11 @@ export function ConnectWalletModal({ open, onClose }: Props) {
                     ? "Connecting..."
                     : w.readyState === "Installed"
                       ? "Detected"
-                      : w.readyState === "NotDetected"
-                        ? "Not found"
-                        : w.readyState}
+                      : notDetected && isMobile && isShield
+                        ? "Open app"
+                        : notDetected
+                          ? "Not found"
+                          : w.readyState}
                 </span>
               </button>
             );
@@ -182,6 +202,38 @@ export function ConnectWalletModal({ open, onClose }: Props) {
             </div>
           )}
         </div>
+
+        {/* Mobile deep-link section for Shield */}
+        {isMobile && (
+          <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+            <p className="text-xs font-medium text-card-foreground mb-2">
+              On mobile? Sign in with Shield app:
+            </p>
+            <a
+              href="https://shield.app/connect"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Open Shield Wallet
+            </a>
+            <p className="text-[10px] text-muted-foreground mt-2 text-center">
+              Shield will prompt you to approve a signature login
+            </p>
+          </div>
+        )}
 
         {error && (
           <p className="mt-3 text-sm text-red-500">{error}</p>
