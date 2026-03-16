@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
+import { useWallet } from "@/src/lib/wallet/wallet-provider";
 import {
   requestWalletSignature,
   type ChallengeContext,
@@ -19,21 +19,29 @@ import {
  *   const proof = await signForCredential(credentialId);
  */
 export function useWalletSigner() {
-  const { publicKey, signMessage, connected } = useWallet();
+  const { address, signMessage, connected } = useWallet();
 
-  const canSign = connected && !!signMessage && !!publicKey;
+  const canSign = connected && !!signMessage && !!address;
 
   const sign = useCallback(
     async (context: ChallengeContext): Promise<WalletSignatureProof> => {
       if (!signMessage) {
         throw new Error("Wallet does not support signMessage");
       }
-      if (!publicKey) {
+      if (!address) {
         throw new Error("No wallet connected");
       }
-      return requestWalletSignature(signMessage, context, publicKey);
+      // Wrap signMessage to match the strict (Uint8Array) => Promise<Uint8Array> signature
+      // that requestWalletSignature expects. The provider's version accepts string | Uint8Array
+      // and may return undefined, but we only ever pass Uint8Array and throw on undefined.
+      const sign = async (msg: Uint8Array): Promise<Uint8Array> => {
+        const result = await signMessage(msg);
+        if (!result) throw new Error("signMessage returned empty result");
+        return result;
+      };
+      return requestWalletSignature(sign, context, address);
     },
-    [signMessage, publicKey],
+    [signMessage, address],
   );
 
   const signForCredential = useCallback(
