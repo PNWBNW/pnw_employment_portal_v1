@@ -41,7 +41,7 @@ Aleo record shapes are inherently dynamic. Every `any` must have a comment.
 
 ---
 
-## Styling: Tailwind CSS 3 + shadcn/ui
+## Styling: Tailwind CSS 4 + shadcn/ui
 
 **Why Tailwind:**
 - Utility-first makes the payroll table, status badges, and dense data UIs fast
@@ -142,18 +142,20 @@ pnpm@9
 
 ---
 
-## PDF Generation: @react-pdf/renderer
+## PDF Generation: jspdf
 
-Client-side only. Generates paystub, credential certificate, and audit authorization
-PDFs directly in the browser. No server upload, no third-party service.
+Client-side only. Generates paystub, credential certificate, payroll run summary,
+and audit authorization PDFs directly in the browser. No server upload, no
+third-party service.
 
 ```
-pnpm add @react-pdf/renderer
+pnpm add jspdf
 ```
 
 PDF components live in `components/pdf/`. They receive only display-safe data
 (decoded amounts, user-chosen display labels, tx IDs, anchor hashes). They never
-receive raw addresses, private keys, or view keys.
+receive raw addresses, private keys, or view keys. Shared layout helpers are in
+`components/pdf/pdf_helpers.ts`.
 
 ---
 
@@ -176,28 +178,70 @@ The QR never encodes a raw Aleo address or private key.
 
 ---
 
+## Wallet Adapters: @provablehq/aleo-wallet-adaptor-*
+
+The official Provable wallet adapter stack for Aleo.
+
+```
+pnpm add @provablehq/aleo-wallet-adaptor-react @provablehq/aleo-wallet-adaptor-react-ui
+pnpm add @provablehq/aleo-wallet-adaptor-shield @provablehq/aleo-wallet-adaptor-puzzle
+pnpm add @provablehq/aleo-wallet-adaptor-leo @provablehq/aleo-wallet-adaptor-fox
+pnpm add @provablehq/aleo-wallet-adaptor-soter
+pnpm add @provablehq/aleo-wallet-adaptor-core @provablehq/aleo-wallet-standard
+pnpm add @provablehq/aleo-types
+```
+
+All packages at `0.3.0-alpha.3`. Follows the exact pattern from
+[aleo-dev-toolkit-react-app.vercel.app/wallet](https://aleo-dev-toolkit-react-app.vercel.app/wallet).
+
+**What each package does:**
+- `aleo-wallet-adaptor-react` — `AleoWalletProvider` context + `useWallet()` hook
+- `aleo-wallet-adaptor-react-ui` — `WalletModalProvider` + `WalletMultiButton` pre-built UI
+- `aleo-wallet-adaptor-shield/puzzle/leo/fox/soter` — per-wallet adapters
+- `aleo-wallet-adaptor-core` — `BaseAleoWalletAdapter`, error types, utilities
+- `aleo-wallet-standard` — `WalletReadyState`, `WalletDecryptPermission` enums
+- `aleo-types` — `Network` enum
+
+**Mobile support:**
+- Leo and Fox adapters accept `{ isMobile: true, mobileWebviewUrl: <dapp-url> }`
+  config to redirect to their in-app browser (`app.leo.app/browser?url=...`)
+- A custom `WalletMobileRedirectHandler` component handles the LOADABLE → deep-link
+  fallback for wallets that don't support in-app browser config (Shield, Puzzle)
+
+---
+
+## Animation: Framer Motion
+
+```
+pnpm add framer-motion
+```
+
+Used for the landing page animations:
+- Hero section fade-ins and scroll-linked opacity
+- Portal door open/close animations
+- Cinematic section scroll reveals
+- Bird flight, constellation twinkling, root pulse
+
+**Not used for:** employer portal UI (keeps the portal lightweight and fast).
+
+---
+
 ## Aleo SDK (Client-Side Record Decoding)
 
 For decoding the employer's own private records (paystub receipts, USDCx balances)
 from the Aleo network using their view key.
 
-**Package:** `@provablehq/sdk` (browser WASM build)
+**Package:** `@provablehq/sdk` (browser WASM build — loaded dynamically)
 
-```
-pnpm add @provablehq/sdk
-```
-
-This is loaded dynamically (`next/dynamic` with `ssr: false`) because it requires
-WebAssembly which is not available in SSR. View key scanning runs in a Web Worker
-to avoid blocking the main thread.
+View key scanning runs in a Web Worker to avoid blocking the main thread.
 
 **Scope:** Used only for:
 1. Decoding employer's own `WorkerPaystubReceipt` and `EmployerPaystubReceipt` records
 2. Scanning for USDCx Token records owned by the employer
 3. Post-MVP: worker side record decoding
 
-**Never used for:** signing transactions. That goes through the adapter which calls
-`snarkos developer execute` with the private key.
+**Never used for:** signing transactions. Signing goes through the wallet adapter
+(`useWallet().signMessage`) or through the CLI adapter for on-chain execution.
 
 ---
 
@@ -231,34 +275,46 @@ Hosting for MVP: Vercel (zero-config Next.js, free tier for testnet).
 |-----------|--------|
 | tRPC / GraphQL | No server; all data is from Aleo RPC + session |
 | Prisma / Postgres | No database; no persistent storage of private data |
-| NextAuth / Clerk | No traditional auth; session is Aleo key pair |
+| NextAuth / Clerk | No traditional auth; session is Aleo wallet connection |
 | Redux | Zustand is sufficient; Redux is too much boilerplate |
 | Styled Components / Emotion | Tailwind is sufficient; CSS-in-JS adds bundle weight |
 | React Query | Direct fetch from Aleo REST API is simple enough for MVP |
-| Webpack config | Next.js handles this; no custom webpack |
+| @demox-labs/aleo-wallet-adapter-* | Replaced by official @provablehq/aleo-wallet-adaptor-* |
+| @react-pdf/renderer | Replaced by jspdf (lighter, simpler API) |
+| WalletConnect | Aleo wallets use in-app browser pattern, not WalletConnect |
 
 ---
 
-## Version Pins (Initial)
+## Version Pins (Current)
 
 ```json
 {
   "dependencies": {
-    "next": "15.x",
+    "next": "16.x",
     "react": "19.x",
     "react-dom": "19.x",
-    "typescript": "5.x",
-    "tailwindcss": "3.x",
     "zustand": "5.x",
     "@tanstack/react-table": "8.x",
-    "@noble/hashes": "1.x",
-    "@react-pdf/renderer": "3.x",
+    "@noble/hashes": "2.x",
+    "jspdf": "4.x",
+    "framer-motion": "12.x",
     "react-qr-code": "2.x",
-    "qrcode": "1.x"
+    "qrcode": "1.x",
+    "lucide-react": "0.577.x",
+    "@provablehq/aleo-wallet-adaptor-react": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-react-ui": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-shield": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-puzzle": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-leo": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-fox": "0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-soter": "0.3.0-alpha.3",
+    "@provablehq/aleo-types": "0.3.0-alpha.3"
   },
   "devDependencies": {
-    "vitest": "2.x",
-    "@vitest/ui": "2.x"
+    "typescript": "5.x",
+    "tailwindcss": "4.x",
+    "vitest": "4.x",
+    "@vitest/ui": "4.x"
   }
 }
 ```

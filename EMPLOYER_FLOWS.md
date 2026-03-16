@@ -10,19 +10,38 @@
 
 Before any employer action, the user must have an active Aleo session.
 
-**Entry point:** `app/page.tsx` (landing page)
+**Entry point:** `app/page.tsx` (cinematic landing page)
 
-### Path A — Wallet Connection
-1. User clicks "Connect Wallet"
-2. `ConnectWalletModal` presents wallet options (Shield, Puzzle, Leo Wallet, Other)
-3. Wallet extension provides: `address`, `view_key`, signing interface
-4. Session stored in Zustand `session_store.ts` + `sessionStorage`
-5. User redirected to `app/(employer)/dashboard/`
+The landing page features an immersive hero section with the PNW tree image,
+interactive portal doors (employer blue / worker green), animated overlays
+(constellation stars, flying birds, tree sway, root pulse), and scrolling
+cinematic feature sections.
 
-### Path B — Direct Key Entry
-1. User clicks "Enter Keys Manually"
+### Path A — Wallet Connection (Primary)
+1. User clicks a portal door or the `WalletMultiButton` (top-right corner)
+2. The official Provable wallet modal opens showing 5 wallets:
+   Shield, Puzzle, Leo, Fox, Soter
+3. **Desktop:** User selects their installed browser extension → wallet prompts
+   for approval → `address` returned via `useWallet()` hook
+4. **Mobile:** User selects a wallet → LOADABLE wallet redirect handler opens
+   the wallet's in-app browser (e.g., `app.leo.app/browser?url=<dApp>`) →
+   our portal loads inside the wallet's webview → `window.leoWallet` injected →
+   normal connect flow proceeds
+5. `useEffect` in `page.tsx` bridges `connected` + `address` from `useWallet()`
+   to the session store (`sessionConnect`)
+6. User redirected to `app/(employer)/dashboard/` (employer) or
+   `app/worker/dashboard/` (worker)
+
+**Key components:**
+- `src/lib/wallet/wallet-provider.tsx` — `AleoWalletProviderWrapper` with all
+  5 adapters, `WalletModalProvider`, and `WalletMobileRedirectHandler`
+- `components/landing/HeroSection.tsx` — hero with `WalletMultiButton`
+- `components/landing/PortalDoors.tsx` — employer/worker door click → opens wallet modal
+
+### Path B — Direct Key Entry (Fallback)
+1. User clicks "Enter Keys Manually" (available from `EnterKeysModal`)
 2. `EnterKeysModal` prompts for: Private Key, View Key
-3. Address is derived from private key client-side (via `@provablehq/sdk`)
+3. Address is derived from private key client-side
 4. Private key stored in `sessionStorage` only (not Zustand, not localStorage)
 5. View key stored in `sessionStorage` + Zustand (view_key is less sensitive)
 6. User redirected to `app/(employer)/dashboard/`
