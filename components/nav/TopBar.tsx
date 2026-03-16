@@ -8,13 +8,43 @@ function truncateAddress(addr: string | null): string {
   return `${addr.slice(0, 8)}...${addr.slice(-4)}`;
 }
 
-export function TopBar() {
+interface TopBarProps {
+  /** Called when the mobile hamburger button is tapped */
+  onMenuToggle?: () => void;
+}
+
+export function TopBar({ onMenuToggle }: TopBarProps) {
   const { address, isConnected, disconnect } = useAleoSession();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
-      <div className="text-sm text-muted-foreground">
-        PNW Employment Portal
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          aria-label="Open navigation menu"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+
+        <div className="text-sm text-muted-foreground">
+          PNW Employment Portal
+        </div>
       </div>
 
       {isConnected && (

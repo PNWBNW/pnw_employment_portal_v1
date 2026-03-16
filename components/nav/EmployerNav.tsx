@@ -39,10 +39,17 @@ function NavIcon({ name }: { name: string }) {
   );
 }
 
-export function EmployerNav() {
+interface EmployerNavProps {
+  /** Whether the mobile drawer is open */
+  mobileOpen?: boolean;
+  /** Called when the mobile drawer should close */
+  onMobileClose?: () => void;
+}
+
+export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
   const pathname = usePathname();
 
-  return (
+  const navContent = (
     <nav className="flex h-full w-56 flex-col border-r border-border bg-card">
       <div className="flex h-14 items-center border-b border-border px-4">
         <span className="text-sm font-bold tracking-tight text-primary">
@@ -57,6 +64,7 @@ export function EmployerNav() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onMobileClose}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 isActive
@@ -77,5 +85,27 @@ export function EmployerNav() {
         </p>
       </div>
     </nav>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar — always visible at md+ */}
+      <div className="hidden md:flex">{navContent}</div>
+
+      {/* Mobile overlay drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          {/* Backdrop — closes menu on tap */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={onMobileClose}
+          />
+          {/* Drawer panel */}
+          <div className="relative z-10">
+            {navContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
