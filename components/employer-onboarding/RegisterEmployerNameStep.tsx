@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
-import { useWorkerIdentityStore } from "@/src/stores/worker_identity_store";
+import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import {
   computeNameHash,
   queryNameOwner,
-  buildRegisterWorkerNameCommand,
-  WORKER_PRICE_BASE,
+  queryEmployerNameCount,
+  queryEmployerVerified,
+  buildRegisterEmployerNameCommand,
+  EMPLOYER_PRICES,
   DEFAULT_NAMING_FEE,
   USDCX_SCALE,
+  INDUSTRY_SUFFIXES,
 } from "@/src/registry/name_registry";
 import { PROGRAMS } from "@/src/config/programs";
 
@@ -21,33 +24,59 @@ type AvailabilityState =
   | { status: "taken" }
   | { status: "error"; message: string };
 
-export function RegisterNameStep() {
+export function RegisterEmployerNameStep() {
   const { address } = useAleoSession();
-  const { setWorkerNameHash, setStep, queryError } = useWorkerIdentityStore();
+  const { setEmployerNameHash, setStep, queryError } = useEmployerIdentityStore();
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
 
   const [name, setName] = useState("");
+  const [suffixCode, setSuffixCode] = useState<number>(1);
   const [availability, setAvailability] = useState<AvailabilityState>({ status: "idle" });
   const [showCommand, setShowCommand] = useState(false);
   const [commandPreview, setCommandPreview] = useState("");
+  const [nameCount, setNameCount] = useState(0);
+  const [isVerified, setIsVerified] = useState<boolean | null>(null);
 
   // Validation: alphanumeric + underscores, 3-16 chars
   const nameRegex = /^[a-z0-9_]{3,16}$/;
   const isValidFormat = nameRegex.test(name);
 
+  // Tiered pricing based on how many names the wallet already has
+  const priceIndex = Math.min(nameCount, 2); // 0, 1, or 2
+  const basePrice = EMPLOYER_PRICES[priceIndex]!;
+  const feeCost = Number(DEFAULT_NAMING_FEE) / Number(USDCX_SCALE);
+  const baseCost = Number(basePrice) / Number(USDCX_SCALE);
+  const totalCost = baseCost + feeCost;
+  const costDisplay = `${totalCost} USDCx`;
+  const suffix = INDUSTRY_SUFFIXES[suffixCode];
+
   async function handleCheckAvailability() {
-    if (!isValidFormat) return;
+    if (!isValidFormat || !address) return;
 
     setAvailability({ status: "checking" });
 
     try {
+      // Check verification status
+      const verified = await queryEmployerVerified(address);
+      setIsVerified(verified);
+
+      // Check existing name count for pricing
+      const count = await queryEmployerNameCount(address);
+      setNameCount(count);
+
+      if (count >= 3) {
+        setAvailability({
+          status: "error",
+          message: "Maximum 3 employer names per wallet. Sell an existing name to register a new one.",
+        });
+        return;
+      }
+
       const hash = computeNameHash(name);
       const owner = await queryNameOwner(hash);
 
       if (owner) {
-        // Already taken — but check if it belongs to the current wallet
         if (owner === address) {
-          // This wallet already owns this name — proceed
           setAvailability({ status: "available", nameHash: hash });
         } else {
           setAvailability({ status: "taken" });
@@ -64,11 +93,8 @@ export function RegisterNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-
-    // Single transaction: register_worker_name internally calls
-    // test_usdcx_stablecoin.aleo/transfer_public(DAO_TREASURY, base + fee)
-    // The USDCx transfer is built into the on-chain transition.
-    const registerCmd = buildRegisterWorkerNameCommand(hash, DEFAULT_NAMING_FEE);
+    const count = (nameCount + 1) as 1 | 2 | 3;
+    const registerCmd = buildRegisterEmployerNameCommand(hash, suffixCode, count, DEFAULT_NAMING_FEE);
 
     setCommandPreview(registerCmd);
     setShowCommand(true);
@@ -78,30 +104,30 @@ export function RegisterNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
+    const count = (nameCount + 1) as 1 | 2 | 3;
+
     const result = await execute(
-      PROGRAMS.layer1.pnw_name_registry,
-      "register_worker_name",
-      [`${hash}field`, `${DEFAULT_NAMING_FEE}u128`],
+      "pnw_name_registry.aleo",
+      "register_employer_name",
+      [
+        `${hash}field`,
+        `${suffixCode}u8`,
+        `${count}u8`,
+        `${DEFAULT_NAMING_FEE}u128`,
+      ],
     );
 
     if (result.status === "confirmed") {
-      setWorkerNameHash(hash, name);
+      setEmployerNameHash(hash, name, suffixCode);
       setStep("create_profile");
     }
   }
 
   function handleConfirmRegistration() {
     if (availability.status !== "available") return;
-
-    // Save the name hash and advance to profile step (preview/skip mode)
-    setWorkerNameHash(availability.nameHash, name);
+    setEmployerNameHash(availability.nameHash, name, suffixCode);
     setStep("create_profile");
   }
-
-  const baseCost = Number(WORKER_PRICE_BASE) / Number(USDCX_SCALE);
-  const feeCost = Number(DEFAULT_NAMING_FEE) / Number(USDCX_SCALE);
-  const totalCost = baseCost + feeCost;
-  const costDisplay = `${totalCost} USDCx`;
 
   return (
     <div className="mx-auto w-full max-w-lg py-12 space-y-6">
@@ -109,47 +135,60 @@ export function RegisterNameStep() {
       <div className="text-center space-y-2">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
+            <path d="M3 21h18" />
+            <path d="M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7H3l2-4h14l2 4" />
+            <path d="M5 21V10.87" />
+            <path d="M19 21V10.87" />
           </svg>
         </div>
         <h1 className="text-xl font-semibold text-foreground">
-          Register Your .pnw Identity
+          Register Your Employer .pnw Identity
         </h1>
         <p className="text-sm text-muted-foreground">
-          Before using the Worker Portal, you need a .pnw name. This is your
-          privacy-preserving identity on the Proven National Workers network.
+          Before using the Employer Portal, you need a .pnw employer name. This is your
+          privacy-preserving business identity on the Proven National Workers network.
         </p>
       </div>
 
       {/* Info cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-medium text-foreground">Soulbound</p>
+          <p className="text-xs font-medium text-foreground">Up to 3 Names</p>
           <p className="text-xs text-muted-foreground">
-            1 worker name per wallet. Non-transferable.
+            Employers can register up to 3 .pnw names per wallet.
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-medium text-foreground">Cost</p>
+          <p className="text-xs font-medium text-foreground">Tiered Pricing</p>
           <p className="text-xs text-muted-foreground">
-            {baseCost} USDCx base{feeCost > 0 ? ` + ${feeCost} USDCx naming fee` : ""}
-            {" "}(routed to local DAO treasury)
+            1st: 10 USDCx, 2nd: 100 USDCx, 3rd: 300 USDCx
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-medium text-foreground">Privacy-First</p>
+          <p className="text-xs font-medium text-foreground">Industry Suffix</p>
           <p className="text-xs text-muted-foreground">
-            Only the name hash is stored on-chain. Never plaintext.
+            Each name is tagged with an industry code that must match your profile.
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-medium text-foreground">Dual Roles</p>
+          <p className="text-xs font-medium text-foreground">75% Sellback</p>
           <p className="text-xs text-muted-foreground">
-            You can also register employer names later (up to 3).
+            Names can be sold back for 75% of the base price. Fees are non-refundable.
           </p>
         </div>
       </div>
+
+      {/* Verification warning */}
+      {isVerified === false && (
+        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3">
+          <p className="text-xs text-yellow-400 font-medium">Wallet Not Verified</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Your wallet has not been verified by the PNW authority yet. On testnet, visit
+            the <a href="/dev/verify-employer" className="underline text-yellow-400">dev verification page</a> for
+            instructions. On-chain registration will fail without verification.
+          </p>
+        </div>
+      )}
 
       {/* Network error from gate check */}
       {queryError && (
@@ -165,21 +204,41 @@ export function RegisterNameStep() {
       <div className="rounded-lg border border-border bg-card p-4 space-y-4">
         <div>
           <h3 className="text-sm font-medium text-foreground">
-            Choose Your Worker Name
+            Choose Your Employer Name
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
             3-16 characters. Lowercase letters, numbers, and underscores only.
           </p>
         </div>
 
+        {/* Industry suffix selector */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Industry Suffix *
+          </label>
+          <select
+            value={suffixCode}
+            onChange={(e) => {
+              setSuffixCode(Number(e.target.value));
+              setAvailability({ status: "idle" });
+              setShowCommand(false);
+            }}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {Object.entries(INDUSTRY_SUFFIXES).map(([code, { label }]) => (
+              <option key={code} value={code}>{label}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1">
-            <label htmlFor="pnw-name" className="text-xs font-medium text-muted-foreground">
+            <label htmlFor="employer-pnw-name" className="text-xs font-medium text-muted-foreground">
               Name
             </label>
             <div className="flex items-center rounded-md border border-border bg-background focus-within:ring-1 focus-within:ring-primary">
               <input
-                id="pnw-name"
+                id="employer-pnw-name"
                 type="text"
                 value={name}
                 onChange={(e) => {
@@ -187,7 +246,7 @@ export function RegisterNameStep() {
                   setAvailability({ status: "idle" });
                   setShowCommand(false);
                 }}
-                placeholder="your_name"
+                placeholder="your_business"
                 maxLength={16}
                 className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
               />
@@ -223,6 +282,9 @@ export function RegisterNameStep() {
                 {name}.pnw is available
               </span>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Industry: {suffix?.label} ({suffix?.code}) | Name #{nameCount + 1} of 3
+            </p>
             <p className="text-xs text-muted-foreground font-mono break-all">
               Name hash: {availability.nameHash}
             </p>
@@ -268,9 +330,9 @@ export function RegisterNameStep() {
 
           <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
             <p className="text-xs text-blue-300">
-              The contract internally transfers {costDisplay} to the presiding
-              DAO treasury via test_usdcx_stablecoin.aleo. You must have
-              sufficient USDCx balance. Aleo network execution fees are paid separately.
+              The contract transfers {costDisplay} to the presiding DAO treasury via
+              test_usdcx_stablecoin.aleo. You must have sufficient USDCx balance.
+              Aleo network execution fees are paid separately.
             </p>
           </div>
 

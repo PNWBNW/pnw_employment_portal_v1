@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import { WorkerVerification } from "@/components/onboarding/WorkerVerification";
 import { OfferForm } from "@/components/onboarding/OfferForm";
 import { OfferQRDisplay } from "@/components/onboarding/OfferQRDisplay";
@@ -20,7 +21,9 @@ type OnboardStep =
 
 export default function OnboardWorkerPage() {
   const { address: employerAddress } = useAleoSession();
+  const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
   const [step, setStep] = useState<OnboardStep>("verify");
+  const [broadcastTxId, setBroadcastTxId] = useState<string | null>(null);
 
   // Data passed between steps
   const [workerAddress, setWorkerAddress] = useState("");
@@ -153,15 +156,71 @@ export default function OnboardWorkerPage() {
   "${computed.terms_root}" \\
   "${computed.offer_time_hash}"`}
             </pre>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Preview mode — actual on-chain execution will be wired once the adapter layer is connected to pnw_mvp_v2.
-            </p>
           </div>
 
+          {/* Transaction status */}
+          {isExecuting && (
+            <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <p className="text-xs text-primary">
+                {txStatus === "submitting" ? "Submitting transaction..." : "Waiting for confirmation..."}
+              </p>
+            </div>
+          )}
+
+          {txError && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3">
+              <p className="text-xs text-red-400">{txError}</p>
+            </div>
+          )}
+
+          {broadcastTxId && (
+            <div className="rounded-md border border-green-500/20 bg-green-500/5 p-3">
+              <p className="text-xs text-green-400">
+                Transaction confirmed: <span className="font-mono">{broadcastTxId.slice(0, 20)}...</span>
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2">
+            {!broadcastTxId && (
+              <button
+                onClick={async () => {
+                  const result = await execute(
+                    "pnw_router.aleo",
+                    "create_job_offer",
+                    [
+                      computed.agreement_id,
+                      computed.parties_key,
+                      `${offerIntent.employer_name_hash}field`,
+                      `${offerIntent.worker_name_hash}field`,
+                      offerIntent.worker_address,
+                      `${offerIntent.industry_code}u8`,
+                      `${offerIntent.pay_frequency_code}u8`,
+                      `${offerIntent.start_epoch}u32`,
+                      `${offerIntent.end_epoch}u32`,
+                      `${offerIntent.review_epoch}u32`,
+                      `1u16`,
+                      `${offerIntent.schema_v}u16`,
+                      `${offerIntent.policy_v}u16`,
+                      computed.terms_doc_hash,
+                      computed.terms_root,
+                      computed.offer_time_hash,
+                    ],
+                  );
+                  if (result.status === "confirmed") {
+                    setBroadcastTxId(result.txId);
+                  }
+                }}
+                disabled={isExecuting}
+                className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isExecuting ? "Broadcasting..." : "Broadcast to Chain"}
+              </button>
+            )}
             <Link
               href="/workers"
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               Back to Workers
             </Link>
