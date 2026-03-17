@@ -88,6 +88,7 @@ export function RegisterNameStep() {
       setWorkerNameHash(hash, name);
       setStep("create_profile");
     }
+    // "rejected" and "unknown" errors are surfaced via txError from the hook
   }
 
   function handleConfirmRegistration() {

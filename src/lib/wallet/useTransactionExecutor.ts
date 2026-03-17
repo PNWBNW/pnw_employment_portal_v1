@@ -101,6 +101,8 @@ export function useTransactionExecutor(): TransactionExecutor {
 
         if (txResult.status === "rejected") {
           setError(txResult.error ?? "Transaction rejected");
+        } else if (txResult.status === "unknown") {
+          setError(txResult.error ?? "Transaction status could not be confirmed. Check your wallet or try again.");
         }
 
         return txResult;
