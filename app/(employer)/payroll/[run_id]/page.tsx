@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
 import { RunStatusBanner } from "@/components/run-status/RunStatusBanner";
 import { ChunkStatusList } from "@/components/run-status/ChunkStatusList";
@@ -12,6 +13,7 @@ import { mintBatchAnchor } from "@/src/anchor/batch_anchor_finalizer";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
 import type { PayrollRunManifest } from "@/src/manifest/types";
+import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
 
 function downloadJson(manifest: PayrollRunManifest) {
   const json = JSON.stringify(manifest, null, 2);
@@ -27,6 +29,22 @@ function downloadJson(manifest: PayrollRunManifest) {
 export default function RunStatusPage() {
   const params = useParams<{ run_id: string }>();
   const runId = params.run_id;
+  const { executeTransaction } = useWallet();
+
+  // Build wallet executor function from wallet adapter
+  const walletExecute: WalletExecuteFn | undefined = useMemo(() => {
+    if (!executeTransaction) return undefined;
+    return async (params) => {
+      const result = await executeTransaction({
+        program: params.program,
+        function: params.function,
+        inputs: params.inputs,
+        fee: params.fee,
+      });
+      if (!result) throw new Error("Wallet returned no result");
+      return result.transactionId;
+    };
+  }, [executeTransaction]);
 
   const manifest = usePayrollRunStore((s) => s.manifest);
   const history = usePayrollRunStore((s) => s.history);
@@ -57,8 +75,8 @@ export default function RunStatusPage() {
     async (chunkIndex: number) => {
       if (!resolvedManifest) return;
       const privateKey = getPrivateKey();
-      if (!privateKey) {
-        alert("No private key in session. Please reconnect.");
+      if (!privateKey && !walletExecute) {
+        alert("No private key in session and no wallet connected. Please reconnect.");
         return;
       }
 
@@ -69,7 +87,7 @@ export default function RunStatusPage() {
           adapterConfig: {
             endpoint: ENV.ALEO_ENDPOINT,
             network: ENV.NETWORK,
-            privateKey,
+            privateKey: privateKey ?? "",
           },
           callbacks: {
             onRunStatusChange: () => {},
@@ -78,6 +96,7 @@ export default function RunStatusPage() {
             onComplete: () => {},
             onError: () => {},
           },
+          walletExecute,
         },
         chunkIndex,
       );
@@ -88,7 +107,7 @@ export default function RunStatusPage() {
       );
       updateChunks(newChunks);
     },
-    [resolvedManifest, chunks, updateChunks],
+    [resolvedManifest, chunks, updateChunks, walletExecute],
   );
 
   const handleMintAnchor = useCallback(async () => {
