@@ -161,7 +161,9 @@ export function RegisterEmployerNameStep() {
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-xs font-medium text-foreground">Tiered Pricing</p>
           <p className="text-xs text-muted-foreground">
-            1st: 10 USDCx, 2nd: 100 USDCx, 3rd: 300 USDCx
+            {totalCost > 0
+              ? "1st: 10 USDCx, 2nd: 100 USDCx, 3rd: 300 USDCx"
+              : "Free on testnet (mainnet: 10 / 100 / 300 USDCx)"}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
@@ -173,7 +175,7 @@ export function RegisterEmployerNameStep() {
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-xs font-medium text-foreground">75% Sellback</p>
           <p className="text-xs text-muted-foreground">
-            Names can be sold back for 75% of the base price. Fees are non-refundable.
+            On mainnet, names can be sold back for 75% of the base price.
           </p>
         </div>
       </div>
@@ -312,7 +314,7 @@ export function RegisterEmployerNameStep() {
           onClick={handleRegister}
           className="w-full rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          Register {name}.pnw for {costDisplay}
+          Register {name}.pnw{totalCost > 0 ? ` for ${costDisplay}` : ""}
         </button>
       )}
 
@@ -330,8 +332,9 @@ export function RegisterEmployerNameStep() {
 
           <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
             <p className="text-xs text-blue-300">
-              The contract transfers {costDisplay} to the presiding DAO treasury via
-              test_usdcx_stablecoin.aleo. You must have sufficient USDCx balance.
+              {totalCost > 0
+                ? `This transaction costs ${costDisplay}. You must have sufficient USDCx balance. `
+                : "No USDCx fee on testnet. "}
               Aleo network execution fees are paid separately.
             </p>
           </div>

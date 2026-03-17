@@ -133,8 +133,9 @@ export function RegisterNameStep() {
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-xs font-medium text-foreground">Cost</p>
           <p className="text-xs text-muted-foreground">
-            {baseCost} USDCx base{feeCost > 0 ? ` + ${feeCost} USDCx naming fee` : ""}
-            {" "}(routed to local DAO treasury)
+            {totalCost > 0
+              ? `${baseCost} USDCx base${feeCost > 0 ? ` + ${feeCost} USDCx naming fee` : ""}`
+              : "Free on testnet"}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
@@ -250,7 +251,7 @@ export function RegisterNameStep() {
           onClick={handleRegister}
           className="w-full rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          Register {name}.pnw for {costDisplay}
+          Register {name}.pnw{totalCost > 0 ? ` for ${costDisplay}` : ""}
         </button>
       )}
 
@@ -268,9 +269,10 @@ export function RegisterNameStep() {
 
           <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
             <p className="text-xs text-blue-300">
-              The contract internally transfers {costDisplay} to the presiding
-              DAO treasury via test_usdcx_stablecoin.aleo. You must have
-              sufficient USDCx balance. Aleo network execution fees are paid separately.
+              {totalCost > 0
+                ? `This transaction costs ${costDisplay}. You must have sufficient USDCx balance. `
+                : "No USDCx fee on testnet. "}
+              Aleo network execution fees are paid separately.
             </p>
           </div>
 

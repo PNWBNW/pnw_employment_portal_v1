@@ -24,17 +24,17 @@ export const NAME_KIND_EMPLOYER: U8 = 2;
 /** USDCx scale factor (1 USDCx = 1_000_000 micro-units) */
 export const USDCX_SCALE = 1_000_000n;
 
-/** Worker name base price: 1 USDCx */
-export const WORKER_PRICE_BASE = 1n * USDCX_SCALE;
+/** Worker name base price — 0 on testnet (no DAO treasury yet) */
+export const WORKER_PRICE_BASE = 0n;
 
-/** Default naming fee (routed to presiding DAO treasury alongside base price) */
-export const DEFAULT_NAMING_FEE = 0n; // placeholder — DAO sets this
+/** Default naming fee — 0 on testnet (DAO governance not yet active) */
+export const DEFAULT_NAMING_FEE = 0n;
 
-/** Employer name tiered pricing */
+/** Employer name tiered pricing — 0 on testnet (no DAO treasury yet) */
 export const EMPLOYER_PRICES = [
-  10n * USDCX_SCALE,   // 1st name
-  100n * USDCX_SCALE,  // 2nd name
-  300n * USDCX_SCALE,  // 3rd name
+  0n,  // 1st name (mainnet: 10 USDCx)
+  0n,  // 2nd name (mainnet: 100 USDCx)
+  0n,  // 3rd name (mainnet: 300 USDCx)
 ] as const;
 
 /** Employer sellback refund: 75% of base price (fees never refunded) */
@@ -302,15 +302,14 @@ export async function queryEmployerVerified(address: Address): Promise<boolean> 
 // Command builders (preview mode)
 // ----------------------------------------------------------------
 //
-// Registration requires TWO transactions:
-// 1. USDCx transfer: approve or transfer (base_price + fee_amount) to
-//    the locally presiding DAO treasury address.
-//    → test_usdcx_stablecoin.aleo/transfer_public(dao_treasury, total_amount)
-// 2. Name registration: call the register transition.
+// Registration calls the register transition on-chain.
 //
-// The base price + naming fee are application-level payments routed to
-// the DAO treasury — they are NOT network fees. Aleo execution fees are
-// paid separately by the caller.
+// On mainnet, registration will require a USDCx transfer to the
+// presiding DAO treasury (base_price + fee_amount) before calling
+// the register transition. On testnet, fees are zeroed out because
+// no DAO treasury is active yet.
+//
+// Aleo execution fees are paid separately by the caller.
 // ----------------------------------------------------------------
 
 /**
