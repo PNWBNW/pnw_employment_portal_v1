@@ -43,7 +43,6 @@ export function CreateProfileStep() {
     if (!lastName.trim()) return "Last name is required.";
     if (age < 16 || age > 120) return "Age must be between 16 and 120.";
     if (stateCode === 0) return "Select your state of residency.";
-    if (!stateIssueId.trim()) return "State-issued ID is required.";
     return null;
   }
 
@@ -83,7 +82,7 @@ export function CreateProfileStep() {
       gender,
       residency_state_code: stateCode,
       country_code: countryCode,
-      state_issue_id: stateIssueId.trim(),
+      state_issue_id: stateIssueId.trim() || "0",
       industry_code: industryCode,
       citizenship_flag: citizenshipFlag,
     };
@@ -111,7 +110,7 @@ export function CreateProfileStep() {
       gender,
       residency_state_code: stateCode,
       country_code: countryCode,
-      state_issue_id: stateIssueId.trim(),
+      state_issue_id: stateIssueId.trim() || "0",
       industry_code: industryCode,
       citizenship_flag: citizenshipFlag,
     };
@@ -295,7 +294,7 @@ export function CreateProfileStep() {
 
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
-              State-Issued ID *
+              State-Issued ID <span className="text-muted-foreground/60">(optional)</span>
             </label>
             <input
               type="text"
@@ -306,7 +305,7 @@ export function CreateProfileStep() {
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <p className="text-xs text-muted-foreground">
-              Encoded as u128 and stored in your private record only. Max 16 characters.
+              Optional on testnet. Encoded as u128 and stored in your private record only. Max 16 characters.
             </p>
           </div>
         </div>
