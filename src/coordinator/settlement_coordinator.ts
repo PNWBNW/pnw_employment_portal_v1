@@ -31,6 +31,11 @@ import type { BatchPayrollWorker } from "../lib/pnw-adapter/layer1_router";
 import { LAYER1_TRANSITIONS } from "../lib/pnw-adapter/layer1_adapter";
 import type { ExecutionResult, AdapterConfig } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { executeTransition } from "../lib/pnw-adapter/aleo_cli_adapter";
+import type { WalletExecuteFn } from "../lib/wallet/wallet-executor";
+import {
+  executeAleoTransaction,
+  pollTransactionStatus,
+} from "../lib/wallet/wallet-executor";
 
 // ----------------------------------------------------------------
 // Configuration
@@ -81,6 +86,8 @@ export type SettlementContext = {
   chunks: ChunkPlan[];
   adapterConfig: AdapterConfig;
   callbacks: CoordinatorCallbacks;
+  /** Optional wallet executor for E10 wallet-based settlement */
+  walletExecute?: WalletExecuteFn;
 };
 
 /**
@@ -195,7 +202,10 @@ async function executeChunkWithRetry(
     );
 
     try {
-      const result = await executeChunk(manifest, current, ctx.adapterConfig);
+      // Use wallet executor if available (E10), otherwise fall back to CLI adapter
+      const result = ctx.walletExecute
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute)
+        : await executeChunk(manifest, current, ctx.adapterConfig);
 
       current.status = "settled";
       current.tx_id = result.tx_id;
@@ -222,6 +232,50 @@ async function executeChunkWithRetry(
   // Exhausted retries
   current.status = "failed";
   return current;
+}
+
+// ----------------------------------------------------------------
+// Internal: single chunk execution via wallet (E10 path)
+// ----------------------------------------------------------------
+
+async function executeChunkViaWallet(
+  manifest: PayrollRunManifest,
+  chunk: ChunkPlan,
+  walletExecute: WalletExecuteFn,
+): Promise<ExecutionResult> {
+  const workerArgs = chunk.row_indices.map((rowIdx) => {
+    const row = manifest.rows[rowIdx];
+    if (!row) throw new Error(`Row index ${rowIdx} not found in manifest`);
+    return buildWorkerPayArgs(manifest, row);
+  });
+
+  const transitionName = chunk.transition;
+  const transition = LAYER1_TRANSITIONS[transitionName];
+  const inputs = serializeWorkerPayArgs(workerArgs);
+
+  const txId = await executeAleoTransaction(
+    walletExecute,
+    transition.program,
+    transition.transition,
+    inputs,
+    500_000, // 0.5 credits
+  );
+
+  const result = await pollTransactionStatus(txId);
+
+  if (result.status === "rejected") {
+    throw new Error(result.error ?? "Transaction rejected");
+  }
+
+  if (result.status === "unknown") {
+    throw new Error(result.error ?? "Transaction status unknown after timeout");
+  }
+
+  return {
+    tx_id: txId,
+    outputs: [],
+    fee: "500000",
+  };
 }
 
 // ----------------------------------------------------------------

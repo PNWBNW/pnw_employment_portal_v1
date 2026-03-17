@@ -2,53 +2,60 @@
 
 import { useState } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
-import { useWorkerIdentityStore } from "@/src/stores/worker_identity_store";
+import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import {
-  type WorkerProfileInput,
-  GENDER_LABELS,
-  buildCreateWorkerProfileCommand,
+  type EmployerProfileInput,
+  ENTITY_TYPE_CODES,
+  EMPLOYER_SIZE_CODES,
+  buildCreateEmployerProfileCommand,
   encodeStringToU128,
 } from "@/src/registry/profile_types";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { PROGRAMS } from "@/src/config/programs";
 import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { tlvEncode } from "@/src/lib/pnw-adapter/canonical_encoder";
-import { US_STATE_CODES, COUNTRY_CODES } from "./geo_codes";
+import { US_STATE_CODES, COUNTRY_CODES } from "@/components/worker-onboarding/geo_codes";
 
-export function CreateProfileStep() {
+export function CreateEmployerProfileStep() {
   const { address } = useAleoSession();
-  const { workerNameHash, chosenName, setStep, setProfileAnchored } =
-    useWorkerIdentityStore();
+  const {
+    employerNameHash,
+    chosenName,
+    suffixCode,
+    setStep,
+    setProfileAnchored,
+  } = useEmployerIdentityStore();
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
 
-  // Form state
-  const [firstName, setFirstName] = useState("");
-  const [middleName, setMiddleName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [age, setAge] = useState<number>(0);
-  const [gender, setGender] = useState<number>(1);
+  // Form state — matches employer_profiles.aleo record fields
+  const [legalName, setLegalName] = useState("");
+  const [registrationId, setRegistrationId] = useState("");
   const [stateCode, setStateCode] = useState<number>(0);
-  const [countryCode, setCountryCode] = useState<number>(840); // US default
-  const [stateIssueId, setStateIssueId] = useState("");
-  const [industryCode, setIndustryCode] = useState<number>(1);
-  const [citizenshipFlag, setCitizenshipFlag] = useState<number>(1);
+  const [countryCode, setCountryCode] = useState<number>(840);
+  const [formationYear, setFormationYear] = useState<number>(2024);
+  const [entityTypeCode, setEntityTypeCode] = useState<number>(3); // LLC default
+  const [employerSizeCode, setEmployerSizeCode] = useState<number>(1);
+  const [operatingRegionCode, setOperatingRegionCode] = useState<number>(0);
 
   const [showCommand, setShowCommand] = useState(false);
   const [commandPreview, setCommandPreview] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Industry code must match suffix code (enforced by on-chain contract)
+  const industryCode = suffixCode ?? 1;
+  const industryLabel = INDUSTRY_SUFFIXES[industryCode]?.label ?? "Unknown";
+
   function validate(): string | null {
-    if (!firstName.trim()) return "First name is required.";
-    if (!lastName.trim()) return "Last name is required.";
-    if (age < 16 || age > 120) return "Age must be between 16 and 120.";
-    if (stateCode === 0) return "Select your state of residency.";
-    if (!stateIssueId.trim()) return "State-issued ID is required.";
+    if (!legalName.trim()) return "Legal name is required.";
+    if (!registrationId.trim()) return "Registration ID is required.";
+    if (stateCode === 0) return "Select your state of registration.";
+    if (formationYear < 1800 || formationYear > 2030) return "Formation year must be between 1800 and 2030.";
+    if (operatingRegionCode === 0) return "Select your primary operating region.";
     return null;
   }
 
   function computeProfileAnchor(): string {
-    // Profile anchor = BLAKE3("PNW::DOC", TLV(name_hash, address, timestamp))
     const encoder = new TextEncoder();
     const tsBytes = new Uint8Array(4);
     const ts = Math.floor(Date.now() / 1000);
@@ -57,12 +64,28 @@ export function CreateProfileStep() {
     tsBytes[2] = (ts >>> 8) & 0xff;
     tsBytes[3] = ts & 0xff;
 
-    const data = tlvEncode(0x5010, [
-      { tag: 0x01, value: encoder.encode(workerNameHash ?? "") },
+    const data = tlvEncode(0x5011, [
+      { tag: 0x01, value: encoder.encode(employerNameHash ?? "") },
       { tag: 0x02, value: encoder.encode(address ?? "") },
       { tag: 0x03, value: tsBytes },
     ]);
     return toHex(domainHash(DOMAIN_TAGS.DOC, data));
+  }
+
+  function buildInput(): EmployerProfileInput {
+    return {
+      employer_name_hash: employerNameHash ?? "",
+      suffix_code: suffixCode ?? 1,
+      legal_name: legalName.trim(),
+      registration_id: registrationId.trim(),
+      registration_state_code: stateCode,
+      country_code: countryCode,
+      formation_year: formationYear,
+      entity_type_code: entityTypeCode,
+      industry_code: industryCode,
+      employer_size_code: employerSizeCode,
+      operating_region_code: operatingRegionCode,
+    };
   }
 
   function handleBuildCommand() {
@@ -74,21 +97,8 @@ export function CreateProfileStep() {
     setError(null);
 
     const profileAnchor = computeProfileAnchor();
-    const input: WorkerProfileInput = {
-      worker_name_hash: workerNameHash ?? "",
-      first_name: firstName.trim(),
-      middle_name: middleName.trim() || " ",
-      last_name: lastName.trim(),
-      age,
-      gender,
-      residency_state_code: stateCode,
-      country_code: countryCode,
-      state_issue_id: stateIssueId.trim(),
-      industry_code: industryCode,
-      citizenship_flag: citizenshipFlag,
-    };
-
-    const cmd = buildCreateWorkerProfileCommand(input, profileAnchor);
+    const input = buildInput();
+    const cmd = buildCreateEmployerProfileCommand(input, profileAnchor);
     setCommandPreview(cmd);
     setShowCommand(true);
   }
@@ -102,35 +112,23 @@ export function CreateProfileStep() {
     setError(null);
 
     const profileAnchor = computeProfileAnchor();
-    const input: WorkerProfileInput = {
-      worker_name_hash: workerNameHash ?? "",
-      first_name: firstName.trim(),
-      middle_name: middleName.trim() || " ",
-      last_name: lastName.trim(),
-      age,
-      gender,
-      residency_state_code: stateCode,
-      country_code: countryCode,
-      state_issue_id: stateIssueId.trim(),
-      industry_code: industryCode,
-      citizenship_flag: citizenshipFlag,
-    };
+    const input = buildInput();
 
     const result = await execute(
-      PROGRAMS.layer1.worker_profiles,
-      "create_worker_profile",
+      PROGRAMS.layer1.employer_profiles,
+      "create_employer_profile",
       [
-        `${input.worker_name_hash}field`,
-        encodeStringToU128(input.first_name),
-        encodeStringToU128(input.middle_name),
-        encodeStringToU128(input.last_name),
-        `${input.age}u8`,
-        `${input.gender}u8`,
-        `${input.residency_state_code}u16`,
+        `${input.employer_name_hash}field`,
+        `${input.suffix_code}u8`,
+        encodeStringToU128(input.legal_name),
+        encodeStringToU128(input.registration_id),
+        `${input.registration_state_code}u16`,
         `${input.country_code}u16`,
-        encodeStringToU128(input.state_issue_id),
+        `${input.formation_year}u16`,
+        `${input.entity_type_code}u8`,
         `${input.industry_code}u8`,
-        `${input.citizenship_flag}u8`,
+        `${input.employer_size_code}u8`,
+        `${input.operating_region_code}u16`,
         `1u16`, // schema_v
         `1u16`, // policy_v
         `1u16`, // profile_rev
@@ -159,7 +157,7 @@ export function CreateProfileStep() {
           </svg>
         </div>
         <h1 className="text-xl font-semibold text-foreground">
-          Create Your Worker Profile
+          Create Your Employer Profile
         </h1>
         <p className="text-sm text-muted-foreground">
           Your profile is stored as an encrypted private record. Only hashed
@@ -173,8 +171,8 @@ export function CreateProfileStep() {
         <span className="text-sm text-green-400 font-medium">
           {chosenName ? `${chosenName}.pnw` : "Name registered"}
         </span>
-        <span className="text-xs text-muted-foreground font-mono ml-auto">
-          {workerNameHash ? `${workerNameHash.slice(0, 14)}...` : ""}
+        <span className="text-xs text-muted-foreground ml-auto">
+          {industryLabel}
         </span>
       </div>
 
@@ -190,71 +188,65 @@ export function CreateProfileStep() {
 
       {/* Profile form */}
       <div className="rounded-lg border border-border bg-card p-4 space-y-4">
-        {/* Personal info */}
+        {/* Business info */}
         <div className="space-y-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Personal Information
+            Business Information
           </h3>
           <p className="text-xs text-muted-foreground">
             This data is encrypted in your private record. It never appears in plaintext on-chain.
           </p>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">First Name *</label>
+              <label className="text-xs font-medium text-muted-foreground">Legal Name *</label>
               <input
                 type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+                placeholder="Business legal name"
                 maxLength={16}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
+              <p className="text-xs text-muted-foreground">Max 16 characters (u128 encoded)</p>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Middle Name</label>
+              <label className="text-xs font-medium text-muted-foreground">Registration ID *</label>
               <input
                 type="text"
-                value={middleName}
-                onChange={(e) => setMiddleName(e.target.value)}
+                value={registrationId}
+                onChange={(e) => setRegistrationId(e.target.value)}
+                placeholder="State filing ID"
                 maxLength={16}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Last Name *</label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                maxLength={16}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+              <p className="text-xs text-muted-foreground">Max 16 characters (u128 encoded)</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Age *</label>
-              <input
-                type="number"
-                value={age || ""}
-                onChange={(e) => setAge(Number(e.target.value))}
-                min={16}
-                max={120}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Gender</label>
+              <label className="text-xs font-medium text-muted-foreground">Entity Type</label>
               <select
-                value={gender}
-                onChange={(e) => setGender(Number(e.target.value))}
+                value={entityTypeCode}
+                onChange={(e) => setEntityTypeCode(Number(e.target.value))}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                {Object.entries(GENDER_LABELS).map(([code, label]) => (
+                {Object.entries(ENTITY_TYPE_CODES).map(([code, label]) => (
                   <option key={code} value={code}>{label}</option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Formation Year *</label>
+              <input
+                type="number"
+                value={formationYear || ""}
+                onChange={(e) => setFormationYear(Number(e.target.value))}
+                min={1800}
+                max={2030}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
           </div>
         </div>
@@ -262,7 +254,7 @@ export function CreateProfileStep() {
         {/* Location */}
         <div className="space-y-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Residency
+            Registration & Operations
           </h3>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -279,7 +271,7 @@ export function CreateProfileStep() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">State *</label>
+              <label className="text-xs font-medium text-muted-foreground">Registration State *</label>
               <select
                 value={stateCode}
                 onChange={(e) => setStateCode(Number(e.target.value))}
@@ -293,60 +285,47 @@ export function CreateProfileStep() {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              State-Issued ID *
-            </label>
-            <input
-              type="text"
-              value={stateIssueId}
-              onChange={(e) => setStateIssueId(e.target.value)}
-              placeholder="Driver's license or state ID number"
-              maxLength={16}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <p className="text-xs text-muted-foreground">
-              Encoded as u128 and stored in your private record only. Max 16 characters.
-            </p>
-          </div>
-        </div>
-
-        {/* Employment */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Employment
-          </h3>
-
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Primary Industry
-              </label>
+              <label className="text-xs font-medium text-muted-foreground">Employer Size</label>
               <select
-                value={industryCode}
-                onChange={(e) => setIndustryCode(Number(e.target.value))}
+                value={employerSizeCode}
+                onChange={(e) => setEmployerSizeCode(Number(e.target.value))}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                {Object.entries(INDUSTRY_SUFFIXES).map(([code, { label }]) => (
+                {Object.entries(EMPLOYER_SIZE_CODES).map(([code, label]) => (
                   <option key={code} value={code}>{label}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Citizenship
-              </label>
+              <label className="text-xs font-medium text-muted-foreground">Operating Region *</label>
               <select
-                value={citizenshipFlag}
-                onChange={(e) => setCitizenshipFlag(Number(e.target.value))}
+                value={operatingRegionCode}
+                onChange={(e) => setOperatingRegionCode(Number(e.target.value))}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value={1}>US Citizen</option>
-                <option value={2}>Permanent Resident</option>
-                <option value={3}>Work Visa Holder</option>
-                <option value={4}>Other</option>
+                <option value={0}>Select region...</option>
+                {US_STATE_CODES.map(({ code, label }) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Industry (locked to suffix) */}
+        <div className="space-y-1">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Industry Classification
+          </h3>
+          <div className="rounded-md bg-muted/30 p-3">
+            <p className="text-sm text-foreground">
+              {industryLabel} (code {industryCode})
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Locked to your name suffix. On-chain contract enforces industry_code == suffix_code.
+            </p>
           </div>
         </div>
       </div>
@@ -391,7 +370,7 @@ export function CreateProfileStep() {
           <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
             <p className="text-xs text-blue-300">
               Your profile record is private — only the profile_anchor hash will be
-              visible on-chain. All personal fields are encrypted within the record.
+              visible on-chain. All business fields are encrypted within the record.
             </p>
           </div>
 
