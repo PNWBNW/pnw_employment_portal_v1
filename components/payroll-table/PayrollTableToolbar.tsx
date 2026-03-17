@@ -50,8 +50,6 @@ export function PayrollTableToolbar({
         const header = lines[0]!.split(",").map((h) => h.trim().toLowerCase());
         const colMap = {
           worker: findCol(header, ["worker", "name", "worker_name"]),
-          worker_addr: findCol(header, ["worker_addr", "address", "worker_address"]),
-          agreement_id: findCol(header, ["agreement_id", "agreement", "id"]),
           gross: findCol(header, ["gross", "gross_amount", "gross_pay"]),
           tax: findCol(header, ["tax", "tax_withheld", "tax_amount"]),
           fee: findCol(header, ["fee", "fee_amount"]),
@@ -67,8 +65,6 @@ export function PayrollTableToolbar({
           row.epoch_id = epochId;
 
           if (colMap.worker !== -1) row.worker_name = cols[colMap.worker] ?? "";
-          if (colMap.worker_addr !== -1) row.worker_addr = cols[colMap.worker_addr] ?? "";
-          if (colMap.agreement_id !== -1) row.agreement_id = cols[colMap.agreement_id] ?? "";
 
           if (colMap.gross !== -1) row.gross_amount = cols[colMap.gross] ?? "";
           if (colMap.tax !== -1) row.tax_withheld = cols[colMap.tax] ?? "";
