@@ -189,8 +189,12 @@ export async function pollTransactionStatus(
       if (response.status === 404) {
         // Still pending
       }
-    } catch {
-      // Network error during poll — keep trying
+    } catch (pollError) {
+      // Network error during poll — log it but keep trying
+      console.warn(
+        `[wallet-executor] Poll error for tx ${txId}:`,
+        pollError instanceof Error ? pollError.message : String(pollError),
+      );
     }
 
     // Exponential backoff capped at 15s
