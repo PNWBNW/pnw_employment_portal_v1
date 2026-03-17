@@ -7,6 +7,7 @@ import { verifyOfferIntegrity, recomputeFromOffer, buildAcceptChallengeBytes } f
 import { toHex } from "@/src/lib/pnw-adapter/hash";
 import { useOfferStore } from "@/src/stores/offer_store";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import type { AcceptanceSignal } from "@/src/handshake/types";
@@ -15,12 +16,14 @@ import QRCode from "react-qr-code";
 function ReviewContent() {
   const searchParams = useSearchParams();
   const { address } = useAleoSession();
+  const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
   const addReceivedOffer = useOfferStore((s) => s.addReceivedOffer);
   const updateOfferStatus = useOfferStore((s) => s.updateOfferStatus);
 
   const [accepted, setAccepted] = useState(false);
   const [acceptanceUrl, setAcceptanceUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [onChainTxId, setOnChainTxId] = useState<string | null>(null);
 
   const offerParam = searchParams.get("offer");
 
@@ -159,6 +162,65 @@ function ReviewContent() {
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
+        </div>
+
+        {/* On-chain acceptance (requires PendingAgreement record) */}
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            On-Chain Acceptance
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            After the employer broadcasts <code>create_job_offer</code>, your wallet receives
+            a PendingAgreement record. Click below to accept on-chain via <code>accept_job_offer</code>.
+          </p>
+
+          {isExecuting && (
+            <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <p className="text-xs text-primary">
+                {txStatus === "submitting" ? "Submitting..." : "Waiting for confirmation..."}
+              </p>
+            </div>
+          )}
+
+          {txError && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3">
+              <p className="text-xs text-red-400">{txError}</p>
+            </div>
+          )}
+
+          {onChainTxId && (
+            <div className="rounded-md border border-green-500/20 bg-green-500/5 p-3">
+              <p className="text-xs text-green-400">
+                Accepted on-chain: <span className="font-mono">{onChainTxId.slice(0, 20)}...</span>
+              </p>
+            </div>
+          )}
+
+          {!onChainTxId && (
+            <button
+              onClick={async () => {
+                // accept_job_offer requires the PendingAgreement record + accept_time_hash
+                // The wallet adapter handles record selection
+                const acceptTimeHash = computed.offer_time_hash; // reuse as placeholder
+                const result = await execute(
+                  "employer_agreement_v2.aleo",
+                  "accept_job_offer",
+                  [
+                    // PendingAgreement record is auto-selected by wallet
+                    acceptTimeHash,
+                  ],
+                );
+                if (result.status === "confirmed") {
+                  setOnChainTxId(result.txId);
+                }
+              }}
+              disabled={isExecuting}
+              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
+            >
+              {isExecuting ? "Broadcasting..." : "Accept On-Chain"}
+            </button>
+          )}
         </div>
       </div>
     );

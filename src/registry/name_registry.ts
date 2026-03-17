@@ -206,6 +206,99 @@ export async function queryNameKind(nameHash: Field): Promise<U8 | null> {
 }
 
 // ----------------------------------------------------------------
+// Employer name queries
+// ----------------------------------------------------------------
+
+/**
+ * Check if a wallet address has registered employer .pnw names.
+ * Queries the employer_primary_name_of mapping.
+ *
+ * @returns The employer's primary name_hash (field) if registered, null if not.
+ */
+export async function queryEmployerName(address: Address): Promise<Field | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/employer_primary_name_of/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/\.(private|public)$/, "").trim();
+      if (cleaned === "0field" || cleaned === "0") return null;
+      return cleaned;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Query the number of employer names registered for a wallet.
+ * Queries the employer_name_count mapping.
+ *
+ * @returns The count (0-3), or 0 if not found.
+ */
+export async function queryEmployerNameCount(address: Address): Promise<number> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/employer_name_count/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return 0;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/u8(\.private|\.public)?$/, "").trim();
+      const count = parseInt(cleaned, 10);
+      if (!isNaN(count) && count >= 0) return count;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Query employer license verification status.
+ * Queries employer_license_registry.aleo/is_verified mapping.
+ */
+export async function queryEmployerVerified(address: Address): Promise<boolean> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.employer_license_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/is_verified/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return false;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      return data.trim() === "true";
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// ----------------------------------------------------------------
 // Command builders (preview mode)
 // ----------------------------------------------------------------
 //
