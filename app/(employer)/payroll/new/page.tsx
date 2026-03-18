@@ -10,14 +10,16 @@ import { ManifestPreview } from "@/components/payroll-table/ManifestPreview";
 import type { PayrollTableRow } from "@/components/payroll-table/types";
 import { createEmptyRow, parseDollar, formatDollar } from "@/components/payroll-table/types";
 import { validateTable } from "@/components/payroll-table/validation";
+import { applyWorkerToRow, resolveWorker } from "@/components/payroll-table/worker_resolver";
 import { useWorkerStore } from "@/src/stores/worker_store";
+import type { WorkerRecord } from "@/src/stores/worker_store";
 import { useSessionStore } from "@/src/stores/session_store";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
 import { compileManifest } from "@/src/manifest/compiler";
 import { planChunks } from "@/src/manifest/chunk_planner";
 import { VERSIONS } from "@/src/config/programs";
 import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
-import type { PayrollRunManifest, PayrollRunStatus, PayrollRow } from "@/src/manifest/types";
+import type { PayrollRunManifest, PayrollRunStatus } from "@/src/manifest/types";
 import type { ChunkPlan } from "@/src/manifest/types";
 import {
   executeSettlement,
@@ -101,22 +103,43 @@ export default function NewPayrollPage() {
     [rows],
   );
 
+  // --- Worker selection handler ---
+  const selectWorker = useCallback(
+    (index: number, worker: WorkerRecord) => {
+      setRows((prev) => {
+        const updated = [...prev];
+        const row = updated[index];
+        if (!row) return prev;
+
+        const resolved = applyWorkerToRow(row, worker);
+
+        // Recalculate net with existing amounts
+        const gross = parseDollar(resolved.gross_amount);
+        const tax = parseDollar(resolved.tax_withheld);
+        const fee = parseDollar(resolved.fee_amount);
+        if (!isNaN(gross) && !isNaN(tax) && !isNaN(fee)) {
+          resolved.net_amount = formatDollar(gross - tax - fee);
+        }
+
+        updated[index] = resolved;
+        return updated;
+      });
+      setDraftSaved(false);
+    },
+    [],
+  );
+
   // Row management
   const addRow = useCallback(
     (row: PayrollTableRow) => {
-      // Pre-fill with worker data if available
-      if (workers.length > 0 && !row.worker_addr) {
-        const nextWorker = workers.find(
-          (w) =>
-            w.status === "active" &&
-            !rows.some((r) => r.agreement_id === w.agreement_id),
-        );
-        if (nextWorker) {
-          row.worker_name = nextWorker.display_name ?? "";
-          row.worker_addr = nextWorker.worker_addr;
-          row.worker_name_hash = nextWorker.worker_name_hash;
-          row.agreement_id = nextWorker.agreement_id;
-        }
+      // If there's only one active worker not yet used, auto-resolve
+      const usedAgreements = new Set(rows.map((r) => r.agreement_id).filter(Boolean));
+      const availableWorkers = workers.filter(
+        (w) => w.status === "active" && !usedAgreements.has(w.agreement_id),
+      );
+      if (availableWorkers.length === 1) {
+        const worker = availableWorkers[0]!;
+        row = applyWorkerToRow(row, worker);
       }
       setRows((prev) => [...prev, row]);
       setDraftSaved(false);
@@ -124,10 +147,23 @@ export default function NewPayrollPage() {
     [workers, rows],
   );
 
-  const importRows = useCallback((imported: PayrollTableRow[]) => {
-    setRows((prev) => [...prev, ...imported]);
-    setDraftSaved(false);
-  }, []);
+  const importRows = useCallback(
+    (imported: PayrollTableRow[]) => {
+      // Try to resolve worker names from the imported data
+      const resolvedImported = imported.map((row) => {
+        if (row.worker_name && !row.resolved) {
+          const match = resolveWorker(row.worker_name, workers, [], row.id);
+          if (match) {
+            return applyWorkerToRow(row, match);
+          }
+        }
+        return row;
+      });
+      setRows((prev) => [...prev, ...resolvedImported]);
+      setDraftSaved(false);
+    },
+    [workers],
+  );
 
   const updateRow = useCallback(
     (index: number, field: keyof PayrollTableRow, value: string) => {
@@ -136,6 +172,25 @@ export default function NewPayrollPage() {
         const row = updated[index];
         if (!row) return prev;
         const newRow = { ...row, [field]: value };
+
+        // If worker_name changed, try to auto-resolve
+        if (field === "worker_name") {
+          const match = resolveWorker(value, workers, updated, row.id);
+          if (match) {
+            Object.assign(newRow, {
+              worker_addr: match.worker_addr,
+              worker_name_hash: match.worker_name_hash,
+              agreement_id: match.agreement_id,
+              resolved: true,
+            });
+          } else {
+            // Clear resolution if name no longer matches
+            newRow.resolved = false;
+            newRow.worker_addr = "";
+            newRow.worker_name_hash = "";
+            newRow.agreement_id = "";
+          }
+        }
 
         // Auto-calculate net when gross/tax/fee change
         if (
@@ -162,7 +217,7 @@ export default function NewPayrollPage() {
       });
       setDraftSaved(false);
     },
-    [],
+    [workers],
   );
 
   const removeRow = useCallback((index: number) => {
@@ -227,13 +282,21 @@ export default function NewPayrollPage() {
       try {
         const keyProvider = new SessionKeyProvider(viewKey);
         const payload = await decryptDraft(envelope, keyProvider);
-        setRows(payload.rows);
+        // Re-resolve workers from the store after loading draft
+        const resolvedRows = payload.rows.map((row: PayrollTableRow) => {
+          if (row.worker_name && !row.resolved) {
+            const match = resolveWorker(row.worker_name, workers, [], row.id);
+            if (match) return applyWorkerToRow(row, match);
+          }
+          return row;
+        });
+        setRows(resolvedRows);
         setEpochId(payload.epochId);
         setActiveDraftId(envelope.draftId);
         // Also save to sessionStorage for same-tab consistency
         sessionStorage.setItem(
           DRAFT_STORAGE_KEY,
-          JSON.stringify({ rows: payload.rows, epochId: payload.epochId }),
+          JSON.stringify({ rows: resolvedRows, epochId: payload.epochId }),
         );
       } catch (err) {
         setCompileError(
@@ -241,7 +304,7 @@ export default function NewPayrollPage() {
         );
       }
     },
-    [viewKey],
+    [viewKey, workers],
   );
 
   // Delete an encrypted draft
@@ -265,7 +328,7 @@ export default function NewPayrollPage() {
             New Payroll Run
           </h1>
           <p className="text-sm text-muted-foreground">
-            Build your payroll table and send payments
+            Select workers by .pnw name and enter gross pay
           </p>
         </div>
         <Link
@@ -341,7 +404,9 @@ export default function NewPayrollPage() {
         rows={rows}
         onUpdateRow={updateRow}
         onRemoveRow={removeRow}
+        onSelectWorker={selectWorker}
         validationResults={rowResults}
+        workers={workers}
       />
 
       {/* Validation errors */}
@@ -435,7 +500,7 @@ export default function NewPayrollPage() {
               ? "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
               : "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200"
         }`}>
-          <p>{isSettling ? "⏳ " : ""}{settlementStatus}</p>
+          <p>{isSettling ? "... " : ""}{settlementStatus}</p>
         </div>
       )}
 

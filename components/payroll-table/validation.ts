@@ -1,6 +1,9 @@
 /**
  * Payroll table row validation.
  * All validation runs client-side before manifest compilation.
+ *
+ * Simplified flow: worker_name must be resolved (auto-fills worker_addr,
+ * worker_name_hash, agreement_id). Gross is required. Tax/fee default to 0.
  */
 
 import type {
@@ -14,12 +17,22 @@ import { parseDollar } from "./types";
 export function validateRow(row: PayrollTableRow): RowValidationResult {
   const errors: RowFieldError[] = [];
 
-  // Agreement ID required
-  if (!row.agreement_id.trim()) {
-    errors.push({ field: "agreement_id", message: "Agreement ID is required" });
+  // Worker name required
+  if (!row.worker_name.trim()) {
+    errors.push({ field: "worker_name", message: "Worker name is required" });
+  } else if (!row.resolved) {
+    errors.push({
+      field: "worker_name",
+      message: "Worker not resolved — select from dropdown",
+    });
   }
 
-  // Epoch ID required and valid format
+  // Agreement ID must be auto-filled (via worker resolution)
+  if (!row.agreement_id.trim()) {
+    errors.push({ field: "agreement_id", message: "No agreement — select a worker" });
+  }
+
+  // Epoch ID required and valid format (set via toolbar)
   if (!row.epoch_id.trim()) {
     errors.push({ field: "epoch_id", message: "Epoch is required" });
   } else if (!/^\d{8}$/.test(row.epoch_id.trim())) {
@@ -119,8 +132,8 @@ export function validateTable(rows: PayrollTableRow[]): {
       const result = rowResults[idx];
       if (result) {
         result.errors.push({
-          field: "agreement_id",
-          message: "Duplicate (agreement_id, epoch_id) pair",
+          field: "worker_name",
+          message: "Same worker already in this payroll run for this epoch",
         });
         result.valid = false;
       }

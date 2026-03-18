@@ -17,6 +17,7 @@ function makeRow(overrides: Partial<PayrollTableRow> = {}): PayrollTableRow {
     tax_withheld: "750.00",
     fee_amount: "50.00",
     net_amount: "4200.00",
+    resolved: false,
     ...overrides,
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,19 +20,25 @@ import type { PayrollTableRow } from "./types";
 import { parseDollar, formatDollar } from "./types";
 import type { RowValidationResult } from "./types";
 import { validateRow } from "./validation";
+import type { WorkerRecord } from "@/src/stores/worker_store";
+import { getWorkerSuggestions } from "./worker_resolver";
 
 type Props = {
   rows: PayrollTableRow[];
   onUpdateRow: (index: number, field: keyof PayrollTableRow, value: string) => void;
   onRemoveRow: (index: number) => void;
+  onSelectWorker: (index: number, worker: WorkerRecord) => void;
   validationResults: RowValidationResult[];
+  workers: WorkerRecord[];
 };
 
 export function PayrollTable({
   rows,
   onUpdateRow,
   onRemoveRow,
+  onSelectWorker,
   validationResults,
+  workers,
 }: Props) {
   const table = useReactTable({
     data: rows,
@@ -99,6 +105,7 @@ export function PayrollTable({
               const rowIndex = row.index;
               const validation = validationResults[rowIndex] ?? validateRow(rows[rowIndex]!);
               const hasErrors = !validation.valid;
+              const rowData = rows[rowIndex]!;
 
               return (
                 <TableRow
@@ -122,8 +129,10 @@ export function PayrollTable({
                             >
                               ✗
                             </span>
+                          ) : rowData.resolved ? (
+                            <span className="text-green-500" title="Worker resolved, row valid">✓</span>
                           ) : (
-                            <span className="text-green-500">✓</span>
+                            <span className="text-amber-500" title="Select a worker">?</span>
                           )}
                         </TableCell>
                       );
@@ -144,7 +153,29 @@ export function PayrollTable({
                       );
                     }
 
-                    // Editable cells
+                    // Worker name cell — with autocomplete dropdown
+                    if (columnId === "worker_name" && meta?.type === "worker") {
+                      const fieldErrors = validation.errors.filter(
+                        (e) => e.field === "worker_name",
+                      );
+                      return (
+                        <TableCell key={cell.id} className="p-1">
+                          <WorkerNameCell
+                            value={rowData.worker_name}
+                            resolved={rowData.resolved}
+                            workers={workers}
+                            rows={rows}
+                            currentRowId={rowData.id}
+                            hasError={fieldErrors.length > 0}
+                            errorMessage={fieldErrors.map((e) => e.message).join("; ")}
+                            onChange={(val) => onUpdateRow(rowIndex, "worker_name", val)}
+                            onSelect={(worker) => onSelectWorker(rowIndex, worker)}
+                          />
+                        </TableCell>
+                      );
+                    }
+
+                    // Editable amount cells
                     if (meta?.editable) {
                       const fieldName = columnId as keyof PayrollTableRow;
                       const fieldErrors = validation.errors.filter(
@@ -203,7 +234,7 @@ export function PayrollTable({
         {rows.length > 0 && (
           <TableFooter>
             <TableRow className="font-medium">
-              <TableCell colSpan={3} className="text-right text-xs">
+              <TableCell className="text-right text-xs">
                 Totals:
               </TableCell>
               <TableCell className="p-2 text-right text-xs">
@@ -223,6 +254,128 @@ export function PayrollTable({
           </TableFooter>
         )}
       </Table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Worker name cell — autocomplete dropdown
+// ---------------------------------------------------------------------------
+
+type WorkerNameCellProps = {
+  value: string;
+  resolved: boolean;
+  workers: WorkerRecord[];
+  rows: PayrollTableRow[];
+  currentRowId: string;
+  hasError: boolean;
+  errorMessage: string;
+  onChange: (value: string) => void;
+  onSelect: (worker: WorkerRecord) => void;
+};
+
+function WorkerNameCell({
+  value,
+  resolved,
+  workers,
+  rows,
+  currentRowId,
+  hasError,
+  errorMessage,
+  onChange,
+  onSelect,
+}: WorkerNameCellProps) {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = useMemo(
+    () => getWorkerSuggestions(value, workers, rows, currentRowId),
+    [value, workers, rows, currentRowId],
+  );
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    setInputFocused(true);
+    setShowDropdown(true);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    setInputFocused(false);
+    // Delay to allow click on dropdown item
+    setTimeout(() => setShowDropdown(false), 200);
+  }, []);
+
+  const handleSelect = useCallback(
+    (worker: WorkerRecord) => {
+      onSelect(worker);
+      setShowDropdown(false);
+    },
+    [onSelect],
+  );
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex items-center gap-1">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          placeholder="alice.pnw"
+          className={`w-full rounded border px-2 py-1 text-sm ${
+            hasError
+              ? "border-red-400 bg-red-50 dark:border-red-800 dark:bg-red-950/20"
+              : resolved
+                ? "border-green-400 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
+                : "border-input bg-background"
+          }`}
+          title={hasError ? errorMessage : resolved ? "Worker resolved" : "Type a .pnw name"}
+        />
+        {resolved && (
+          <span className="shrink-0 text-xs text-green-600 dark:text-green-400" title="Resolved">
+            ●
+          </span>
+        )}
+      </div>
+
+      {/* Autocomplete dropdown */}
+      {showDropdown && suggestions.length > 0 && inputFocused && (
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-40 w-64 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+          {suggestions.map((worker) => (
+            <button
+              key={worker.agreement_id}
+              type="button"
+              className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-accent"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(worker);
+              }}
+            >
+              <span className="font-medium">
+                {worker.display_name || "Unnamed"}
+              </span>
+              <span className="ml-2 font-mono text-xs text-muted-foreground">
+                {worker.agreement_id.slice(0, 8)}...
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
