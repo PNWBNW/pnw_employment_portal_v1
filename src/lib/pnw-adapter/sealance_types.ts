@@ -102,3 +102,70 @@ export type ComplianceState = {
   /** Error message (if status is "error") */
   error: string | null;
 };
+
+// ----------------------------------------------------------------
+// Roster tree (employer-scoped worker authorization)
+// ----------------------------------------------------------------
+
+/**
+ * Merkle inclusion proof for a single worker in the employer's roster tree.
+ * Proves "this worker IS authorized by this employer" via membership.
+ */
+export type RosterInclusionProof = {
+  /** Sibling hashes from leaf to root */
+  path: Field[];
+  /** Leaf index in the tree */
+  leaf_index: number;
+  /** Whether each sibling is on the left (true) or right (false) */
+  directions: boolean[];
+};
+
+/**
+ * The employer's roster tree — a Merkle tree over active agreement_ids.
+ * Built client-side from the employer's agreement records.
+ */
+export type RosterTree = {
+  /** Merkle root over sorted active agreement_id leaves */
+  root: Field;
+  /** Sorted list of active agreement_id fields (leaves) */
+  leaves: Field[];
+  /** Tree depth (number of hash levels) */
+  depth: number;
+  /** Employer address this roster belongs to */
+  employer_addr: Address;
+  /** Epoch second when the roster tree was built */
+  built_at: number;
+};
+
+/**
+ * On-chain RosterCredentials record produced by get_roster_credentials().
+ * Proves the employer's roster_root was valid at a given block height.
+ * Reusable for all settlement chunks in a single payroll run.
+ */
+export type RosterCredentialsRecord = {
+  owner: Address;
+  roster_root: Field;
+  /** Block height when credentials were created */
+  block_height: number;
+  /** Aleo record nonce (for spending) */
+  nonce: string;
+  /** Plaintext ciphertext for wallet decryption */
+  _record_ciphertext?: string;
+};
+
+export type RosterStatus =
+  | "unchecked"          // haven't built roster tree yet
+  | "valid"              // roster tree built, credentials acquired
+  | "no_active_workers"  // employer has no active agreements
+  | "credentials_expired" // roster root changed, need refresh
+  | "error";
+
+export type RosterState = {
+  status: RosterStatus;
+  /** The employer's roster tree */
+  tree: RosterTree | null;
+  /** Roster credentials record (if acquired) */
+  credentials: RosterCredentialsRecord | null;
+  /** Error message (if status is "error") */
+  error: string | null;
+};

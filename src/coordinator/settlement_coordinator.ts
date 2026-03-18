@@ -44,11 +44,15 @@ import {
   executeAleoTransaction,
   pollTransactionStatus,
 } from "../lib/wallet/wallet-executor";
-import type { CredentialsRecord, ComplianceState } from "../lib/pnw-adapter/sealance_types";
+import type { CredentialsRecord, ComplianceState, RosterCredentialsRecord, RosterState } from "../lib/pnw-adapter/sealance_types";
 import {
   acquireCredentials,
   checkCredentialsValid,
 } from "../lib/pnw-adapter/credentials_manager";
+import {
+  acquireRosterCredentialsFromManifest,
+  checkRosterCredentialsValid,
+} from "../lib/pnw-adapter/roster_credentials_manager";
 
 // ----------------------------------------------------------------
 // Configuration
@@ -88,8 +92,10 @@ export type CoordinatorCallbacks = {
   onRowUpdate: (rowIndex: number, status: PayrollRow["status"], txId?: string) => void;
   onComplete: () => void;
   onError: (message: string) => void;
-  /** Called when credentials are acquired or skipped */
+  /** Called when freeze-list credentials are acquired or skipped */
   onCredentialsUpdate?: (state: ComplianceState | null) => void;
+  /** Called when roster credentials are acquired or skipped */
+  onRosterUpdate?: (state: RosterState | null) => void;
 };
 
 // ----------------------------------------------------------------
@@ -103,8 +109,12 @@ export type SettlementContext = {
   callbacks: CoordinatorCallbacks;
   /** Optional wallet executor for E10 wallet-based settlement */
   walletExecute?: WalletExecuteFn;
-  /** Pre-acquired credentials (skip acquisition step) */
+  /** Pre-acquired freeze-list credentials (skip acquisition step) */
   credentials?: CredentialsRecord;
+  /** Pre-acquired roster credentials (skip acquisition step) */
+  rosterCredentials?: RosterCredentialsRecord;
+  /** Employer's view key (needed for roster tree building) */
+  viewKey?: string;
 };
 
 /**
@@ -159,8 +169,44 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
     // (the original transfer_private path still works)
   }
 
-  // ---- Step 2: Upgrade transitions if credentials available ----
-  if (credentials) {
+  // ---- Step 1b: Acquire roster credentials (if wallet + viewKey available) ----
+  let rosterCredentials = ctx.rosterCredentials ?? null;
+
+  if (!rosterCredentials && ctx.walletExecute && credentials) {
+    const manifestAgreementIds = manifest.rows.map((r) => r.agreement_id);
+
+    callbacks.onRosterUpdate?.({
+      status: "unchecked",
+      tree: null,
+      credentials: null,
+      error: null,
+    });
+
+    const rosterState = await acquireRosterCredentialsFromManifest(
+      manifest.employer_addr,
+      manifestAgreementIds,
+      ctx.walletExecute,
+    );
+
+    callbacks.onRosterUpdate?.(rosterState);
+
+    if (rosterState.status === "valid" && rosterState.credentials) {
+      rosterCredentials = rosterState.credentials;
+      // Store roster_root on the manifest for audit trail
+      (manifest as { roster_root?: string }).roster_root = rosterState.tree?.root;
+    }
+    // If roster acquisition failed, fall back to freeze-list creds only
+  }
+
+  // ---- Step 2: Upgrade transitions based on available credentials ----
+  if (credentials && rosterCredentials) {
+    // Best path: both freeze-list + roster credentials
+    for (const chunk of chunks) {
+      chunk.transition = upgradeToRosterTransition(chunk.transition);
+    }
+    callbacks.onChunkUpdate(chunks);
+  } else if (credentials) {
+    // Fallback: freeze-list credentials only
     for (const chunk of chunks) {
       chunk.transition = upgradeTransition(chunk.transition);
     }
@@ -194,14 +240,40 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
             credentials = refreshed.credentials;
             callbacks.onCredentialsUpdate?.(refreshed);
           } else {
-            // Downgrade remaining chunks to non-credentials path
+            // Downgrade remaining chunks to base path
             credentials = null;
+            rosterCredentials = null;
             for (let j = i; j < chunks.length; j++) {
               chunks[j]!.transition = downgradeTransition(chunks[j]!.transition);
             }
             callbacks.onChunkUpdate(chunks);
             callbacks.onCredentialsUpdate?.(refreshed);
+            callbacks.onRosterUpdate?.({
+              status: "credentials_expired",
+              tree: null,
+              credentials: null,
+              error: "Freeze-list credentials expired — roster credentials also invalidated",
+            });
           }
+        }
+      }
+
+      // Also check roster credentials if we have them
+      if (rosterCredentials) {
+        const rosterValid = await checkRosterCredentialsValid(rosterCredentials);
+        if (!rosterValid) {
+          rosterCredentials = null;
+          // Downgrade from _with_roster to _with_creds
+          for (let j = i; j < chunks.length; j++) {
+            chunks[j]!.transition = downgradeFromRosterTransition(chunks[j]!.transition);
+          }
+          callbacks.onChunkUpdate(chunks);
+          callbacks.onRosterUpdate?.({
+            status: "credentials_expired",
+            tree: null,
+            credentials: null,
+            error: "Roster root changed — falling back to freeze-list credentials only",
+          });
         }
       }
     }
@@ -212,7 +284,7 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
     callbacks.onRunStatusChange(runStatus);
 
     // Execute chunk with retries
-    const result = await executeChunkWithRetry(manifest, chunk, ctx, credentials);
+    const result = await executeChunkWithRetry(manifest, chunk, ctx, credentials, rosterCredentials);
 
     chunks[i] = result;
     callbacks.onChunkUpdate(chunks);
@@ -269,14 +341,14 @@ export async function retryChunk(
     last_error: undefined,
   };
 
-  return executeChunkWithRetry(ctx.manifest, resetChunk, ctx, ctx.credentials ?? null);
+  return executeChunkWithRetry(ctx.manifest, resetChunk, ctx, ctx.credentials ?? null, ctx.rosterCredentials ?? null);
 }
 
 // ----------------------------------------------------------------
 // Internal: transition upgrade/downgrade
 // ----------------------------------------------------------------
 
-/** Upgrade a transition to use credentials (skips per-transfer Merkle proof) */
+/** Upgrade a transition to use freeze-list credentials (skips per-transfer Merkle proof) */
 function upgradeTransition(
   transition: ChunkPlan["transition"],
 ): ChunkPlan["transition"] {
@@ -290,17 +362,49 @@ function upgradeTransition(
   }
 }
 
-/** Downgrade a transition back to raw Merkle proof path */
+/** Upgrade to roster transition (both freeze-list + roster credentials) */
+function upgradeToRosterTransition(
+  transition: ChunkPlan["transition"],
+): ChunkPlan["transition"] {
+  switch (transition) {
+    case "execute_payroll":
+    case "execute_payroll_with_creds":
+      return "execute_payroll_with_roster";
+    case "execute_payroll_batch_2":
+    case "execute_payroll_batch_2_with_creds":
+      return "execute_payroll_batch_2_with_roster";
+    default:
+      return transition; // already at roster level
+  }
+}
+
+/** Downgrade a transition back to raw Merkle proof path (no credentials at all) */
 function downgradeTransition(
   transition: ChunkPlan["transition"],
 ): ChunkPlan["transition"] {
   switch (transition) {
     case "execute_payroll_with_creds":
+    case "execute_payroll_with_roster":
       return "execute_payroll";
     case "execute_payroll_batch_2_with_creds":
+    case "execute_payroll_batch_2_with_roster":
       return "execute_payroll_batch_2";
     default:
       return transition; // already base
+  }
+}
+
+/** Downgrade from roster to freeze-list-only credentials */
+function downgradeFromRosterTransition(
+  transition: ChunkPlan["transition"],
+): ChunkPlan["transition"] {
+  switch (transition) {
+    case "execute_payroll_with_roster":
+      return "execute_payroll_with_creds";
+    case "execute_payroll_batch_2_with_roster":
+      return "execute_payroll_batch_2_with_creds";
+    default:
+      return transition; // not a roster transition
   }
 }
 
@@ -313,6 +417,7 @@ async function executeChunkWithRetry(
   chunk: ChunkPlan,
   ctx: SettlementContext,
   credentials: CredentialsRecord | null,
+  rosterCredentials?: RosterCredentialsRecord | null,
 ): Promise<ChunkPlan> {
   let current = { ...chunk };
 
@@ -326,8 +431,8 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials)
-        : await executeChunk(manifest, current, ctx.adapterConfig, credentials);
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null)
+        : await executeChunk(manifest, current, ctx.adapterConfig, credentials, rosterCredentials ?? null);
 
       current.status = "settled";
       current.tx_id = result.tx_id;
@@ -365,6 +470,7 @@ async function executeChunkViaWallet(
   chunk: ChunkPlan,
   walletExecute: WalletExecuteFn,
   credentials: CredentialsRecord | null,
+  rosterCredentials: RosterCredentialsRecord | null,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -374,7 +480,7 @@ async function executeChunkViaWallet(
 
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
-  const inputs = serializeWorkerPayArgs(workerArgs, credentials);
+  const inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
 
   const txId = await executeAleoTransaction(
     walletExecute,
@@ -410,6 +516,7 @@ async function executeChunk(
   chunk: ChunkPlan,
   config: AdapterConfig,
   credentials: CredentialsRecord | null,
+  rosterCredentials: RosterCredentialsRecord | null,
 ): Promise<ExecutionResult> {
   // Build WorkerPayArgs for each row in the chunk
   const workerArgs = chunk.row_indices.map((rowIdx) => {
@@ -423,7 +530,7 @@ async function executeChunk(
   const transition = LAYER1_TRANSITIONS[transitionName];
 
   // Serialize inputs for the adapter
-  const inputs = serializeWorkerPayArgs(workerArgs, credentials);
+  const inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
 
   return executeTransition(
     config,
@@ -463,12 +570,18 @@ function buildWorkerPayArgs(
 
 /**
  * Serialize WorkerPayArgs into Aleo input strings.
- * If credentials are provided, appends the credentials record
- * as the final input (for _with_creds transitions).
+ *
+ * Credential stacking order (for _with_roster transitions):
+ * 1. Worker pay args (per-worker fields)
+ * 2. Freeze-list Credentials record (compliance)
+ * 3. Roster Credentials record (authorization)
+ *
+ * For _with_creds transitions, only freeze-list credentials are appended.
  */
 function serializeWorkerPayArgs(
   args: BatchPayrollWorker[],
   credentials: CredentialsRecord | null,
+  rosterCredentials?: RosterCredentialsRecord | null,
 ): string[] {
   const inputs: string[] = [];
 
@@ -491,9 +604,14 @@ function serializeWorkerPayArgs(
     inputs.push(`${arg.row_hash}field`);
   }
 
-  // Append credentials record for _with_creds transitions
+  // Append freeze-list credentials for _with_creds and _with_roster transitions
   if (credentials) {
     inputs.push(serializeCredentials(credentials));
+  }
+
+  // Append roster credentials for _with_roster transitions
+  if (rosterCredentials) {
+    inputs.push(serializeRosterCredentials(rosterCredentials));
   }
 
   return inputs;
@@ -511,6 +629,17 @@ function serializeCredentials(credentials: CredentialsRecord): string {
 
   // Otherwise, construct the record literal
   return `{ owner: ${credentials.owner}, freeze_list_root: ${credentials.freeze_list_root}field }`;
+}
+
+/**
+ * Serialize a RosterCredentials record as an Aleo record input string.
+ */
+function serializeRosterCredentials(rosterCredentials: RosterCredentialsRecord): string {
+  if (rosterCredentials._record_ciphertext) {
+    return rosterCredentials._record_ciphertext;
+  }
+
+  return `{ owner: ${rosterCredentials.owner}, roster_root: ${rosterCredentials.roster_root}field }`;
 }
 
 // ----------------------------------------------------------------

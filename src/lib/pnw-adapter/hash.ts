@@ -16,6 +16,7 @@ export const DOMAIN_TAGS = {
   CHUNK: "PNW::CHUNK",
   NAME: "PNW::NAME",
   MERKLE_NODE: "PNW::MERKLE_NODE",
+  ROSTER_LEAF: "PNW::ROSTER_LEAF",
 } as const;
 
 export function domainHash(domain: string, data: Uint8Array): Uint8Array {
