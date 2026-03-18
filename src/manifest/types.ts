@@ -90,7 +90,11 @@ export type ChunkPlan = {
   chunk_id: Bytes32;
   row_indices: number[];
   net_total: U128;
-  transition: "execute_payroll" | "execute_payroll_batch_2";
+  transition:
+    | "execute_payroll"
+    | "execute_payroll_batch_2"
+    | "execute_payroll_with_creds"
+    | "execute_payroll_batch_2_with_creds";
   status: ChunkStatus;
   tx_id?: string;
   attempts: number;
