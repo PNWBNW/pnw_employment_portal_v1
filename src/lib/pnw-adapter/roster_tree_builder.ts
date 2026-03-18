@@ -1,23 +1,32 @@
 /**
- * Roster Tree Builder
+ * Roster Tree Builder — CLIENT-SIDE VALIDATION ONLY
  *
  * Builds an employer-scoped Merkle tree over active agreement_ids.
  * This is the "roster" — the set of workers authorized to receive payroll
  * from this employer.
  *
- * Pattern mirrors freeze_list_resolver.ts but for INCLUSION proofs:
- * - Freeze list: "prove address is NOT on the blocklist" (exclusion)
- * - Roster tree: "prove worker IS on the employer's roster" (inclusion)
+ * IMPORTANT: This is NOT wired to on-chain settlement. The Sealance SDK
+ * only supports exclusion proofs (freeze list). There is no on-chain
+ * get_roster_credentials() transition or roster_root mapping.
  *
- * The roster tree is built client-side from the employer's agreement records.
- * The roster_root is anchored on-chain via get_roster_credentials(), producing
- * a reusable RosterCredentials record for all settlement chunks in a run.
+ * This module is used for:
+ * - Pre-flight validation: verify all manifest workers have active agreements
+ *   before submitting settlement chunks
+ * - Audit trail: store inclusion proofs alongside manifest rows for
+ *   post-settlement verification
+ * - Future-proofing: if a roster credential program is deployed to
+ *   payroll_core.aleo, this tree builder is ready to produce proofs for it
  *
  * Leaf computation:
  *   roster_leaf = BLAKE3("PNW::ROSTER_LEAF", agreement_id_bytes)
  *
  * Tree construction:
  *   Sorted leaves → binary Merkle tree with MERKLE_NODE domain tag.
+ *
+ * NOTE on hash function: On-chain Sealance uses Poseidon4, not BLAKE3.
+ * This tree uses BLAKE3 because it's client-side only. If an on-chain
+ * roster program is built, the leaf hash must switch to Poseidon4 to
+ * match the circuit.
  */
 
 import type { Address, Bytes32, Field } from "./aleo_types";

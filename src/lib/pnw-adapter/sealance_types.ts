@@ -104,12 +104,19 @@ export type ComplianceState = {
 };
 
 // ----------------------------------------------------------------
-// Roster tree (employer-scoped worker authorization)
+// Roster tree (client-side validation only — no on-chain primitive yet)
+// ----------------------------------------------------------------
+//
+// NOTE: The Sealance SDK only supports exclusion proofs (freeze list).
+// There is no on-chain get_roster_credentials() or roster_root mapping.
+// These types are used by roster_tree_builder.ts for client-side
+// pre-flight validation: verifying all manifest workers have active
+// agreements before submitting chunks. Not wired to on-chain settlement.
 // ----------------------------------------------------------------
 
 /**
  * Merkle inclusion proof for a single worker in the employer's roster tree.
- * Proves "this worker IS authorized by this employer" via membership.
+ * Used for client-side validation and audit trail, not on-chain verification.
  */
 export type RosterInclusionProof = {
   /** Sibling hashes from leaf to root */
@@ -123,6 +130,7 @@ export type RosterInclusionProof = {
 /**
  * The employer's roster tree — a Merkle tree over active agreement_ids.
  * Built client-side from the employer's agreement records.
+ * Used for pre-flight validation before payroll submission.
  */
 export type RosterTree = {
   /** Merkle root over sorted active agreement_id leaves */
@@ -135,37 +143,4 @@ export type RosterTree = {
   employer_addr: Address;
   /** Epoch second when the roster tree was built */
   built_at: number;
-};
-
-/**
- * On-chain RosterCredentials record produced by get_roster_credentials().
- * Proves the employer's roster_root was valid at a given block height.
- * Reusable for all settlement chunks in a single payroll run.
- */
-export type RosterCredentialsRecord = {
-  owner: Address;
-  roster_root: Field;
-  /** Block height when credentials were created */
-  block_height: number;
-  /** Aleo record nonce (for spending) */
-  nonce: string;
-  /** Plaintext ciphertext for wallet decryption */
-  _record_ciphertext?: string;
-};
-
-export type RosterStatus =
-  | "unchecked"          // haven't built roster tree yet
-  | "valid"              // roster tree built, credentials acquired
-  | "no_active_workers"  // employer has no active agreements
-  | "credentials_expired" // roster root changed, need refresh
-  | "error";
-
-export type RosterState = {
-  status: RosterStatus;
-  /** The employer's roster tree */
-  tree: RosterTree | null;
-  /** Roster credentials record (if acquired) */
-  credentials: RosterCredentialsRecord | null;
-  /** Error message (if status is "error") */
-  error: string | null;
 };
