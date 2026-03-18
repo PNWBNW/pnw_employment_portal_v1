@@ -2,11 +2,19 @@
  * Settlement Coordinator
  *
  * Drives chunk-by-chunk on-chain settlement for a compiled PayrollRunManifest.
- * Each chunk maps to one adapter execution call (execute_payroll or
- * execute_payroll_batch_2).
+ * Each chunk maps to one adapter execution call.
+ *
+ * Credentials-first flow (Sealance optimization):
+ *   Before processing chunks, acquires a freeze-list Credentials record
+ *   via get_credentials(). This proves the employer is not on the compliance
+ *   freeze list using a single Merkle exclusion proof. Subsequent chunks
+ *   then use transfer_private_with_creds instead of transfer_private,
+ *   skipping per-chunk Merkle proof verification.
+ *
+ *   Energy savings: N workers → 1 proof instead of N proofs.
  *
  * State machine per run:
- *   validated → queued → proving → partially_settled → settled
+ *   validated → queued → acquiring_credentials → proving → partially_settled → settled
  *
  * State machine per chunk:
  *   pending → proving → broadcasting → settled | failed
@@ -36,6 +44,11 @@ import {
   executeAleoTransaction,
   pollTransactionStatus,
 } from "../lib/wallet/wallet-executor";
+import type { CredentialsRecord, ComplianceState } from "../lib/pnw-adapter/sealance_types";
+import {
+  acquireCredentials,
+  checkCredentialsValid,
+} from "../lib/pnw-adapter/credentials_manager";
 
 // ----------------------------------------------------------------
 // Configuration
@@ -75,6 +88,8 @@ export type CoordinatorCallbacks = {
   onRowUpdate: (rowIndex: number, status: PayrollRow["status"], txId?: string) => void;
   onComplete: () => void;
   onError: (message: string) => void;
+  /** Called when credentials are acquired or skipped */
+  onCredentialsUpdate?: (state: ComplianceState | null) => void;
 };
 
 // ----------------------------------------------------------------
@@ -88,13 +103,17 @@ export type SettlementContext = {
   callbacks: CoordinatorCallbacks;
   /** Optional wallet executor for E10 wallet-based settlement */
   walletExecute?: WalletExecuteFn;
+  /** Pre-acquired credentials (skip acquisition step) */
+  credentials?: CredentialsRecord;
 };
 
 /**
  * Execute a full settlement run.
  *
- * Processes each chunk sequentially. Settled chunks are skipped.
- * Failed chunks are retried up to MAX_RETRIES times with exponential backoff.
+ * Flow:
+ * 1. Acquire freeze-list credentials (once, via wallet)
+ * 2. Upgrade chunk transitions to _with_creds variants
+ * 3. Process each chunk sequentially
  *
  * @returns The updated chunks array with final statuses
  */
@@ -105,6 +124,50 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
   callbacks.onRunStatusChange("queued");
   callbacks.onChunkUpdate(chunks);
 
+  // ---- Step 1: Acquire credentials (if wallet is available) ----
+  let credentials = ctx.credentials ?? null;
+
+  if (!credentials && ctx.walletExecute) {
+    callbacks.onRunStatusChange("proving"); // reuse "proving" for credentials phase
+    callbacks.onCredentialsUpdate?.({
+      status: "unchecked",
+      proof: null,
+      credentials: null,
+      currentRoot: null,
+      error: null,
+    });
+
+    const complianceState = await acquireCredentials(
+      manifest.employer_addr,
+      ctx.walletExecute,
+    );
+
+    callbacks.onCredentialsUpdate?.(complianceState);
+
+    if (complianceState.status === "frozen") {
+      callbacks.onRunStatusChange("failed");
+      callbacks.onError(
+        complianceState.error ?? "Employer address is on the compliance freeze list",
+      );
+      return chunks;
+    }
+
+    if (complianceState.status === "credentials_valid" && complianceState.credentials) {
+      credentials = complianceState.credentials;
+    }
+    // If credentials acquisition failed, fall back to per-transfer proofs
+    // (the original transfer_private path still works)
+  }
+
+  // ---- Step 2: Upgrade transitions if credentials available ----
+  if (credentials) {
+    for (const chunk of chunks) {
+      chunk.transition = upgradeTransition(chunk.transition);
+    }
+    callbacks.onChunkUpdate(chunks);
+  }
+
+  // ---- Step 3: Execute chunks ----
   let hasFailure = false;
   let settledCount = 0;
 
@@ -117,13 +180,39 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
       continue;
     }
 
+    // Check if credentials are still valid mid-run (root rotation)
+    if (credentials && i > 0 && i % 5 === 0) {
+      const stillValid = await checkCredentialsValid(credentials);
+      if (!stillValid) {
+        // Re-acquire credentials if root rotated
+        if (ctx.walletExecute) {
+          const refreshed = await acquireCredentials(
+            manifest.employer_addr,
+            ctx.walletExecute,
+          );
+          if (refreshed.status === "credentials_valid" && refreshed.credentials) {
+            credentials = refreshed.credentials;
+            callbacks.onCredentialsUpdate?.(refreshed);
+          } else {
+            // Downgrade remaining chunks to non-credentials path
+            credentials = null;
+            for (let j = i; j < chunks.length; j++) {
+              chunks[j]!.transition = downgradeTransition(chunks[j]!.transition);
+            }
+            callbacks.onChunkUpdate(chunks);
+            callbacks.onCredentialsUpdate?.(refreshed);
+          }
+        }
+      }
+    }
+
     // Update run status
     const runStatus: PayrollRunStatus =
       settledCount > 0 ? "partially_settled" : "proving";
     callbacks.onRunStatusChange(runStatus);
 
     // Execute chunk with retries
-    const result = await executeChunkWithRetry(manifest, chunk, ctx);
+    const result = await executeChunkWithRetry(manifest, chunk, ctx, credentials);
 
     chunks[i] = result;
     callbacks.onChunkUpdate(chunks);
@@ -180,7 +269,39 @@ export async function retryChunk(
     last_error: undefined,
   };
 
-  return executeChunkWithRetry(ctx.manifest, resetChunk, ctx);
+  return executeChunkWithRetry(ctx.manifest, resetChunk, ctx, ctx.credentials ?? null);
+}
+
+// ----------------------------------------------------------------
+// Internal: transition upgrade/downgrade
+// ----------------------------------------------------------------
+
+/** Upgrade a transition to use credentials (skips per-transfer Merkle proof) */
+function upgradeTransition(
+  transition: ChunkPlan["transition"],
+): ChunkPlan["transition"] {
+  switch (transition) {
+    case "execute_payroll":
+      return "execute_payroll_with_creds";
+    case "execute_payroll_batch_2":
+      return "execute_payroll_batch_2_with_creds";
+    default:
+      return transition; // already upgraded
+  }
+}
+
+/** Downgrade a transition back to raw Merkle proof path */
+function downgradeTransition(
+  transition: ChunkPlan["transition"],
+): ChunkPlan["transition"] {
+  switch (transition) {
+    case "execute_payroll_with_creds":
+      return "execute_payroll";
+    case "execute_payroll_batch_2_with_creds":
+      return "execute_payroll_batch_2";
+    default:
+      return transition; // already base
+  }
 }
 
 // ----------------------------------------------------------------
@@ -191,6 +312,7 @@ async function executeChunkWithRetry(
   manifest: PayrollRunManifest,
   chunk: ChunkPlan,
   ctx: SettlementContext,
+  credentials: CredentialsRecord | null,
 ): Promise<ChunkPlan> {
   let current = { ...chunk };
 
@@ -204,8 +326,8 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute)
-        : await executeChunk(manifest, current, ctx.adapterConfig);
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials)
+        : await executeChunk(manifest, current, ctx.adapterConfig, credentials);
 
       current.status = "settled";
       current.tx_id = result.tx_id;
@@ -242,6 +364,7 @@ async function executeChunkViaWallet(
   manifest: PayrollRunManifest,
   chunk: ChunkPlan,
   walletExecute: WalletExecuteFn,
+  credentials: CredentialsRecord | null,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -251,7 +374,7 @@ async function executeChunkViaWallet(
 
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
-  const inputs = serializeWorkerPayArgs(workerArgs);
+  const inputs = serializeWorkerPayArgs(workerArgs, credentials);
 
   const txId = await executeAleoTransaction(
     walletExecute,
@@ -286,6 +409,7 @@ async function executeChunk(
   manifest: PayrollRunManifest,
   chunk: ChunkPlan,
   config: AdapterConfig,
+  credentials: CredentialsRecord | null,
 ): Promise<ExecutionResult> {
   // Build WorkerPayArgs for each row in the chunk
   const workerArgs = chunk.row_indices.map((rowIdx) => {
@@ -299,7 +423,7 @@ async function executeChunk(
   const transition = LAYER1_TRANSITIONS[transitionName];
 
   // Serialize inputs for the adapter
-  const inputs = serializeWorkerPayArgs(workerArgs);
+  const inputs = serializeWorkerPayArgs(workerArgs, credentials);
 
   return executeTransition(
     config,
@@ -339,9 +463,13 @@ function buildWorkerPayArgs(
 
 /**
  * Serialize WorkerPayArgs into Aleo input strings.
- * Each field is formatted as its Aleo type representation.
+ * If credentials are provided, appends the credentials record
+ * as the final input (for _with_creds transitions).
  */
-function serializeWorkerPayArgs(args: BatchPayrollWorker[]): string[] {
+function serializeWorkerPayArgs(
+  args: BatchPayrollWorker[],
+  credentials: CredentialsRecord | null,
+): string[] {
   const inputs: string[] = [];
 
   for (const arg of args) {
@@ -363,7 +491,26 @@ function serializeWorkerPayArgs(args: BatchPayrollWorker[]): string[] {
     inputs.push(`${arg.row_hash}field`);
   }
 
+  // Append credentials record for _with_creds transitions
+  if (credentials) {
+    inputs.push(serializeCredentials(credentials));
+  }
+
   return inputs;
+}
+
+/**
+ * Serialize a Credentials record as an Aleo record input string.
+ * The wallet provides the record ciphertext; we pass it through.
+ */
+function serializeCredentials(credentials: CredentialsRecord): string {
+  // If we have the raw record ciphertext from the wallet, use it directly
+  if (credentials._record_ciphertext) {
+    return credentials._record_ciphertext;
+  }
+
+  // Otherwise, construct the record literal
+  return `{ owner: ${credentials.owner}, freeze_list_root: ${credentials.freeze_list_root}field }`;
 }
 
 // ----------------------------------------------------------------
