@@ -12,6 +12,7 @@ import type {
   U128,
   U16,
 } from "../lib/pnw-adapter/aleo_types";
+import type { RosterInclusionProof } from "../lib/pnw-adapter/sealance_types";
 
 // ----------------------------------------------------------------
 // Version tags — increment when calculation rules change
@@ -65,6 +66,9 @@ export type PayrollRow = {
   // Manifest linkage (Option B — flows into WorkerPayArgs)
   row_hash: Bytes32;
 
+  // Roster inclusion proof (set by roster tree builder, used for audit)
+  roster_inclusion_proof?: RosterInclusionProof;
+
   // Execution state
   status: PayrollRowStatus;
   tx_id?: string;
@@ -90,7 +94,13 @@ export type ChunkPlan = {
   chunk_id: Bytes32;
   row_indices: number[];
   net_total: U128;
-  transition: "execute_payroll" | "execute_payroll_batch_2";
+  transition:
+    | "execute_payroll"
+    | "execute_payroll_batch_2"
+    | "execute_payroll_with_creds"
+    | "execute_payroll_batch_2_with_creds"
+    | "execute_payroll_with_roster"
+    | "execute_payroll_batch_2_with_roster";
   status: ChunkStatus;
   tx_id?: string;
   attempts: number;
@@ -141,6 +151,9 @@ export type PayrollRunManifest = {
 
   // Merkle root over row hashes
   row_root: Bytes32;
+
+  // Roster tree root (Merkle root over active agreement_ids in this run)
+  roster_root?: Bytes32;
 
   // Top-level commitment hashes
   inputs_hash: Bytes32;

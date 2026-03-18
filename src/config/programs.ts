@@ -25,6 +25,7 @@ export const PROGRAMS = {
   },
   external: {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only
+    usdcx_freezelist: "test_usdcx_freezelist.aleo", // testnet only
   },
 } as const;
 

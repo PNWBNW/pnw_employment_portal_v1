@@ -2,29 +2,34 @@
  * Payroll table row — the editable form before manifest compilation.
  * This is the UI-level row; it gets transformed into a PayrollRow
  * by the manifest compiler in E4.
+ *
+ * Simplified UX: employer enters worker .pnw name + gross amount.
+ * Everything else is auto-resolved from the worker store or defaulted.
  */
 
 export type PayrollTableRow = {
   /** Client-side unique ID for React key (not on-chain) */
   id: string;
-  /** Worker display name (session-only label) */
+  /** Worker .pnw name (e.g., "alice.pnw") — the only identity the employer enters */
   worker_name: string;
-  /** Worker Aleo address */
+  /** Worker Aleo address — auto-resolved from worker store via .pnw name */
   worker_addr: string;
-  /** Worker name hash from agreement */
+  /** Worker name hash — auto-resolved from worker store */
   worker_name_hash: string;
-  /** Agreement ID from on-chain record */
+  /** Agreement ID — auto-resolved from worker store */
   agreement_id: string;
-  /** Epoch identifier (YYYYMMDD format) */
+  /** Epoch identifier (YYYYMMDD format) — set globally via toolbar */
   epoch_id: string;
-  /** Gross pay in display dollars (e.g., "1234.56") */
+  /** Gross pay in display dollars (e.g., "1234.56") — the one number the employer enters */
   gross_amount: string;
-  /** Tax withheld in display dollars */
+  /** Tax withheld in display dollars — defaults to "0.00", editable in detail view */
   tax_withheld: string;
-  /** Fee in display dollars */
+  /** Fee in display dollars — defaults to "0.00", editable in detail view */
   fee_amount: string;
   /** Net pay — auto-calculated: gross - tax - fee */
   net_amount: string;
+  /** Whether the worker was resolved from the store */
+  resolved: boolean;
 };
 
 export type RowValidationResult = {
@@ -47,9 +52,10 @@ export function createEmptyRow(): PayrollTableRow {
     agreement_id: "",
     epoch_id: "",
     gross_amount: "",
-    tax_withheld: "",
-    fee_amount: "",
+    tax_withheld: "0.00",
+    fee_amount: "0.00",
     net_amount: "",
+    resolved: false,
   };
 }
 

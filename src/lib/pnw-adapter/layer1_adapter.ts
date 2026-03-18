@@ -17,7 +17,13 @@ export type Layer1Transition =
   | "terminate_agreement"
   | "supersede_agreement"
   | "execute_payroll"
-  | "execute_payroll_batch_2";
+  | "execute_payroll_batch_2"
+  | "execute_payroll_with_creds"
+  | "execute_payroll_batch_2_with_creds"
+  | "execute_payroll_with_roster"
+  | "execute_payroll_batch_2_with_roster"
+  | "get_credentials"
+  | "get_roster_credentials";
 
 // Stub: actual implementation synced from pnw_mvp_v2
 export const LAYER1_TRANSITIONS: Record<Layer1Transition, { program: string; transition: string }> = {
@@ -30,4 +36,14 @@ export const LAYER1_TRANSITIONS: Record<Layer1Transition, { program: string; tra
   supersede_agreement: { program: "employer_agreement_v2.aleo", transition: "supersede_agreement" },
   execute_payroll: { program: "payroll_core.aleo", transition: "execute_payroll" },
   execute_payroll_batch_2: { program: "payroll_core.aleo", transition: "execute_payroll_batch_2" },
+  // Credentials-based variants: skip per-transfer Merkle proof verification
+  execute_payroll_with_creds: { program: "payroll_core.aleo", transition: "execute_payroll_with_creds" },
+  execute_payroll_batch_2_with_creds: { program: "payroll_core.aleo", transition: "execute_payroll_batch_2_with_creds" },
+  // Roster-based variants: freeze-list creds + roster creds (both amortized)
+  execute_payroll_with_roster: { program: "payroll_core.aleo", transition: "execute_payroll_with_roster" },
+  execute_payroll_batch_2_with_roster: { program: "payroll_core.aleo", transition: "execute_payroll_batch_2_with_roster" },
+  // Acquire freeze-list credentials (one Merkle proof → reusable Credentials record)
+  get_credentials: { program: "test_usdcx_stablecoin.aleo", transition: "get_credentials" },
+  // Acquire roster credentials (anchor roster_root on-chain)
+  get_roster_credentials: { program: "payroll_core.aleo", transition: "get_roster_credentials" },
 };
