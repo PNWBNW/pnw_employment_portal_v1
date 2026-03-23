@@ -171,24 +171,24 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
   const id = isBlue ? "b" : "g";
   const seed = isBlue ? 2 : 7;
 
-  // Door body colors — vivid and saturated
-  const bodyDark = isBlue ? "#005878" : "#2a7a2e";
-  const bodyMid = isBlue ? "#006e98" : "#3a9838";
-  const bodyLight = isBlue ? "#0080a8" : "#48a842";
-  const bodyEdge = isBlue ? "#004a6a" : "#207028";
+  // Door body colors — warmed to match painting's golden ambient light
+  const bodyDark = isBlue ? "#0a5a6e" : "#2e7630";
+  const bodyMid = isBlue ? "#1a7088" : "#3e8e38";
+  const bodyLight = isBlue ? "#2a7e94" : "#4a9a42";
+  const bodyEdge = isBlue ? "#084e5e" : "#246828";
 
-  // Panel recess colors
-  const panelDark = isBlue ? "#004868" : "#1e6826";
-  const panelMid = isBlue ? "#005e88" : "#2e8832";
-  const panelLight = isBlue ? "#006a94" : "#38963a";
+  // Panel recess colors — warmer shadows
+  const panelDark = isBlue ? "#084a5c" : "#226428";
+  const panelMid = isBlue ? "#145e78" : "#328432";
+  const panelLight = isBlue ? "#1a6a84" : "#3c8e3a";
 
-  // Highlight/shadow for bevels
-  const bevelLight = isBlue ? "#18a0d8" : "#58c050";
-  const bevelShadow = isBlue ? "#002840" : "#143818";
+  // Highlight/shadow for bevels — golden-shifted highlights
+  const bevelLight = isBlue ? "#28a0c8" : "#5ab848";
+  const bevelShadow = isBlue ? "#042c3a" : "#183a18";
 
-  // Accent for carved details
-  const carveLight = isBlue ? "#40b8e0" : "#70d868";
-  const carveMid = isBlue ? "#0090c0" : "#40a840";
+  // Accent for carved details — warmer
+  const carveLight = isBlue ? "#48b0c8" : "#6cc858";
+  const carveMid = isBlue ? "#1888a8" : "#44a040";
 
   const kx = knobSide === "left" ? 7.5 : 26.5;
 
@@ -196,15 +196,15 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
     <svg viewBox="0 0 34 68" className="w-full h-full block">
       <defs>
         <filter id={`${id}WoodGrain`}>
-          {/* Fine grain — visible brush stroke texture */}
-          <feTurbulence type="fractalNoise" baseFrequency="0.025 0.12" numOctaves="5" seed={seed} result="grain" />
+          {/* Fine brush stroke grain */}
+          <feTurbulence type="fractalNoise" baseFrequency="0.03 0.14" numOctaves="5" seed={seed} result="grain" />
           <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
-          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.28" k3="0" k4="0" result="faint" />
+          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.3" k3="0" k4="0" result="faint" />
           <feBlend in="SourceGraphic" in2="faint" mode="soft-light" result="grained" />
-          {/* Broad variation — larger patches of lighter/darker paint */}
-          <feTurbulence type="fractalNoise" baseFrequency="0.006 0.012" numOctaves="3" seed={seed + 10} result="broad" />
+          {/* Broad patches — simulates uneven paint layering */}
+          <feTurbulence type="fractalNoise" baseFrequency="0.005 0.01" numOctaves="3" seed={seed + 10} result="broad" />
           <feColorMatrix in="broad" type="saturate" values="0" result="broadBW" />
-          <feComposite in="broadBW" in2="broadBW" operator="arithmetic" k1="0" k2="0.14" k3="0" k4="0" result="broadFaint" />
+          <feComposite in="broadBW" in2="broadBW" operator="arithmetic" k1="0" k2="0.18" k3="0" k4="0" result="broadFaint" />
           <feBlend in="grained" in2="broadFaint" mode="multiply" />
         </filter>
         <linearGradient id={`${id}Body`} x1="0" y1="0" x2="0.2" y2="1">
@@ -376,7 +376,7 @@ function Door({ side, onClick }: DoorProps) {
       whileTap={{ scale: 0.97 }}
     >
       {/* Craftsman door trim — multiply blend lets trunk bark texture show through */}
-      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply" }}>
+      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply", filter: "blur(0.3px) url(#paintWarp)" }}>
         <CraftsmanTrimSVG />
       </div>
 
@@ -451,28 +451,37 @@ function Door({ side, onClick }: DoorProps) {
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23807050' opacity='0.03'/%3E%3Crect x='0' y='0' width='2' height='1' fill='%23a09070' opacity='0.04'/%3E%3Crect x='2' y='2' width='2' height='1' fill='%23605030' opacity='0.04'/%3E%3C/svg%3E")`,
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23907848' opacity='0.04'/%3E%3Crect x='0' y='0' width='2' height='1' fill='%23b09868' opacity='0.05'/%3E%3Crect x='2' y='2' width='2' height='1' fill='%23706030' opacity='0.05'/%3E%3C/svg%3E")`,
               backgroundSize: "3px 3px",
               mixBlendMode: "overlay",
-              opacity: 0.7,
+              opacity: 0.8,
             }}
           />
-          {/* Warm color wash — uneven pigment like thick oil paint */}
+          {/* Golden ambient wash — matches the painting's warm backlight */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              background: `radial-gradient(ellipse at 25% 20%, rgba(220,190,100,0.1), transparent 50%),
-                           radial-gradient(ellipse at 80% 60%, rgba(20,15,5,0.12), transparent 45%),
-                           radial-gradient(ellipse at 50% 85%, rgba(180,150,60,0.07), transparent 40%),
-                           radial-gradient(ellipse at 60% 35%, rgba(160,130,50,0.06), transparent 35%)`,
+              background: `linear-gradient(170deg, rgba(200,170,60,0.14), rgba(180,140,40,0.06) 50%, rgba(100,80,20,0.1)),
+                           radial-gradient(ellipse at 30% 15%, rgba(240,200,80,0.13), transparent 55%),
+                           radial-gradient(ellipse at 75% 55%, rgba(30,20,5,0.14), transparent 45%),
+                           radial-gradient(ellipse at 45% 80%, rgba(180,150,60,0.09), transparent 40%),
+                           radial-gradient(ellipse at 60% 30%, rgba(200,160,50,0.08), transparent 35%)`,
               mixBlendMode: "soft-light",
             }}
           />
-          {/* Paint edge vignette — darker edges where paint pools */}
+          {/* Impasto highlight — thick paint catches golden light at center */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              boxShadow: "inset 0 0 8px 3px rgba(10,14,4,0.4), inset 0 -2px 4px 1px rgba(10,14,4,0.2)",
+              background: "radial-gradient(ellipse 60% 40% at 40% 35%, rgba(220,190,90,0.1), transparent 70%)",
+              mixBlendMode: "overlay",
+            }}
+          />
+          {/* Paint edge vignette — darker edges where paint pools and thickens */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              boxShadow: "inset 0 0 10px 4px rgba(10,14,4,0.45), inset 0 -3px 6px 2px rgba(10,14,4,0.25), inset 3px 0 6px 1px rgba(10,14,4,0.15), inset -3px 0 6px 1px rgba(10,14,4,0.15)",
               mixBlendMode: "multiply",
             }}
           />
@@ -711,10 +720,20 @@ export function PortalDoors({
       {/* Shared SVG filters for painterly effects */}
       <svg className="absolute w-0 h-0" aria-hidden="true">
         <defs>
-          {/* Gentle paint warp — very subtle displacement to break perfect digital lines */}
-          <filter id="paintWarp" x="-2%" y="-2%" width="104%" height="104%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.03 0.05" numOctaves="4" seed="5" result="warp" />
-            <feDisplacementMap in="SourceGraphic" in2="warp" scale="0.6" xChannelSelector="R" yChannelSelector="G" />
+          {/* Gentle paint warp — subtle displacement to break perfect digital lines */}
+          <filter id="paintWarp" x="-3%" y="-3%" width="106%" height="106%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.025 0.04" numOctaves="4" seed="5" result="warp" />
+            <feDisplacementMap in="SourceGraphic" in2="warp" scale="1.1" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          {/* Warm amber color cast to match the painting's golden light */}
+          <filter id="paintWarmth" x="0%" y="0%" width="100%" height="100%">
+            {/* Shift colors warmer: boost red/green slightly, reduce blue */}
+            <feColorMatrix type="matrix" values="
+              1.08 0.04 0.0  0 0.02
+              0.02 1.04 0.0  0 0.01
+              0.0  0.0  0.88 0 0.0
+              0    0    0    1 0
+            " />
           </filter>
           {/* Bark-like texture for blackout patches */}
           <filter id="barkTexture" x="0%" y="0%" width="100%" height="100%">
@@ -739,7 +758,9 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
-          filter: "blur(0.4px) contrast(1.06) saturate(0.85)",
+          filter: "blur(0.5px) contrast(1.08) saturate(0.75) url(#paintWarmth)",
+          mask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
+          WebkitMask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
         }}
       >
         <Door side="employer" onClick={onEmployerClick} />
@@ -754,7 +775,9 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
-          filter: "blur(0.4px) contrast(1.06) saturate(0.85)",
+          filter: "blur(0.5px) contrast(1.08) saturate(0.75) url(#paintWarmth)",
+          mask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
+          WebkitMask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
         }}
       >
         <Door side="worker" onClick={onWorkerClick} />
