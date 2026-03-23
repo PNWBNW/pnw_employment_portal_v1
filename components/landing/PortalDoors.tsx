@@ -28,79 +28,124 @@ function TrunkFrameSVG() {
       preserveAspectRatio="none"
     >
       <defs>
+        {/* Heavy bark texture — coarse vertical grain like real tree bark */}
         <filter id="barkGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.12 0.04"
-            numOctaves="6"
+            baseFrequency="0.06 0.02"
+            numOctaves="5"
             seed="13"
           />
           <feColorMatrix type="saturate" values="0" />
-          <feBlend in="SourceGraphic" mode="overlay" />
-          <feGaussianBlur stdDeviation="0.25" />
+          <feBlend in="SourceGraphic" mode="soft-light" />
+          <feGaussianBlur stdDeviation="0.2" />
         </filter>
-        {/* Dark bark body — sampled from trunk in painting */}
-        <linearGradient id="barkBody" x1="0" y1="0" x2="0.3" y2="1">
-          <stop offset="0%" stopColor="#1a2210" />
-          <stop offset="15%" stopColor="#1e2812" />
-          <stop offset="35%" stopColor="#222e16" />
-          <stop offset="55%" stopColor="#1c2410" />
-          <stop offset="75%" stopColor="#161e0c" />
-          <stop offset="100%" stopColor="#0e1408" />
+        {/* Second texture layer — finer grain for rough bark feel */}
+        <filter id="barkFine">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.25 0.08"
+            numOctaves="4"
+            seed="29"
+          />
+          <feColorMatrix type="saturate" values="0" />
+          <feBlend in="SourceGraphic" mode="multiply" />
+        </filter>
+        {/* Warm brown bark body — real tree trunk colors, not olive */}
+        <linearGradient id="barkBody" x1="0.1" y1="0" x2="0.2" y2="1">
+          <stop offset="0%" stopColor="#3d2e1a" />
+          <stop offset="12%" stopColor="#4a3820" />
+          <stop offset="30%" stopColor="#3a2c18" />
+          <stop offset="45%" stopColor="#4e3a24" />
+          <stop offset="60%" stopColor="#382a16" />
+          <stop offset="78%" stopColor="#2e2212" />
+          <stop offset="100%" stopColor="#241a0e" />
         </linearGradient>
-        {/* Subtle moss/lichen highlight on outer edges */}
-        <linearGradient id="barkHighlight" x1="0" y1="0" x2="1" y2="0.5">
-          <stop offset="0%" stopColor="#2a3518" stopOpacity="0.6" />
-          <stop offset="50%" stopColor="#1e2812" stopOpacity="0" />
-          <stop offset="100%" stopColor="#2a3518" stopOpacity="0.4" />
+        {/* Warm highlight catching light on bark ridges */}
+        <linearGradient id="barkWarm" x1="0" y1="0.2" x2="1" y2="0.8">
+          <stop offset="0%" stopColor="#5c4428" stopOpacity="0.5" />
+          <stop offset="30%" stopColor="#4a3620" stopOpacity="0.15" />
+          <stop offset="70%" stopColor="#4a3620" stopOpacity="0.1" />
+          <stop offset="100%" stopColor="#5c4428" stopOpacity="0.45" />
         </linearGradient>
+        {/* Greenish moss tint — very subtle, like real PNW bark */}
+        <radialGradient id="barkMoss" cx="0.5" cy="0.3" r="0.6">
+          <stop offset="0%" stopColor="#3a4a20" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#2a3518" stopOpacity="0.06" />
+        </radialGradient>
         {/* Inner shadow for depth — the carved-out doorway */}
         <linearGradient id="barkInnerShadow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0a0e06" stopOpacity="0.8" />
-          <stop offset="20%" stopColor="#0a0e06" stopOpacity="0.3" />
-          <stop offset="80%" stopColor="#0a0e06" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#0a0e06" stopOpacity="0.7" />
+          <stop offset="0%" stopColor="#1a1208" stopOpacity="0.9" />
+          <stop offset="15%" stopColor="#1a1208" stopOpacity="0.4" />
+          <stop offset="85%" stopColor="#1a1208" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#1a1208" stopOpacity="0.8" />
+        </linearGradient>
+        {/* Side inner shadows for 3D recess */}
+        <linearGradient id="barkInnerSideL" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#1a1208" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#1a1208" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="barkInnerSideR" x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0%" stopColor="#1a1208" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#1a1208" stopOpacity="0" />
         </linearGradient>
       </defs>
 
-      {/* Outer bark frame — slightly organic shape */}
+      {/* Base bark frame shape — warm brown with coarse grain */}
       <path
-        d="M3,1 C1.5,1 0.5,2 0.5,3.5 L0.3,77 C0.3,79 1.2,80.5 3,80.8 L41,80.8 C42.8,80.5 43.7,79 43.7,77 L43.5,3.5 C43.5,2 42.5,1 41,1 Z"
+        d="M3,0.8 C1.2,1 0.4,2.2 0.3,4 L0.2,77.5 C0.2,79.5 1.3,81 3.2,81.2 L40.8,81.2 C42.7,81 43.8,79.5 43.8,77.5 L43.7,4 C43.6,2.2 42.8,1 41,0.8 Z"
         fill="url(#barkBody)"
         filter="url(#barkGrain)"
       />
-      {/* Bark highlight layer */}
+      {/* Second texture pass — finer grain overlay */}
       <path
-        d="M3,1 C1.5,1 0.5,2 0.5,3.5 L0.3,77 C0.3,79 1.2,80.5 3,80.8 L41,80.8 C42.8,80.5 43.7,79 43.7,77 L43.5,3.5 C43.5,2 42.5,1 41,1 Z"
-        fill="url(#barkHighlight)"
+        d="M3,0.8 C1.2,1 0.4,2.2 0.3,4 L0.2,77.5 C0.2,79.5 1.3,81 3.2,81.2 L40.8,81.2 C42.7,81 43.8,79.5 43.8,77.5 L43.7,4 C43.6,2.2 42.8,1 41,0.8 Z"
+        fill="url(#barkWarm)"
+        filter="url(#barkFine)"
+      />
+      {/* Subtle moss tint — PNW trees have green-tinged bark */}
+      <path
+        d="M3,0.8 C1.2,1 0.4,2.2 0.3,4 L0.2,77.5 C0.2,79.5 1.3,81 3.2,81.2 L40.8,81.2 C42.7,81 43.8,79.5 43.8,77.5 L43.7,4 C43.6,2.2 42.8,1 41,0.8 Z"
+        fill="url(#barkMoss)"
       />
 
-      {/* Inner doorway cutout — dark recess */}
-      <rect x="4" y="3" width="36" height="74" rx="1.5" fill="#080c04" />
+      {/* Inner doorway cutout — very dark recess */}
+      <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="#0e0a04" />
 
-      {/* Inner edge shadow for carved-in depth */}
-      <rect
-        x="4"
-        y="3"
-        width="36"
-        height="74"
-        rx="1.5"
-        fill="url(#barkInnerShadow)"
+      {/* Inner edge shadows — all 4 sides for carved depth */}
+      <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="url(#barkInnerShadow)" />
+      <rect x="4.5" y="3.5" width="8" height="73" rx="1" fill="url(#barkInnerSideL)" />
+      <rect x="31.5" y="3.5" width="8" height="73" rx="1" fill="url(#barkInnerSideR)" />
+
+      {/* Bark ridge highlights — irregular bumps along the frame */}
+      <path
+        d="M2,8 C1.8,12 2.2,18 1.8,24 C1.5,30 2,36 1.7,42 C2.1,48 1.6,54 2,60 C1.8,66 2.2,72 2,76"
+        stroke="#5a4228"
+        strokeWidth="1.2"
+        fill="none"
+        opacity="0.25"
+      />
+      <path
+        d="M42,6 C42.2,12 41.8,18 42.1,24 C42.4,30 41.9,36 42.2,42 C41.8,48 42.3,54 42,60 C42.2,66 41.8,72 42,78"
+        stroke="#5a4228"
+        strokeWidth="1.2"
+        fill="none"
+        opacity="0.2"
       />
 
-      {/* Top lintel bark ridge — slightly thicker, organic */}
+      {/* Top lintel — thicker bark with warm tone */}
       <path
-        d="M3.5,2.5 L40.5,2.5 L40.5,4.5 C38,5 30,5.2 22,5 C14,4.8 6,5 3.5,4.5 Z"
-        fill="#1e2812"
-        opacity="0.6"
+        d="M2.5,1.5 L41.5,1.5 L41.5,4 C38,4.3 30,4.5 22,4.3 C14,4.1 6,4.3 2.5,4 Z"
+        fill="#4a3820"
+        opacity="0.5"
         filter="url(#barkGrain)"
       />
 
-      {/* Bottom threshold bark ridge */}
+      {/* Bottom sill — slightly lighter bark */}
       <path
-        d="M3.5,76 C6,76.5 14,76.8 22,77 C30,77.2 38,76.5 40.5,76 L40.5,79.5 L3.5,79.5 Z"
-        fill="#161e0c"
-        opacity="0.5"
+        d="M2.5,76.5 C6,77 14,77.3 22,77.5 C30,77.3 38,77 41.5,76.5 L41.5,80 L2.5,80 Z"
+        fill="#3d2e1a"
+        opacity="0.45"
         filter="url(#barkGrain)"
       />
     </svg>
