@@ -53,7 +53,6 @@ import {
   acquireRosterCredentialsFromManifest,
   checkRosterCredentialsValid,
 } from "../lib/pnw-adapter/roster_credentials_manager";
-import { pluginRegistry } from "../plugins/registry";
 
 // ----------------------------------------------------------------
 // Configuration
@@ -312,20 +311,11 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
   if (settledCount === chunks.length) {
     callbacks.onRunStatusChange("settled");
     callbacks.onComplete();
-    void pluginRegistry.emit("onRunComplete", {
-      manifest,
-      settled_count: settledCount,
-      failed_count: chunks.length - settledCount,
-    });
   } else if (hasFailure) {
     callbacks.onRunStatusChange(settledCount > 0 ? "needs_retry" : "failed");
     callbacks.onError(
       `Settlement incomplete: ${settledCount}/${chunks.length} chunks settled`,
     );
-    void pluginRegistry.emit("onRunFailed", {
-      manifest,
-      error: `Settlement incomplete: ${settledCount}/${chunks.length} chunks settled`,
-    });
   }
 
   return chunks;
@@ -438,12 +428,6 @@ async function executeChunkWithRetry(
       ctx.chunks.map((c) => (c.chunk_index === current.chunk_index ? current : c)),
     );
 
-    void pluginRegistry.emit("onChunkSettleStart", {
-      manifest,
-      chunk: current,
-      attempt: current.attempts,
-    });
-
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
@@ -454,24 +438,10 @@ async function executeChunkWithRetry(
       current.tx_id = result.tx_id;
       current.last_error = undefined;
 
-      void pluginRegistry.emit("onChunkSettleSuccess", {
-        manifest,
-        chunk: current,
-        tx_id: result.tx_id,
-      });
-
       return current;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       current.last_error = message;
-
-      void pluginRegistry.emit("onChunkSettleFailure", {
-        manifest,
-        chunk: current,
-        error: message,
-        attempt: current.attempts,
-        will_retry: isTransientError(error) && current.attempts < MAX_RETRIES,
-      });
 
       if (!isTransientError(error)) {
         // Non-retryable: mark as failed immediately
