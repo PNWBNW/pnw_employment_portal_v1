@@ -51,43 +51,43 @@ function TrunkFrameSVG() {
           <feColorMatrix type="saturate" values="0" />
           <feBlend in="SourceGraphic" mode="multiply" />
         </filter>
-        {/* Warm brown bark body — real tree trunk colors, not olive */}
+        {/* Olive-green bark body — sampled directly from pnw-tree.png trunk */}
         <linearGradient id="barkBody" x1="0.1" y1="0" x2="0.2" y2="1">
-          <stop offset="0%" stopColor="#3d2e1a" />
-          <stop offset="12%" stopColor="#4a3820" />
-          <stop offset="30%" stopColor="#3a2c18" />
-          <stop offset="45%" stopColor="#4e3a24" />
-          <stop offset="60%" stopColor="#382a16" />
-          <stop offset="78%" stopColor="#2e2212" />
-          <stop offset="100%" stopColor="#241a0e" />
+          <stop offset="0%" stopColor="#3c4b1f" />
+          <stop offset="15%" stopColor="#495119" />
+          <stop offset="30%" stopColor="#576124" />
+          <stop offset="45%" stopColor="#4a5520" />
+          <stop offset="60%" stopColor="#3e4c19" />
+          <stop offset="78%" stopColor="#304011" />
+          <stop offset="100%" stopColor="#2c3a17" />
         </linearGradient>
-        {/* Warm highlight catching light on bark ridges */}
+        {/* Lighter bark highlights — from lighter trunk samples */}
         <linearGradient id="barkWarm" x1="0" y1="0.2" x2="1" y2="0.8">
-          <stop offset="0%" stopColor="#5c4428" stopOpacity="0.5" />
-          <stop offset="30%" stopColor="#4a3620" stopOpacity="0.15" />
-          <stop offset="70%" stopColor="#4a3620" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#5c4428" stopOpacity="0.45" />
+          <stop offset="0%" stopColor="#76702a" stopOpacity="0.45" />
+          <stop offset="30%" stopColor="#56602e" stopOpacity="0.15" />
+          <stop offset="70%" stopColor="#56602e" stopOpacity="0.1" />
+          <stop offset="100%" stopColor="#76702a" stopOpacity="0.4" />
         </linearGradient>
-        {/* Greenish moss tint — very subtle, like real PNW bark */}
-        <radialGradient id="barkMoss" cx="0.5" cy="0.3" r="0.6">
-          <stop offset="0%" stopColor="#3a4a20" stopOpacity="0.12" />
-          <stop offset="100%" stopColor="#2a3518" stopOpacity="0.06" />
+        {/* Yellow-green moss tint — matches the warm yellow in the bark */}
+        <radialGradient id="barkMoss" cx="0.5" cy="0.35" r="0.6">
+          <stop offset="0%" stopColor="#515f28" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#334716" stopOpacity="0.1" />
         </radialGradient>
         {/* Inner shadow for depth — the carved-out doorway */}
         <linearGradient id="barkInnerShadow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1a1208" stopOpacity="0.9" />
-          <stop offset="15%" stopColor="#1a1208" stopOpacity="0.4" />
-          <stop offset="85%" stopColor="#1a1208" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#1a1208" stopOpacity="0.8" />
+          <stop offset="0%" stopColor="#161e02" stopOpacity="0.9" />
+          <stop offset="15%" stopColor="#161e02" stopOpacity="0.4" />
+          <stop offset="85%" stopColor="#161e02" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#161e02" stopOpacity="0.8" />
         </linearGradient>
         {/* Side inner shadows for 3D recess */}
         <linearGradient id="barkInnerSideL" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#1a1208" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="#1a1208" stopOpacity="0" />
+          <stop offset="0%" stopColor="#161e02" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#161e02" stopOpacity="0" />
         </linearGradient>
         <linearGradient id="barkInnerSideR" x1="1" y1="0" x2="0" y2="0">
-          <stop offset="0%" stopColor="#1a1208" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="#1a1208" stopOpacity="0" />
+          <stop offset="0%" stopColor="#161e02" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#161e02" stopOpacity="0" />
         </linearGradient>
       </defs>
 
@@ -109,8 +109,8 @@ function TrunkFrameSVG() {
         fill="url(#barkMoss)"
       />
 
-      {/* Inner doorway cutout — very dark recess */}
-      <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="#0e0a04" />
+      {/* Inner doorway cutout — darkest bark sampled from trunk shadows */}
+      <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="#0d1a0a" />
 
       {/* Inner edge shadows — all 4 sides for carved depth */}
       <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="url(#barkInnerShadow)" />
@@ -120,31 +120,31 @@ function TrunkFrameSVG() {
       {/* Bark ridge highlights — irregular bumps along the frame */}
       <path
         d="M2,8 C1.8,12 2.2,18 1.8,24 C1.5,30 2,36 1.7,42 C2.1,48 1.6,54 2,60 C1.8,66 2.2,72 2,76"
-        stroke="#5a4228"
+        stroke="#6c6b28"
+        strokeWidth="1.2"
+        fill="none"
+        opacity="0.3"
+      />
+      <path
+        d="M42,6 C42.2,12 41.8,18 42.1,24 C42.4,30 41.9,36 42.2,42 C41.8,48 42.3,54 42,60 C42.2,66 41.8,72 42,78"
+        stroke="#6c6b28"
         strokeWidth="1.2"
         fill="none"
         opacity="0.25"
       />
-      <path
-        d="M42,6 C42.2,12 41.8,18 42.1,24 C42.4,30 41.9,36 42.2,42 C41.8,48 42.3,54 42,60 C42.2,66 41.8,72 42,78"
-        stroke="#5a4228"
-        strokeWidth="1.2"
-        fill="none"
-        opacity="0.2"
-      />
 
-      {/* Top lintel — thicker bark with warm tone */}
+      {/* Top lintel — bark from above-doors sample */}
       <path
         d="M2.5,1.5 L41.5,1.5 L41.5,4 C38,4.3 30,4.5 22,4.3 C14,4.1 6,4.3 2.5,4 Z"
-        fill="#4a3820"
+        fill="#515f28"
         opacity="0.5"
         filter="url(#barkGrain)"
       />
 
-      {/* Bottom sill — slightly lighter bark */}
+      {/* Bottom sill — darker bark */}
       <path
         d="M2.5,76.5 C6,77 14,77.3 22,77.5 C30,77.3 38,77 41.5,76.5 L41.5,80 L2.5,80 Z"
-        fill="#3d2e1a"
+        fill="#334716"
         opacity="0.45"
         filter="url(#barkGrain)"
       />
@@ -507,9 +507,9 @@ function Door({ side, onClick }: DoorProps) {
                   <feBlend in="SourceGraphic" mode="soft-light" />
                 </filter>
                 <linearGradient id={`plBody${side}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2a3018" />
-                  <stop offset="40%" stopColor="#1e2612" />
-                  <stop offset="100%" stopColor="#161c0e" />
+                  <stop offset="0%" stopColor="#495119" />
+                  <stop offset="40%" stopColor="#3e4c19" />
+                  <stop offset="100%" stopColor="#304011" />
                 </linearGradient>
               </defs>
               {/* Plank shape — slightly organic edges */}
@@ -517,7 +517,7 @@ function Door({ side, onClick }: DoorProps) {
                 d="M4,1.5 C2.5,1.5 1.5,2.5 1.5,3.5 L1.5,10.5 C1.5,11.5 2.5,12.5 4,12.5 L56,12.5 C57.5,12.5 58.5,11.5 58.5,10.5 L58.5,3.5 C58.5,2.5 57.5,1.5 56,1.5 Z"
                 fill={`url(#plBody${side})`}
                 filter={`url(#plGrain${side})`}
-                stroke="#0e1408"
+                stroke="#2c3a17"
                 strokeWidth="0.5"
               />
               {/* Carved text */}
@@ -535,10 +535,10 @@ function Door({ side, onClick }: DoorProps) {
                 {isEmployer ? "Employer" : "Worker"}
               </text>
               {/* Nail holes */}
-              <circle cx="6" cy="7" r="0.8" fill="#0a0e06" />
-              <circle cx="6" cy="7" r="0.4" fill="#1e2612" />
-              <circle cx="54" cy="7" r="0.8" fill="#0a0e06" />
-              <circle cx="54" cy="7" r="0.4" fill="#1e2612" />
+              <circle cx="6" cy="7" r="0.8" fill="#1e2e02" />
+              <circle cx="6" cy="7" r="0.4" fill="#3e4c19" />
+              <circle cx="54" cy="7" r="0.8" fill="#1e2e02" />
+              <circle cx="54" cy="7" r="0.4" fill="#3e4c19" />
             </svg>
           </motion.div>
         )}
