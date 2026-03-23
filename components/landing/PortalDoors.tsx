@@ -30,24 +30,25 @@ function CraftsmanTrimSVG() {
       preserveAspectRatio="none"
     >
       <defs>
-        {/* Wood grain — vertical, visible but not overwhelming */}
+        {/* Wood grain — very subtle, just enough for texture */}
         <filter id="trimGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.04 0.18"
-            numOctaves="4"
+            baseFrequency="0.03 0.15"
+            numOctaves="3"
             seed="19"
             result="grain"
           />
           <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
-          <feBlend in="SourceGraphic" in2="bw" mode="soft-light" />
+          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.15" k3="0" k4="0" result="faint" />
+          <feBlend in="SourceGraphic" in2="faint" mode="soft-light" />
         </filter>
-        {/* Trim body — olive-green from trunk */}
+        {/* Trim body — vivid olive-green from trunk, pushed brighter */}
         <linearGradient id="trimBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#5e6830" />
-          <stop offset="30%" stopColor="#555e24" />
-          <stop offset="70%" stopColor="#4a5520" />
-          <stop offset="100%" stopColor="#434e1b" />
+          <stop offset="0%" stopColor="#6e7838" />
+          <stop offset="30%" stopColor="#656e2c" />
+          <stop offset="70%" stopColor="#5a6428" />
+          <stop offset="100%" stopColor="#4e5820" />
         </linearGradient>
         {/* Bevel highlight — lighter edge catching light */}
         <linearGradient id="trimHighL" x1="0" y1="0" x2="1" y2="0">
@@ -62,11 +63,11 @@ function CraftsmanTrimSVG() {
           <stop offset="0%" stopColor="#76702a" stopOpacity="0.5" />
           <stop offset="100%" stopColor="#76702a" stopOpacity="0" />
         </linearGradient>
-        {/* Sill gradient — slightly warmer/golden */}
+        {/* Sill gradient — warm golden-olive */}
         <linearGradient id="sillBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#69620f" />
-          <stop offset="50%" stopColor="#6c6b28" />
-          <stop offset="100%" stopColor="#555e24" />
+          <stop offset="0%" stopColor="#7a7218" />
+          <stop offset="50%" stopColor="#7c7b30" />
+          <stop offset="100%" stopColor="#656e2c" />
         </linearGradient>
       </defs>
 
@@ -127,20 +128,20 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
   const id = isBlue ? "b" : "g";
   const seed = isBlue ? 2 : 7;
 
-  // Door body colors
-  const bodyDark = isBlue ? "#003048" : "#1e5a22";
-  const bodyMid = isBlue ? "#004a68" : "#2d7a2e";
-  const bodyLight = isBlue ? "#005878" : "#3a8e34";
-  const bodyEdge = isBlue ? "#002838" : "#1a4c1e";
+  // Door body colors — pushed saturated and brighter
+  const bodyDark = isBlue ? "#005878" : "#2a7a2e";
+  const bodyMid = isBlue ? "#006e98" : "#3a9838";
+  const bodyLight = isBlue ? "#0080a8" : "#48a842";
+  const bodyEdge = isBlue ? "#004060" : "#1e6424";
 
-  // Panel recess colors (darker than body)
-  const panelDark = isBlue ? "#00283c" : "#174a1c";
-  const panelMid = isBlue ? "#003a52" : "#246828";
-  const panelLight = isBlue ? "#004560" : "#2a7a2e";
+  // Panel recess colors (slightly darker than body)
+  const panelDark = isBlue ? "#004868" : "#1e6826";
+  const panelMid = isBlue ? "#005e88" : "#2e8832";
+  const panelLight = isBlue ? "#006a94" : "#38963a";
 
   // Highlight/shadow for bevels
-  const bevelLight = isBlue ? "#0070a0" : "#48a840";
-  const bevelShadow = isBlue ? "#001820" : "#0e2e10";
+  const bevelLight = isBlue ? "#18a0d8" : "#58c050";
+  const bevelShadow = isBlue ? "#002840" : "#143818";
 
   const kx = knobSide === "left" ? 7 : 27;
 
@@ -150,13 +151,15 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
         <filter id={`${id}WoodGrain`}>
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.03 0.15"
-            numOctaves="5"
+            baseFrequency="0.03 0.14"
+            numOctaves="3"
             seed={seed}
             result="grain"
           />
           <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
-          <feBlend in="SourceGraphic" in2="bw" mode="soft-light" />
+          {/* Reduce noise intensity to ~20% so colors stay vivid */}
+          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.2" k3="0" k4="0" result="faint" />
+          <feBlend in="SourceGraphic" in2="faint" mode="soft-light" />
         </filter>
         {/* Door body gradient */}
         <linearGradient id={`${id}Body`} x1="0" y1="0" x2="0.2" y2="1">
