@@ -13,244 +13,240 @@ import { motion, AnimatePresence } from "framer-motion";
  * Both have: dark olive frame, golden threshold, warm interior light
  */
 
-/* ─── Trunk Frame SVG ─── */
+/* ─── Craftsman Door Trim SVG ─── */
 
 /**
- * Organic bark frame that wraps each door, matching the tree trunk palette.
- * Uses fractalNoise for bark texture. The frame has slightly irregular edges
- * to feel like carved-out trunk wood rather than manufactured trim.
+ * Craftsman-style door casing with proper molding profile:
+ * - Wide flat head casing across top with slight reveal
+ * - Matching side casings (legs) with beveled inner edge
+ * - Thick sill / threshold at bottom
+ * - Colors sampled from pnw-tree.png trunk pixels adjacent to doors
  */
-function TrunkFrameSVG() {
+function CraftsmanTrimSVG() {
   return (
     <svg
-      viewBox="0 0 44 82"
+      viewBox="0 0 46 84"
       className="absolute inset-0 w-full h-full"
       preserveAspectRatio="none"
     >
       <defs>
-        {/* Gentle bark texture — keeps color saturation intact */}
-        <filter id="barkGrain">
+        {/* Wood grain — vertical, visible but not overwhelming */}
+        <filter id="trimGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.06 0.02"
-            numOctaves="5"
-            seed="13"
-            result="noise"
+            baseFrequency="0.04 0.18"
+            numOctaves="4"
+            seed="19"
+            result="grain"
           />
-          <feColorMatrix in="noise" type="saturate" values="0" result="bw" />
-          <feBlend in="SourceGraphic" in2="bw" mode="soft-light" result="textured" />
-          {/* Mix 70% original color back in to prevent grey washout */}
-          <feBlend in="SourceGraphic" in2="textured" mode="normal" />
-          <feGaussianBlur stdDeviation="0.15" />
+          <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
+          <feBlend in="SourceGraphic" in2="bw" mode="soft-light" />
         </filter>
-        {/* Vivid olive-green bark — pixel-sampled from trunk next to doors */}
-        <linearGradient id="barkBody" x1="0.1" y1="0" x2="0.25" y2="1">
+        {/* Trim body — olive-green from trunk */}
+        <linearGradient id="trimBody" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#5e6830" />
-          <stop offset="12%" stopColor="#69620f" />
-          <stop offset="28%" stopColor="#6c6b28" />
-          <stop offset="42%" stopColor="#62723c" />
-          <stop offset="58%" stopColor="#555e24" />
-          <stop offset="72%" stopColor="#4a5520" />
-          <stop offset="88%" stopColor="#434e1b" />
-          <stop offset="100%" stopColor="#3e4c19" />
+          <stop offset="30%" stopColor="#555e24" />
+          <stop offset="70%" stopColor="#4a5520" />
+          <stop offset="100%" stopColor="#434e1b" />
         </linearGradient>
-        {/* Golden-amber highlights — from green door right edge */}
-        <linearGradient id="barkWarm" x1="0" y1="0.15" x2="1" y2="0.85">
-          <stop offset="0%" stopColor="#9b7814" stopOpacity="0.35" />
-          <stop offset="25%" stopColor="#76702a" stopOpacity="0.2" />
-          <stop offset="50%" stopColor="#69620f" stopOpacity="0.15" />
-          <stop offset="75%" stopColor="#76702a" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#845406" stopOpacity="0.3" />
+        {/* Bevel highlight — lighter edge catching light */}
+        <linearGradient id="trimHighL" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#7d7421" stopOpacity="0.6" />
+          <stop offset="100%" stopColor="#7d7421" stopOpacity="0" />
         </linearGradient>
-        {/* Mossy green tint — from blue door left edge */}
-        <radialGradient id="barkMoss" cx="0.4" cy="0.35" r="0.65">
-          <stop offset="0%" stopColor="#62723c" stopOpacity="0.3" />
-          <stop offset="50%" stopColor="#555e24" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#434e1b" stopOpacity="0.08" />
-        </radialGradient>
-        {/* Inner shadow — dark green, not grey */}
-        <linearGradient id="barkInnerShadow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1a2808" stopOpacity="0.85" />
-          <stop offset="15%" stopColor="#1a2808" stopOpacity="0.35" />
-          <stop offset="85%" stopColor="#1a2808" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#1a2808" stopOpacity="0.75" />
+        <linearGradient id="trimHighR" x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0%" stopColor="#3e4c19" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#3e4c19" stopOpacity="0" />
         </linearGradient>
-        {/* Side inner shadows */}
-        <linearGradient id="barkInnerSideL" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#1a2808" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#1a2808" stopOpacity="0" />
+        <linearGradient id="trimHighTop" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#76702a" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#76702a" stopOpacity="0" />
         </linearGradient>
-        <linearGradient id="barkInnerSideR" x1="1" y1="0" x2="0" y2="0">
-          <stop offset="0%" stopColor="#1a2808" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#1a2808" stopOpacity="0" />
+        {/* Sill gradient — slightly warmer/golden */}
+        <linearGradient id="sillBody" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#69620f" />
+          <stop offset="50%" stopColor="#6c6b28" />
+          <stop offset="100%" stopColor="#555e24" />
         </linearGradient>
       </defs>
 
-      {/* Base bark frame shape — warm brown with coarse grain */}
-      <path
-        d="M3,0.8 C1.2,1 0.4,2.2 0.3,4 L0.2,77.5 C0.2,79.5 1.3,81 3.2,81.2 L40.8,81.2 C42.7,81 43.8,79.5 43.8,77.5 L43.7,4 C43.6,2.2 42.8,1 41,0.8 Z"
-        fill="url(#barkBody)"
-        filter="url(#barkGrain)"
-      />
-      {/* Second texture pass — finer grain overlay */}
-      <path
-        d="M3,0.8 C1.2,1 0.4,2.2 0.3,4 L0.2,77.5 C0.2,79.5 1.3,81 3.2,81.2 L40.8,81.2 C42.7,81 43.8,79.5 43.8,77.5 L43.7,4 C43.6,2.2 42.8,1 41,0.8 Z"
-        fill="url(#barkWarm)"
-        filter="url(#barkFine)"
-      />
-      {/* Subtle moss tint — PNW trees have green-tinged bark */}
-      <path
-        d="M3,0.8 C1.2,1 0.4,2.2 0.3,4 L0.2,77.5 C0.2,79.5 1.3,81 3.2,81.2 L40.8,81.2 C42.7,81 43.8,79.5 43.8,77.5 L43.7,4 C43.6,2.2 42.8,1 41,0.8 Z"
-        fill="url(#barkMoss)"
-      />
+      {/* ── HEAD CASING — wide flat board across top ── */}
+      <rect x="0" y="0" width="46" height="6" rx="0.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      {/* Top bevel highlight */}
+      <rect x="0" y="0" width="46" height="1.5" rx="0.3" fill="url(#trimHighTop)" />
+      {/* Bottom edge shadow on head casing */}
+      <rect x="0" y="5" width="46" height="1" fill="#2c3a17" opacity="0.5" />
+      {/* Reveal line — thin dark gap between head and jambs */}
+      <rect x="4" y="5.5" width="38" height="0.5" fill="#1a2808" opacity="0.7" />
 
-      {/* Inner doorway cutout — darkest green-black from trunk shadows */}
-      <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="#141e08" />
+      {/* ── LEFT JAMB (side casing) ── */}
+      <rect x="0" y="5.5" width="4.5" height="72" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      {/* Left outer bevel — light catches left edge */}
+      <rect x="0" y="5.5" width="1.2" height="72" fill="url(#trimHighL)" />
+      {/* Right inner bevel — shadow where jamb meets door */}
+      <rect x="3.5" y="5.5" width="1" height="72" fill="#2c3a17" opacity="0.45" />
 
-      {/* Inner edge shadows — all 4 sides for carved depth */}
-      <rect x="4.5" y="3.5" width="35" height="73" rx="1" fill="url(#barkInnerShadow)" />
-      <rect x="4.5" y="3.5" width="8" height="73" rx="1" fill="url(#barkInnerSideL)" />
-      <rect x="31.5" y="3.5" width="8" height="73" rx="1" fill="url(#barkInnerSideR)" />
+      {/* ── RIGHT JAMB ── */}
+      <rect x="41.5" y="5.5" width="4.5" height="72" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      {/* Right outer bevel — shadow on right edge */}
+      <rect x="44.8" y="5.5" width="1.2" height="72" fill="url(#trimHighR)" />
+      {/* Left inner bevel — shadow where jamb meets door */}
+      <rect x="41.5" y="5.5" width="1" height="72" fill="#2c3a17" opacity="0.45" />
 
-      {/* Bark ridge highlights — irregular bumps along the frame */}
-      <path
-        d="M2,8 C1.8,12 2.2,18 1.8,24 C1.5,30 2,36 1.7,42 C2.1,48 1.6,54 2,60 C1.8,66 2.2,72 2,76"
-        stroke="#7d7421"
-        strokeWidth="1.2"
-        fill="none"
-        opacity="0.35"
-      />
-      <path
-        d="M42,6 C42.2,12 41.8,18 42.1,24 C42.4,30 41.9,36 42.2,42 C41.8,48 42.3,54 42,60 C42.2,66 41.8,72 42,78"
-        stroke="#7d7421"
-        strokeWidth="1.2"
-        fill="none"
-        opacity="0.3"
-      />
+      {/* ── SILL / THRESHOLD — wider, slightly proud ── */}
+      <rect x="-1" y="77" width="48" height="5" rx="0.5" fill="url(#sillBody)" filter="url(#trimGrain)" />
+      {/* Sill top bevel — catches light */}
+      <rect x="-1" y="77" width="48" height="1" fill="#76702a" opacity="0.35" />
+      {/* Sill bottom shadow */}
+      <rect x="-1" y="81" width="48" height="1" fill="#2c3a17" opacity="0.5" />
 
-      {/* Top lintel — vivid olive from trunk */}
-      <path
-        d="M2.5,1.5 L41.5,1.5 L41.5,4 C38,4.3 30,4.5 22,4.3 C14,4.1 6,4.3 2.5,4 Z"
-        fill="#5e6830"
-        opacity="0.55"
-      />
-
-      {/* Bottom sill — golden olive */}
-      <path
-        d="M2.5,76.5 C6,77 14,77.3 22,77.5 C30,77.3 38,77 41.5,76.5 L41.5,80 L2.5,80 Z"
-        fill="#4a5520"
-        opacity="0.5"
-      />
+      {/* ── INNER OPENING — dark recess behind door ── */}
+      <rect x="4.5" y="6" width="37" height="71" fill="#141e08" />
     </svg>
   );
 }
 
-/* ─── SVG Door Art ─── */
+/* ─── Craftsman 3-Panel Door SVG ─── */
 
-function BlueDoorSVG() {
-  return (
-    <svg viewBox="0 0 34 72" className="w-full h-full block">
-      <defs>
-        <filter id="bGrain">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.35 0.06"
-            numOctaves="5"
-            seed="2"
-          />
-          <feColorMatrix type="saturate" values="0" />
-          <feBlend in="SourceGraphic" mode="soft-light" />
-          <feGaussianBlur stdDeviation="0.35" />
-        </filter>
-        {/* Dark teal body — sampled from painting edges */}
-        <linearGradient id="bBody" x1="0" y1="0" x2="0.15" y2="1">
-          <stop offset="0%" stopColor="#003b52" />
-          <stop offset="20%" stopColor="#003f5e" />
-          <stop offset="40%" stopColor="#005b7a" />
-          <stop offset="60%" stopColor="#004b67" />
-          <stop offset="80%" stopColor="#003f59" />
-          <stop offset="100%" stopColor="#0a323a" />
-        </linearGradient>
-        {/* Edge vignette blending into trunk bark */}
-        <radialGradient id="bVign" cx="0.5" cy="0.45" r="0.55">
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="70%" stopColor="transparent" />
-          <stop offset="100%" stopColor="#0a323a" stopOpacity="0.5" />
-        </radialGradient>
-        <linearGradient id="bThresh" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#a88020" />
-          <stop offset="50%" stopColor="#c8a838" />
-          <stop offset="100%" stopColor="#b09028" />
-        </linearGradient>
-      </defs>
-      {/* Opaque base — ensures nothing behind bleeds through */}
-      <rect x="0" y="0" width="34" height="72" fill="#003848" />
-      {/* Dark teal door body */}
-      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#bBody)" filter="url(#bGrain)" />
-      {/* Subtle depth variation */}
-      <ellipse cx="16" cy="34" rx="10" ry="16" fill="#005b7a" opacity="0.3" />
-      {/* Vignette darkening edges to blend with trunk */}
-      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#bVign)" />
-      {/* Knob on LEFT (hinge is right for employer door) */}
-      <circle cx="7" cy="36" r="1.8" fill="#b09828" />
-      <circle cx="7" cy="36" r="1.1" fill="#d0b840" />
-      <circle cx="6.7" cy="35.5" r="0.4" fill="#e8d060" opacity="0.7" />
-      {/* Golden threshold */}
-      <rect x="0" y="66" width="34" height="6" rx="1" fill="url(#bThresh)" />
-    </svg>
-  );
+/**
+ * Craftsman-style door with:
+ * - Stiles (vertical side rails) and rails (horizontal crosspieces)
+ * - 3 recessed panels: small top, large middle, small bottom
+ * - Beveled panel edges for depth
+ * - Wood grain texture
+ * - Period-appropriate hardware (knob + backplate)
+ */
+
+interface CraftsmanDoorProps {
+  color: "blue" | "green";
+  knobSide: "left" | "right";
 }
 
-function GreenDoorSVG() {
+function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
+  const isBlue = color === "blue";
+  const id = isBlue ? "b" : "g";
+  const seed = isBlue ? 2 : 7;
+
+  // Door body colors
+  const bodyDark = isBlue ? "#003048" : "#1e5a22";
+  const bodyMid = isBlue ? "#004a68" : "#2d7a2e";
+  const bodyLight = isBlue ? "#005878" : "#3a8e34";
+  const bodyEdge = isBlue ? "#002838" : "#1a4c1e";
+
+  // Panel recess colors (darker than body)
+  const panelDark = isBlue ? "#00283c" : "#174a1c";
+  const panelMid = isBlue ? "#003a52" : "#246828";
+  const panelLight = isBlue ? "#004560" : "#2a7a2e";
+
+  // Highlight/shadow for bevels
+  const bevelLight = isBlue ? "#0070a0" : "#48a840";
+  const bevelShadow = isBlue ? "#001820" : "#0e2e10";
+
+  const kx = knobSide === "left" ? 7 : 27;
+
   return (
-    <svg viewBox="0 0 34 72" className="w-full h-full block">
+    <svg viewBox="0 0 34 68" className="w-full h-full block">
       <defs>
-        <filter id="gGrain">
+        <filter id={`${id}WoodGrain`}>
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.35 0.06"
+            baseFrequency="0.03 0.15"
             numOctaves="5"
-            seed="7"
+            seed={seed}
+            result="grain"
           />
-          <feColorMatrix type="saturate" values="0" />
-          <feBlend in="SourceGraphic" mode="soft-light" />
-          <feGaussianBlur stdDeviation="0.35" />
+          <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
+          <feBlend in="SourceGraphic" in2="bw" mode="soft-light" />
         </filter>
-        {/* Dark forest green body — sampled from painting edges */}
-        <linearGradient id="gBody" x1="0" y1="0" x2="0.15" y2="1">
-          <stop offset="0%" stopColor="#216f28" />
-          <stop offset="20%" stopColor="#318732" />
-          <stop offset="40%" stopColor="#3f9131" />
-          <stop offset="60%" stopColor="#498e2e" />
-          <stop offset="80%" stopColor="#2b6a2c" />
-          <stop offset="100%" stopColor="#266628" />
+        {/* Door body gradient */}
+        <linearGradient id={`${id}Body`} x1="0" y1="0" x2="0.2" y2="1">
+          <stop offset="0%" stopColor={bodyDark} />
+          <stop offset="25%" stopColor={bodyMid} />
+          <stop offset="50%" stopColor={bodyLight} />
+          <stop offset="75%" stopColor={bodyMid} />
+          <stop offset="100%" stopColor={bodyDark} />
         </linearGradient>
-        {/* Edge vignette */}
-        <radialGradient id="gVign" cx="0.5" cy="0.45" r="0.55">
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="70%" stopColor="transparent" />
-          <stop offset="100%" stopColor="#1a3808" stopOpacity="0.5" />
-        </radialGradient>
-        <linearGradient id="gThresh" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#a88020" />
-          <stop offset="50%" stopColor="#c8a838" />
-          <stop offset="100%" stopColor="#b09028" />
+        {/* Panel recess gradient */}
+        <linearGradient id={`${id}Panel`} x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0%" stopColor={panelDark} />
+          <stop offset="40%" stopColor={panelMid} />
+          <stop offset="100%" stopColor={panelLight} />
         </linearGradient>
       </defs>
-      {/* Opaque base — ensures nothing behind bleeds through */}
-      <rect x="0" y="0" width="34" height="72" fill="#204808" />
-      {/* Dark green door body */}
-      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gBody)" filter="url(#gGrain)" />
-      {/* Subtle depth variation */}
-      <ellipse cx="18" cy="34" rx="10" ry="16" fill="#498e2e" opacity="0.3" />
-      {/* Vignette darkening edges */}
-      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gVign)" />
-      {/* Knob on RIGHT (hinge is left for worker door) */}
-      <circle cx="27" cy="36" r="1.8" fill="#b09828" />
-      <circle cx="27" cy="36" r="1.1" fill="#d0b840" />
-      <circle cx="27.3" cy="35.5" r="0.4" fill="#e8d060" opacity="0.7" />
-      {/* Golden threshold */}
-      <rect x="0" y="66" width="34" height="6" rx="1" fill="url(#gThresh)" />
+
+      {/* ── DOOR SLAB — full body ── */}
+      <rect x="0" y="0" width="34" height="68" rx="0.5" fill={`url(#${id}Body)`} filter={`url(#${id}WoodGrain)`} />
+
+      {/* ── STILES (vertical side rails) — implied by the panel cutouts ── */}
+      {/* Left stile highlight */}
+      <rect x="0" y="0" width="0.8" height="68" fill={bevelLight} opacity="0.15" />
+      {/* Right stile shadow */}
+      <rect x="33.2" y="0" width="0.8" height="68" fill={bevelShadow} opacity="0.25" />
+
+      {/* ── TOP RAIL — above first panel ── */}
+      <rect x="0" y="0" width="34" height="0.6" fill={bevelLight} opacity="0.12" />
+
+      {/* ═══ PANEL 1 — small top panel ═══ */}
+      {/* Panel recess */}
+      <rect x="5" y="3" width="24" height="13" rx="0.5" fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`} />
+      {/* Top bevel — light edge */}
+      <line x1="5" y1="3" x2="29" y2="3" stroke={bevelLight} strokeWidth="0.5" opacity="0.3" />
+      {/* Left bevel — light edge */}
+      <line x1="5" y1="3" x2="5" y2="16" stroke={bevelLight} strokeWidth="0.5" opacity="0.2" />
+      {/* Bottom bevel — shadow */}
+      <line x1="5" y1="16" x2="29" y2="16" stroke={bevelShadow} strokeWidth="0.6" opacity="0.4" />
+      {/* Right bevel — shadow */}
+      <line x1="29" y1="3" x2="29" y2="16" stroke={bevelShadow} strokeWidth="0.6" opacity="0.35" />
+
+      {/* ── MID RAIL — between panel 1 and 2 ── */}
+      <rect x="3.5" y="16" width="27" height="2.5" fill={bodyEdge} opacity="0.3" />
+      <line x1="3.5" y1="16" x2="30.5" y2="16" stroke={bevelLight} strokeWidth="0.3" opacity="0.2" />
+
+      {/* ═══ PANEL 2 — large center panel ═══ */}
+      <rect x="5" y="19" width="24" height="27" rx="0.5" fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`} />
+      {/* Top bevel */}
+      <line x1="5" y1="19" x2="29" y2="19" stroke={bevelLight} strokeWidth="0.5" opacity="0.3" />
+      {/* Left bevel */}
+      <line x1="5" y1="19" x2="5" y2="46" stroke={bevelLight} strokeWidth="0.5" opacity="0.2" />
+      {/* Bottom bevel */}
+      <line x1="5" y1="46" x2="29" y2="46" stroke={bevelShadow} strokeWidth="0.6" opacity="0.4" />
+      {/* Right bevel */}
+      <line x1="29" y1="19" x2="29" y2="46" stroke={bevelShadow} strokeWidth="0.6" opacity="0.35" />
+
+      {/* ── LOCK RAIL — between panel 2 and 3 (where knob sits) ── */}
+      <rect x="3.5" y="46" width="27" height="2.5" fill={bodyEdge} opacity="0.3" />
+      <line x1="3.5" y1="46" x2="30.5" y2="46" stroke={bevelLight} strokeWidth="0.3" opacity="0.2" />
+
+      {/* ═══ PANEL 3 — small bottom panel ═══ */}
+      <rect x="5" y="49" width="24" height="14" rx="0.5" fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`} />
+      {/* Top bevel */}
+      <line x1="5" y1="49" x2="29" y2="49" stroke={bevelLight} strokeWidth="0.5" opacity="0.3" />
+      {/* Left bevel */}
+      <line x1="5" y1="49" x2="5" y2="63" stroke={bevelLight} strokeWidth="0.5" opacity="0.2" />
+      {/* Bottom bevel */}
+      <line x1="5" y1="63" x2="29" y2="63" stroke={bevelShadow} strokeWidth="0.6" opacity="0.4" />
+      {/* Right bevel */}
+      <line x1="29" y1="49" x2="29" y2="63" stroke={bevelShadow} strokeWidth="0.6" opacity="0.35" />
+
+      {/* ── BOTTOM RAIL ── */}
+      <rect x="0" y="65" width="34" height="3" fill={bodyEdge} opacity="0.25" />
+      <line x1="0" y1="67.5" x2="34" y2="67.5" stroke={bevelShadow} strokeWidth="0.5" opacity="0.3" />
+
+      {/* ── KNOB — craftsman round knob with backplate ── */}
+      {/* Square backplate */}
+      <rect x={kx - 2.5} y={44 - 2.5} width="5" height="5" rx="0.5" fill="#8a7020" />
+      <rect x={kx - 2.5} y={44 - 2.5} width="5" height="5" rx="0.5" fill="#705818" opacity="0.4" />
+      {/* Backplate bevel */}
+      <line x1={kx - 2.5} y1={44 - 2.5} x2={kx + 2.5} y2={44 - 2.5} stroke="#b09828" strokeWidth="0.3" opacity="0.5" />
+      <line x1={kx - 2.5} y1={44 - 2.5} x2={kx - 2.5} y2={44 + 2.5} stroke="#b09828" strokeWidth="0.3" opacity="0.4" />
+      {/* Round knob */}
+      <circle cx={kx} cy={44} r="1.8" fill="#b09828" />
+      <circle cx={kx} cy={44} r="1.2" fill="#c8a838" />
+      <circle cx={kx - 0.3} cy={43.5} r="0.45" fill="#e0c850" opacity="0.6" />
+
+      {/* ── Keyhole below knob ── */}
+      <ellipse cx={kx} cy={47.5} rx="0.5" ry="0.7" fill="#1a1208" />
+      <rect x={kx - 0.25} y={47.8} width="0.5" height="0.8" fill="#1a1208" />
     </svg>
   );
 }
@@ -300,9 +296,9 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Organic trunk bark frame */}
+      {/* Craftsman door trim */}
       <div className="absolute" style={{ inset: "-12%", zIndex: 0 }}>
-        <TrunkFrameSVG />
+        <CraftsmanTrimSVG />
       </div>
 
       {/* Warm golden light behind door */}
@@ -368,7 +364,10 @@ function Door({ side, onClick }: DoorProps) {
           className="absolute inset-0 rounded-t-[1px] overflow-hidden"
           style={{ backfaceVisibility: "hidden" }}
         >
-          {isEmployer ? <BlueDoorSVG /> : <GreenDoorSVG />}
+          {isEmployer
+            ? <CraftsmanDoorSVG color="blue" knobSide="left" />
+            : <CraftsmanDoorSVG color="green" knobSide="right" />
+          }
         </div>
         {/* Back face — dark wood interior */}
         <div
