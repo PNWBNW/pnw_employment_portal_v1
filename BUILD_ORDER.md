@@ -3,7 +3,7 @@
 > Phase-by-phase build plan for `pnw_employment_portal_v1`.
 > Each phase has: deliverables, files created, and exit criteria.
 > Start each new conversation with this file to orient quickly.
-> See CLAUDE.md for session context and ARCHITECTURE.md for component details.
+> See CLAUDE.md for full project context, architecture, and tech decisions.
 
 ---
 
@@ -13,7 +13,7 @@
 
 ### Tasks
 1. `pnpm create next-app@latest pnw_employment_portal_v1 --typescript --tailwind --app`
-2. Install dependencies: `zustand @tanstack/react-table @noble/hashes @react-pdf/renderer react-qr-code qrcode vitest @vitest/ui`
+2. Install dependencies: `zustand @tanstack/react-table @noble/hashes jspdf react-qr-code qrcode vitest @vitest/ui`
 3. Init shadcn/ui: `pnpx shadcn@latest init`; choose default theme + slate base
 4. Add shadcn components: `table dialog input badge card tabs toast form sheet select`
 5. Set up `tsconfig.json` with strict mode + path aliases (`@/src/*`, `@/components/*`)
@@ -27,8 +27,8 @@
 ### Files Created
 ```
 pnw_employment_portal_v1/
-├── CLAUDE.md, ARCHITECTURE.md, TECH_STACK.md, INTEROP.md,
-│   PAYROLL_RUN_MANIFEST.md, EMPLOYER_FLOWS.md, BUILD_ORDER.md
+├── CLAUDE.md, INTEROP.md, PAYROLL_RUN_MANIFEST.md,
+│   EMPLOYER_FLOWS.md, HANDSHAKE.md, BUILD_ORDER.md, README.md
 ├── next.config.ts
 ├── package.json, pnpm-lock.yaml, tsconfig.json, tailwind.config.ts, vitest.config.ts
 ├── .env.example, .gitignore
