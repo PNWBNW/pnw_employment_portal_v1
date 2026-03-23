@@ -1,8 +1,7 @@
-# CLAUDE.md — PNW Employment Portal (Employer Side)
+# CLAUDE.md — PNW Employment Portal
 
 > Read this file first at the start of every session. It survives context compression.
-> This file lives in `pnw_mvp_v2/employer_portal/` during design phase.
-> When the new repo is created, this file moves to the root of `pnw_employment_portal_v1`.
+> This is the single source of truth for project context, architecture, and tech decisions.
 
 ---
 
@@ -47,26 +46,147 @@ commitment primitives. This portal consumes them. It never owns on-chain logic.
 |------|---------|-------|
 | Node | 20 | LTS |
 | pnpm | 9.x | Package manager |
-| Next.js | 16 (App Router) | Framework |
+| Next.js | 16 (App Router) | Framework — client-first, no backend |
 | TypeScript | 5.x strict | No `any` except at adapter boundary |
-| Tailwind | 4.x | Styling |
-| shadcn/ui | latest | Component library |
-| Vitest | 4.x | Tests |
-| Wallet adapters | 0.3.0-alpha.3 | @provablehq/aleo-wallet-adaptor-* |
-| Framer Motion | 12.x | Landing page animations |
+| React | 19.x | UI library |
+| Tailwind | 4.x | Utility-first styling |
+| shadcn/ui | latest | Radix UI primitives, copied into `components/ui/` |
+| TanStack Table | 8.x | Headless payroll table with inline editing |
+| Zustand | 5.x | State management (payroll run state machine) |
+| @noble/hashes | 2.x | BLAKE3 hashing (must match pnw_mvp_v2) |
 | jspdf | 4.x | Client-side PDF generation |
+| Framer Motion | 12.x | Landing page animations only |
+| Wallet adapters | 0.3.0-alpha.3 | @provablehq/aleo-wallet-adaptor-* (5 wallets) |
+| Vitest | 4.x | Unit tests |
+
+### What We Are NOT Using
+
+| Technology | Reason |
+|-----------|--------|
+| tRPC / GraphQL | No server; all data from Aleo RPC + session |
+| Prisma / Postgres | No database; no persistent storage of private data |
+| NextAuth / Clerk | No traditional auth; session = Aleo wallet connection |
+| Redux | Zustand is sufficient with less boilerplate |
+| React Query | Direct fetch from Aleo REST API is enough for MVP |
+| @demox-labs/aleo-wallet-adapter-* | Replaced by official @provablehq/aleo-wallet-adaptor-* |
+| @react-pdf/renderer | Replaced by jspdf (lighter, simpler) |
 
 ---
 
-## Architecture in One Paragraph
+## Architecture
 
-The portal is **Layer 3** — it sits above the Aleo blockchain (Layer 1) and the NFT
-commitment programs (Layer 2). It owns payroll planning, manifest compilation, chunk
-execution, receipt reconciliation, and UI. It never executes Leo programs directly —
-it calls the adapter from `pnw_mvp_v2` which generates `snarkos developer execute`
-commands. The central data object is the **PayrollRunManifest**: a deterministic,
-hashable description of a full payroll run that the Settlement Coordinator uses to
-drive chunk-by-chunk on-chain settlement.
+### Layer Model
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 3 — Employment Portal (this repo)                        │
+│                                                                 │
+│  PayrollRunManifest  →  ChunkPlanner  →  SettlementCoordinator │
+│       ↑                                        ↓               │
+│  PayrollTableUI                        Layer 1/2 Adapter        │
+│                                                ↓               │
+├────────────────────────────────────────────────┼────────────────┤
+│  LAYER 2 — NFT Commitment Programs             │ snarkos        │
+│  payroll_nfts.aleo / credential_nft.aleo /     │ developer      │
+│  audit_nft.aleo                                │ execute        │
+├────────────────────────────────────────────────┼────────────────┤
+│  LAYER 1 — Core Programs                       │               │
+│  payroll_core.aleo / paystub_receipts.aleo /   ▼               │
+│  employer_agreement_v2.aleo / ...          Aleo Testnet         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Rule:** Layer 3 plans. Layer 1 settles. Layer 2 anchors. The portal never owns
+on-chain state.
+
+### Data Flow — Full Payroll Run
+
+```
+1. Employer fills payroll table
+   → ManifestCompiler.compile(rows)
+   → PayrollRunManifest {batch_id, rows[], row_root, doc_hash}
+2. ChunkPlanner.plan(manifest)
+   → ChunkPlan[] (1 row per chunk, deterministic order)
+3. SettlementCoordinator.execute(manifest, chunks, employer_usdcx)
+   → For each chunk: build WorkerPayArgs → push to adapter → collect receipts
+   → ReceiptReconciler.match(receipts, manifest) → update row status
+4. All chunks settled
+   → BatchAnchorFinalizer.anchor(manifest) → mint cycle NFT
+5. Run status: anchored
+```
+
+### Component Map
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Manifest Compiler | `src/manifest/compiler.ts` | Table rows → deterministic manifest (row hashes, batch_id, row_root) |
+| Chunk Planner | `src/manifest/chunk_planner.ts` | Manifest → ordered ChunkPlan[] |
+| Settlement Coordinator | `src/coordinator/settlement_coordinator.ts` | Executes chunks via adapter; retry logic; state machine |
+| Receipt Reconciler | `src/coordinator/receipt_reconciler.ts` | Maps returned receipts → manifest rows via payroll_inputs_hash |
+| Batch Anchor Finalizer | `src/anchor/batch_anchor_finalizer.ts` | Mints cycle NFT with batch_root after all rows settle |
+
+### Settlement State Machine
+
+**Per run:**
+```
+draft → validated → queued → proving → broadcasting
+  → partially_settled → settled → anchored
+  → failed → needs_retry (operator intervention)
+```
+
+**Per chunk:**
+```
+pending → proving → broadcasting → settled | failed
+```
+
+Retries: transient failures get 3 attempts with exponential backoff. On-chain
+reverts (double-pay) are not retried.
+
+### Authentication Model
+
+**Path A — Wallet Connection (Primary):**
+Official `@provablehq/aleo-wallet-adaptor-*` (v0.3.0-alpha.3). Five wallets:
+Shield, Puzzle, Leo, Fox, Soter. Mobile support via in-app browser redirect.
+
+**Path B — Direct Key Entry (Fallback):**
+User pastes private key + view key into session-only input. Held in
+`sessionStorage`, cleared on tab close. For testnet testing without wallet extension.
+
+### On-Chain Programs Called
+
+All calls go through `src/lib/pnw-adapter/`. Never call `snarkos` directly.
+
+**Layer 1:**
+| Action | Program | Transition |
+|--------|---------|------------|
+| Create worker profile | `worker_profiles.aleo` | `create_worker_profile` |
+| Create agreement | `employer_agreement_v2.aleo` | `create_job_offer` |
+| Accept agreement | `employer_agreement_v2.aleo` | `accept_job_offer` |
+| Pause/terminate/resume | `employer_agreement_v2.aleo` | respective transitions |
+| Settle payroll (1 worker) | `payroll_core.aleo` | `execute_payroll` |
+| Settle payroll (2 workers) | `payroll_core.aleo` | `execute_payroll_batch_2` |
+
+**Layer 2:**
+| Action | Program | Transition |
+|--------|---------|------------|
+| Anchor payroll run | `payroll_nfts.aleo` | `mint_cycle_nft` |
+| Issue credential | `credential_nft.aleo` | `mint_credential_nft` |
+| Revoke credential | `credential_nft.aleo` | `revoke_credential_nft` |
+| Mint audit authorization | `audit_nft.aleo` | `mint_authorization_nft` |
+| Anchor audit attestation | `audit_nft.aleo` | `anchor_audit_attestation` |
+
+### Privacy Model
+
+| Data | Where it lives | Who can see |
+|------|---------------|-------------|
+| Private keys / view keys | Session memory only | User who entered them |
+| Worker addresses | Session memory; passed to adapter at execution | Employer |
+| Wage amounts | Private Aleo records (decoded via view key) | Record owner only |
+| Name hashes | Public chain | Anyone (hash only) |
+| Agreement anchors | Public chain | Anyone (commitment only) |
+| batch_id / row_root | Public chain (in cycle NFT) | Anyone (hash only) |
+| PayrollRunManifest | Session memory + local storage | Employer who created it |
+| PDFs | Client-side only | User who generated them |
 
 ---
 
@@ -91,7 +211,7 @@ drive chunk-by-chunk on-chain settlement.
 
 | Date | Decision |
 |------|----------|
-| 2026-03-15 | Next.js 15 App Router + shadcn/ui + TanStack Table |
+| 2026-03-15 | Next.js 16 App Router + shadcn/ui + TanStack Table |
 | 2026-03-15 | Zustand for payroll run state machine |
 | 2026-03-15 | Copy-on-change interop with pnw_mvp_v2 (npm package post-MVP) |
 | 2026-03-15 | Employer-first build; worker side added after E8 |
@@ -109,38 +229,135 @@ drive chunk-by-chunk on-chain settlement.
 
 ## File Map
 
-### Layer 3 Portal Logic (off-chain, TypeScript)
-- `src/lib/pnw-adapter/` — copied from `pnw_mvp_v2/portal/src/adapters/` + `router/` + `commitments/`
-- `src/manifest/types.ts` — `PayrollRunManifest`, `PayrollRow`, `ChunkPlan` types
-- `src/manifest/compiler.ts` — table input → deterministic manifest (row hashes, batch_id, row_root)
-- `src/manifest/chunk_planner.ts` — manifest → ordered list of settlement chunks
-- `src/coordinator/settlement_coordinator.ts` — drives adapter per chunk, tracks state
-- `src/coordinator/receipt_reconciler.ts` — maps returned Layer 1 records → manifest rows
-- `src/anchor/batch_anchor_finalizer.ts` — mints cycle NFT with batch_root after all rows settle
+### App Routes (Next.js App Router)
 
-### UI (Next.js App Router)
-- `app/(employer)/dashboard/` — employer dashboard
-- `app/(employer)/workers/` — worker list, onboarding, agreements
-- `app/(employer)/payroll/new/` — payroll table builder
-- `app/(employer)/payroll/[run_id]/` — run status + chunk tracking
-- `app/(employer)/credentials/` — issue / revoke
-- `app/(employer)/audit/` — request audit authorization
-- `app/(worker)/` — worker-side routes (stub, filled in post-E8)
-
-### Wallet Integration
-- `src/lib/wallet/wallet-provider.tsx` — `AleoWalletProviderWrapper`, `WalletMobileRedirectHandler`
-- `src/lib/wallet/credential-signer.ts` — wallet-based credential signing
+```
+app/
+├── layout.tsx                           ← root layout: fonts, metadata
+├── providers.tsx                        ← client boundary: wallet + key manager providers
+├── page.tsx                             ← cinematic landing page
+│
+├── (employer)/                          ← employer route group
+│   ├── layout.tsx                       ← employer session guard
+│   ├── dashboard/page.tsx               ← employer dashboard
+│   ├── workers/
+│   │   ├── page.tsx                     ← worker list with agreement statuses
+│   │   ├── onboard/page.tsx             ← onboarding form → QR code
+│   │   ├── onboard/confirm/page.tsx     ← onboarding confirmation
+│   │   └── [worker_id]/page.tsx         ← worker detail + agreement status
+│   ├── payroll/
+│   │   ├── page.tsx                     ← payroll run history
+│   │   ├── new/page.tsx                 ← payroll table builder + manifest preview
+│   │   └── [run_id]/page.tsx            ← run status: chunks, tx IDs, anchor
+│   ├── credentials/
+│   │   ├── page.tsx                     ← credential list
+│   │   ├── issue/page.tsx               ← issue credential form
+│   │   └── [credential_id]/page.tsx     ← credential detail + revoke
+│   ├── audit/
+│   │   ├── page.tsx                     ← audit log + pending requests
+│   │   └── request/page.tsx             ← new audit authorization request
+│   └── dev/verify-employer/page.tsx     ← dev-only employer verification tool
+│
+└── worker/                              ← worker route group
+    ├── layout.tsx                       ← worker session guard
+    ├── dashboard/page.tsx               ← worker dashboard
+    ├── offers/page.tsx                  ← pending job offers
+    ├── offers/review/page.tsx           ← review + accept offer
+    └── paystubs/page.tsx                ← paystub list (decoded via view key)
+```
 
 ### Components
-- `components/landing/` — cinematic landing page (hero, doors, animations, CTA)
-- `components/payroll-table/` — TanStack Table spreadsheet-style editor
-- `components/run-status/` — chunk-level status tracker
-- `components/key-manager/` — private key + view key session management
-- `components/pdf/` — paystub, credential, audit authorization PDFs (jspdf)
 
-### Config
-- `src/config/programs.ts` — mirrors `pnw_mvp_v2/config/testnet.manifest.json`
-- `src/config/env.ts` — env var loading
+```
+components/
+├── ui/                                  ← shadcn/ui (generated, do not edit)
+├── key-manager/                         ← session context: KeyManagerProvider, useAleoSession
+├── landing/                             ← cinematic landing: hero, doors, animations, CTA
+├── onboarding/                          ← offer form, QR display, acceptance, verification
+├── employer-onboarding/                 ← employer profile + name registration
+├── worker-onboarding/                   ← worker profile + name registration
+├── payroll-table/                       ← TanStack Table spreadsheet editor
+├── run-status/                          ← chunk-level status tracker
+├── pdf/                                 ← paystub, credential, audit PDFs (jspdf)
+└── nav/                                 ← EmployerNav sidebar, TopBar
+```
+
+### Portal Logic (`src/`)
+
+```
+src/
+├── manifest/                            ← PayrollRunManifest types, compiler, chunk planner
+├── coordinator/                         ← settlement coordinator, receipt reconciler
+├── anchor/                              ← batch anchor finalizer (cycle NFT minting)
+├── audit/                               ← audit authorization actions
+├── credentials/                         ← credential issue/revoke actions
+├── handshake/                           ← agreement handshake engine, codec, types
+├── persistence/                         ← encrypted draft storage (AES + HMAC)
+├── records/                             ← USDCx scanner, receipt scanner, agreement reader
+├── registry/                            ← name registry lookups, profile types
+├── stores/                              ← Zustand stores:
+│   ├── session_store.ts                 ←   Aleo session (address, view_key)
+│   ├── payroll_run_store.ts             ←   PayrollRunManifest state machine
+│   ├── worker_store.ts                  ←   cached decoded worker records
+│   ├── credential_store.ts              ←   credential lifecycle
+│   ├── audit_store.ts                   ←   audit request state
+│   ├── offer_store.ts                   ←   job offer state
+│   ├── employer_identity_store.ts       ←   employer identity
+│   └── worker_identity_store.ts         ←   worker identity
+├── config/
+│   ├── programs.ts                      ← program ID registry (mirrors testnet.manifest.json)
+│   └── env.ts                           ← env var loading
+└── lib/
+    ├── pnw-adapter/                     ← COPIED from pnw_mvp_v2 (see INTEROP.md)
+    │   ├── aleo_cli_adapter.ts          ← execution boundary
+    │   ├── layer1_adapter.ts            ← L1 program/transition mapping
+    │   ├── layer2_adapter.ts            ← L2 program/transition mapping
+    │   ├── layer1_router.ts             ← L1 call plan types (WorkerPayArgs)
+    │   ├── layer2_router.ts             ← L2 call plan types
+    │   ├── canonical_encoder.ts         ← TLV encoding + BLAKE3
+    │   ├── canonical_types.ts           ← CanonicalHashes type
+    │   ├── hash.ts                      ← domain-separated hashing
+    │   ├── merkle.ts                    ← Merkle tree construction + proofs
+    │   ├── token_id.ts                  ← NFT token ID derivation
+    │   ├── aleo_types.ts                ← Address, Field, U8..U128, Bytes32
+    │   ├── aleo_records.ts              ← opaque record type aliases
+    │   ├── credentials_manager.ts       ← credential record management
+    │   ├── roster_credentials_manager.ts← roster credential management
+    │   ├── roster_tree_builder.ts       ← roster Merkle tree
+    │   ├── freeze_list_resolver.ts      ← freeze list lookups
+    │   └── sealance_types.ts            ← sealance type definitions
+    ├── wallet/
+    │   ├── wallet-provider.tsx           ← AleoWalletProviderWrapper + mobile redirect
+    │   ├── wallet-executor.ts            ← wallet-based transaction execution
+    │   ├── credential-signer.ts          ← wallet-based credential signing
+    │   └── useTransactionExecutor.ts     ← React hook for transaction execution
+    └── utils.ts                          ← shared utilities (cn, etc.)
+```
+
+### Tests (15 test files)
+
+```
+src/manifest/compiler.test.ts             src/coordinator/settlement_coordinator.test.ts
+src/manifest/chunk_planner.test.ts        src/coordinator/receipt_reconciler.test.ts
+src/manifest/validation.test.ts           src/anchor/batch_anchor_finalizer.test.ts
+src/audit/audit_actions.test.ts           src/lib/wallet/credential-signer.test.ts
+src/lib/pnw-adapter/hash.test.ts          src/records/usdcx_scanner.test.ts
+src/lib/pnw-adapter/merkle.test.ts        src/persistence/__tests__/draft_encryptor.test.ts
+src/lib/pnw-adapter/roster_tree_builder.test.ts
+src/persistence/__tests__/draft_integrity.test.ts
+src/persistence/__tests__/key_provider.test.ts
+```
+
+### File Ownership Rules
+
+| Directory | Owned by | Never touched by |
+|-----------|---------|-----------------|
+| `components/ui/` | shadcn/ui CLI | Humans (regenerate, do not edit) |
+| `src/lib/pnw-adapter/` | pnw_mvp_v2 sync | Portal development (edit in source) |
+| `src/manifest/` | This repo | pnw_mvp_v2 |
+| `src/coordinator/` | This repo | pnw_mvp_v2 |
+| `app/` | This repo | pnw_mvp_v2 |
+| `components/` (non-ui) | This repo | pnw_mvp_v2 |
 
 ---
 
@@ -194,7 +411,19 @@ Each copied file starts with:
 | E8 | Done | Receipt viewer + credential issuer |
 | E9 | Done | Audit authorization flow |
 | Post-E9 | Done | Official wallet adapters + cinematic landing page |
-| E10 | ⏳ Pending | End-to-end testnet happy path |
-| Mobile polish | ⏳ Pending | Responsive formatting in employer portal |
+| E10 | Pending | End-to-end testnet happy path |
+| Mobile polish | Pending | Responsive formatting in employer portal |
 
 See `BUILD_ORDER.md` for exit criteria on each phase.
+
+---
+
+## Documentation Index
+
+| Document | Purpose |
+|----------|---------|
+| `BUILD_ORDER.md` | Phase-by-phase build plan with exit criteria |
+| `EMPLOYER_FLOWS.md` | All employer UX flows (session → payroll → credentials → audit) |
+| `HANDSHAKE.md` | Two-phase agreement handshake protocol |
+| `INTEROP.md` | Cross-repo sync contract with pnw_mvp_v2 |
+| `PAYROLL_RUN_MANIFEST.md` | Manifest data contract (locked spec) |
