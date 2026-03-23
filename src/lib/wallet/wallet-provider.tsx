@@ -14,11 +14,39 @@ import { PuzzleWalletAdapter } from "@provablehq/aleo-wallet-adaptor-puzzle";
 import { LeoWalletAdapter } from "@provablehq/aleo-wallet-adaptor-leo";
 import { FoxWalletAdapter } from "@provablehq/aleo-wallet-adaptor-fox";
 import { SoterWalletAdapter } from "@provablehq/aleo-wallet-adaptor-soter";
+import { pluginRegistry } from "../../plugins/registry";
 
 // Official wallet adapter CSS (provides the modal, buttons, and icons)
 import "@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css";
 
 export { useWallet };
+
+/**
+ * Emits plugin lifecycle events when wallet connection state changes.
+ */
+function WalletPluginEmitter() {
+  const { address, connected } = useWallet();
+  const prevConnected = useRef(false);
+  const lastAddress = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (connected && !prevConnected.current && address) {
+      lastAddress.current = address;
+      void pluginRegistry.emit("onSessionConnect", {
+        address,
+      });
+    }
+    if (!connected && prevConnected.current && lastAddress.current) {
+      void pluginRegistry.emit("onSessionDisconnect", {
+        address: lastAddress.current,
+      });
+      lastAddress.current = null;
+    }
+    prevConnected.current = connected;
+  }, [connected, address]);
+
+  return null;
+}
 
 /**
  * Mobile wallet connection works via the wallet's in-app browser:
@@ -159,6 +187,7 @@ export function AleoWalletProviderWrapper({
     >
       <WalletModalProvider>
         <WalletMobileRedirectHandler />
+        <WalletPluginEmitter />
         {children}
       </WalletModalProvider>
     </AleoWalletProvider>

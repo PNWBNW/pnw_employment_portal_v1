@@ -48,10 +48,12 @@ class PluginRegistry {
           `Unregister it first or use a unique id.`
       );
     }
-    this.plugins.set(plugin.id, plugin);
+    // Run onInstall *before* inserting into the map so a failed install
+    // does not leave a half-registered plugin in the registry.
     if (plugin.onInstall) {
       await plugin.onInstall();
     }
+    this.plugins.set(plugin.id, plugin);
   }
 
   /**
