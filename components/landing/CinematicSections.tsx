@@ -107,13 +107,28 @@ function SectionCard({
   return (
     <motion.div
       ref={ref}
-      className="relative text-center px-6 py-10"
+      className="group relative rounded-xl px-6 py-8"
+      style={{
+        background: "rgba(10, 22, 40, 0.6)",
+        backdropFilter: "blur(16px)",
+        border: "1px solid rgba(255, 255, 255, 0.06)",
+      }}
       initial={{ opacity: 0, y: 30 }}
       animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.7, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -2, borderColor: "rgba(255,255,255,0.12)" }}
     >
+      {/* Hover gradient overlay */}
+      <div
+        className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.02) 100%)",
+        }}
+      />
+
       {/* Section number */}
-      <div className="inline-flex items-center gap-2 mb-3">
+      <div className="relative z-10 inline-flex items-center gap-2 mb-3">
         <span
           className="font-mono text-[10px] tracking-widest uppercase"
           style={{ color: section.accent, opacity: 0.7 }}
@@ -127,13 +142,13 @@ function SectionCard({
       </div>
 
       {/* Icon */}
-      <div className="mx-auto mb-3" style={{ color: section.accent }}>
+      <div className="relative z-10 mb-3" style={{ color: section.accent }}>
         {section.icon}
       </div>
 
       {/* Title */}
       <h2
-        className="text-xl sm:text-2xl font-bold mb-3 tracking-tight"
+        className="relative z-10 text-lg font-semibold mb-3 tracking-tight"
         style={{ color: "var(--pnw-section-heading)" }}
       >
         {section.title}
@@ -141,7 +156,7 @@ function SectionCard({
 
       {/* Body */}
       <p
-        className="text-sm leading-relaxed max-w-sm mx-auto"
+        className="relative z-10 text-sm leading-relaxed"
         style={{ color: "var(--pnw-section-text)", opacity: 0.85 }}
       >
         {section.body}
@@ -149,11 +164,13 @@ function SectionCard({
 
       {/* Accent underline */}
       <motion.div
-        className="mx-auto mt-4 h-0.5 rounded-full"
-        style={{ background: section.accent, width: "40px" }}
+        className="relative z-10 mt-4 h-px rounded-full"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${section.accent}, transparent)`,
+        }}
         initial={{ scaleX: 0 }}
         animate={isInView ? { scaleX: 1 } : { scaleX: 0 }}
-        transition={{ duration: 0.6, delay: delay + 0.3 }}
+        transition={{ duration: 0.8, delay: delay + 0.3 }}
       />
     </motion.div>
   );
@@ -172,15 +189,27 @@ export function CinematicSections() {
       <div
         className="absolute inset-0"
         style={{
-          background: "radial-gradient(ellipse at 50% 50%, rgba(3,8,16,0.5) 0%, rgba(3,8,16,0.2) 60%, transparent 100%)",
+          background:
+            "radial-gradient(ellipse at 50% 50%, rgba(3,8,16,0.5) 0%, rgba(3,8,16,0.2) 60%, transparent 100%)",
         }}
       />
 
-      <div className="relative z-10 max-w-5xl mx-auto">
+      {/* Connecting vertical line — root tendril from trunk through content */}
+      <div
+        className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-px pointer-events-none hidden md:block"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(0,229,255,0.15) 0%, rgba(0,229,255,0.06) 40%, rgba(0,229,255,0.06) 60%, rgba(0,229,255,0.15) 100%)",
+          filter: "drop-shadow(0 0 4px rgba(0,229,255,0.1))",
+          zIndex: 1,
+        }}
+      />
+
+      <div className="relative z-10 max-w-5xl mx-auto px-4">
         {rows.map((row, rowIdx) => (
           <div
             key={rowIdx}
-            className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-8"
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"
           >
             {row.map((section, colIdx) => (
               <SectionCard
