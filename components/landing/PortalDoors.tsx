@@ -22,35 +22,36 @@ function BlueDoorSVG() {
         <filter id="bGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.45 0.07"
+            baseFrequency="0.35 0.06"
             numOctaves="5"
             seed="2"
           />
           <feColorMatrix type="saturate" values="0" />
           <feBlend in="SourceGraphic" mode="soft-light" />
-          <feGaussianBlur stdDeviation="0.3" />
+          <feGaussianBlur stdDeviation="0.35" />
         </filter>
-        <linearGradient id="bPaint" x1="0.1" y1="0" x2="0.2" y2="1">
-          <stop offset="0%" stopColor="#004058" />
-          <stop offset="18%" stopColor="#006880" />
-          <stop offset="35%" stopColor="#007898" />
-          <stop offset="50%" stopColor="#0090a8" />
-          <stop offset="62%" stopColor="#007890" />
-          <stop offset="78%" stopColor="#005870" />
-          <stop offset="90%" stopColor="#004858" />
-          <stop offset="100%" stopColor="#003848" />
+        {/* Dark teal body — sampled from painting edges */}
+        <linearGradient id="bBody" x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0%" stopColor="#003b52" />
+          <stop offset="20%" stopColor="#003f5e" />
+          <stop offset="40%" stopColor="#005b7a" />
+          <stop offset="60%" stopColor="#004b67" />
+          <stop offset="80%" stopColor="#003f59" />
+          <stop offset="100%" stopColor="#0a323a" />
         </linearGradient>
-        <linearGradient id="bHi" x1="0.3" y1="0" x2="0.7" y2="1">
-          <stop offset="0%" stopColor="#30b0c8" stopOpacity="0" />
-          <stop offset="25%" stopColor="#30b0c8" stopOpacity="0.2" />
-          <stop offset="40%" stopColor="#60c8d8" stopOpacity="0.3" />
-          <stop offset="55%" stopColor="#30a0b8" stopOpacity="0.15" />
-          <stop offset="75%" stopColor="#208898" stopOpacity="0.08" />
-          <stop offset="100%" stopColor="#30b0c8" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="bVign" cx="0.5" cy="0.5" r="0.6">
+        {/* Bright cyan window pane — sampled from painting center */}
+        <radialGradient id="bWindow" cx="0.48" cy="0.42" rx="0.3" ry="0.32">
+          <stop offset="0%" stopColor="#28dbf0" />
+          <stop offset="25%" stopColor="#2bc3ed" />
+          <stop offset="50%" stopColor="#0097d3" />
+          <stop offset="75%" stopColor="#078eba" />
+          <stop offset="100%" stopColor="#005b7a" stopOpacity="0" />
+        </radialGradient>
+        {/* Edge vignette blending into trunk bark */}
+        <radialGradient id="bVign" cx="0.5" cy="0.45" r="0.55">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="100%" stopColor="#002030" stopOpacity="0.35" />
+          <stop offset="70%" stopColor="transparent" />
+          <stop offset="100%" stopColor="#0a323a" stopOpacity="0.5" />
         </radialGradient>
         <linearGradient id="bThresh" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#a88020" />
@@ -58,27 +59,22 @@ function BlueDoorSVG() {
           <stop offset="100%" stopColor="#b09028" />
         </linearGradient>
       </defs>
-      {/* Base painted surface */}
-      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#bPaint)" filter="url(#bGrain)" />
-      {/* Soft painterly highlight streaks */}
-      <rect x="8" y="4" width="10" height="56" rx="3" fill="url(#bHi)" opacity="0.6" />
-      <rect x="16" y="10" width="7" height="44" rx="2" fill="url(#bHi)" opacity="0.3" />
-      {/* Vignette to darken edges naturally */}
-      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#bVign)" />
-      {/* Soft edge shadows instead of hard borders */}
-      <rect x="0" y="0" width="2.5" height="68" rx="1" fill="#003040" opacity="0.3" />
-      <rect x="31.5" y="0" width="2.5" height="68" rx="1" fill="#003848" opacity="0.25" />
-      <rect x="0" y="0" width="34" height="3" rx="2" fill="#003040" opacity="0.25" />
-      {/* Warm painted light hints */}
-      <ellipse cx="14" cy="16" rx="9" ry="6" fill="#c8a830" opacity="0.04" />
-      <ellipse cx="18" cy="48" rx="7" ry="5" fill="#a08828" opacity="0.03" />
+      {/* Opaque base — ensures nothing behind bleeds through */}
+      <rect x="0" y="0" width="34" height="72" fill="#003848" />
+      {/* Dark teal door body */}
+      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#bBody)" filter="url(#bGrain)" />
+      {/* Bright window pane glow in center — the distinctive painted feature */}
+      <ellipse cx="16" cy="30" rx="11" ry="18" fill="url(#bWindow)" />
+      {/* Secondary softer glow lower */}
+      <ellipse cx="18" cy="50" rx="8" ry="10" fill="#0391b6" opacity="0.25" />
+      {/* Vignette darkening edges to blend with trunk */}
+      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#bVign)" />
       {/* Knob on LEFT (hinge is right for employer door) */}
-      <circle cx="7" cy="36" r="2" fill="#b09828" />
-      <circle cx="7" cy="36" r="1.2" fill="#d0b840" />
-      <circle cx="6.6" cy="35.5" r="0.5" fill="#e8d060" opacity="0.7" />
+      <circle cx="7" cy="36" r="1.8" fill="#b09828" />
+      <circle cx="7" cy="36" r="1.1" fill="#d0b840" />
+      <circle cx="6.7" cy="35.5" r="0.4" fill="#e8d060" opacity="0.7" />
       {/* Golden threshold */}
       <rect x="0" y="66" width="34" height="6" rx="1" fill="url(#bThresh)" />
-      <rect x="0" y="66" width="34" height="0.8" fill="#d8c048" opacity="0.3" />
     </svg>
   );
 }
@@ -90,35 +86,44 @@ function GreenDoorSVG() {
         <filter id="gGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.4 0.08"
+            baseFrequency="0.35 0.06"
             numOctaves="5"
             seed="7"
           />
           <feColorMatrix type="saturate" values="0" />
           <feBlend in="SourceGraphic" mode="soft-light" />
-          <feGaussianBlur stdDeviation="0.3" />
+          <feGaussianBlur stdDeviation="0.35" />
         </filter>
-        <linearGradient id="gPaint" x1="0.1" y1="0" x2="0.2" y2="1">
-          <stop offset="0%" stopColor="#285810" />
-          <stop offset="18%" stopColor="#3a7818" />
-          <stop offset="35%" stopColor="#4a9020" />
-          <stop offset="50%" stopColor="#58a028" />
-          <stop offset="62%" stopColor="#4a8820" />
-          <stop offset="78%" stopColor="#387018" />
-          <stop offset="90%" stopColor="#2a5810" />
-          <stop offset="100%" stopColor="#204808" />
+        {/* Dark forest green body — sampled from painting edges */}
+        <linearGradient id="gBody" x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0%" stopColor="#216f28" />
+          <stop offset="20%" stopColor="#318732" />
+          <stop offset="40%" stopColor="#3f9131" />
+          <stop offset="60%" stopColor="#498e2e" />
+          <stop offset="80%" stopColor="#2b6a2c" />
+          <stop offset="100%" stopColor="#266628" />
         </linearGradient>
-        <linearGradient id="gHi" x1="0.3" y1="0" x2="0.7" y2="1">
-          <stop offset="0%" stopColor="#90c048" stopOpacity="0" />
-          <stop offset="25%" stopColor="#90c048" stopOpacity="0.2" />
-          <stop offset="40%" stopColor="#b0d060" stopOpacity="0.3" />
-          <stop offset="55%" stopColor="#88b040" stopOpacity="0.15" />
-          <stop offset="75%" stopColor="#689830" stopOpacity="0.08" />
-          <stop offset="100%" stopColor="#90c048" stopOpacity="0" />
+        {/* Bright yellow-green window pane — sampled from painting center */}
+        <radialGradient id="gWindow" cx="0.52" cy="0.42" rx="0.3" ry="0.32">
+          <stop offset="0%" stopColor="#e4f284" />
+          <stop offset="20%" stopColor="#ddef7c" />
+          <stop offset="40%" stopColor="#b8ef7a" />
+          <stop offset="60%" stopColor="#6eb648" />
+          <stop offset="80%" stopColor="#498b24" />
+          <stop offset="100%" stopColor="#3f9131" stopOpacity="0" />
+        </radialGradient>
+        {/* Gold-amber right edge from painting frame */}
+        <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="0.5">
+          <stop offset="0%" stopColor="#dea71b" stopOpacity="0" />
+          <stop offset="70%" stopColor="#dea71b" stopOpacity="0" />
+          <stop offset="90%" stopColor="#cd9e18" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#a27710" stopOpacity="0.5" />
         </linearGradient>
-        <radialGradient id="gVign" cx="0.5" cy="0.5" r="0.6">
+        {/* Edge vignette */}
+        <radialGradient id="gVign" cx="0.5" cy="0.45" r="0.55">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="100%" stopColor="#0a2800" stopOpacity="0.35" />
+          <stop offset="70%" stopColor="transparent" />
+          <stop offset="100%" stopColor="#1a3808" stopOpacity="0.5" />
         </radialGradient>
         <linearGradient id="gThresh" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#a88020" />
@@ -126,27 +131,24 @@ function GreenDoorSVG() {
           <stop offset="100%" stopColor="#b09028" />
         </linearGradient>
       </defs>
-      {/* Base painted surface */}
-      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#gPaint)" filter="url(#gGrain)" />
-      {/* Soft painterly highlight streaks */}
-      <rect x="10" y="4" width="10" height="56" rx="3" fill="url(#gHi)" opacity="0.6" />
-      <rect x="18" y="10" width="7" height="44" rx="2" fill="url(#gHi)" opacity="0.3" />
-      {/* Vignette to darken edges naturally */}
-      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#gVign)" />
-      {/* Soft edge shadows */}
-      <rect x="0" y="0" width="2.5" height="68" rx="1" fill="#1a3808" opacity="0.3" />
-      <rect x="31.5" y="0" width="2.5" height="68" rx="1" fill="#1a4008" opacity="0.25" />
-      <rect x="0" y="0" width="34" height="3" rx="2" fill="#1a3808" opacity="0.25" />
-      {/* Warm painted light hints */}
-      <ellipse cx="16" cy="16" rx="9" ry="6" fill="#c8a830" opacity="0.04" />
-      <ellipse cx="14" cy="48" rx="7" ry="5" fill="#a08828" opacity="0.03" />
+      {/* Opaque base — ensures nothing behind bleeds through */}
+      <rect x="0" y="0" width="34" height="72" fill="#204808" />
+      {/* Dark green door body */}
+      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gBody)" filter="url(#gGrain)" />
+      {/* Bright window pane glow in center */}
+      <ellipse cx="18" cy="30" rx="11" ry="18" fill="url(#gWindow)" />
+      {/* Secondary softer glow lower */}
+      <ellipse cx="16" cy="50" rx="8" ry="10" fill="#6aa93f" opacity="0.25" />
+      {/* Gold-amber edge tint on right side (matches painting) */}
+      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gGold)" />
+      {/* Vignette darkening edges */}
+      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gVign)" />
       {/* Knob on RIGHT (hinge is left for worker door) */}
-      <circle cx="27" cy="36" r="2" fill="#b09828" />
-      <circle cx="27" cy="36" r="1.2" fill="#d0b840" />
-      <circle cx="27.4" cy="35.5" r="0.5" fill="#e8d060" opacity="0.7" />
+      <circle cx="27" cy="36" r="1.8" fill="#b09828" />
+      <circle cx="27" cy="36" r="1.1" fill="#d0b840" />
+      <circle cx="27.3" cy="35.5" r="0.4" fill="#e8d060" opacity="0.7" />
       {/* Golden threshold */}
       <rect x="0" y="66" width="34" height="6" rx="1" fill="url(#gThresh)" />
-      <rect x="0" y="66" width="34" height="0.8" fill="#d8c048" opacity="0.3" />
     </svg>
   );
 }
@@ -196,14 +198,13 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Soft dark frame surround — matching bark color of trunk */}
+      {/* Bark-colored frame — flush with container so blackout covers it */}
       <div
-        className="absolute rounded-[3px]"
+        className="absolute rounded-[2px]"
         style={{
-          inset: "-2px",
+          inset: "0",
           background:
-            "linear-gradient(180deg, #222c14 0%, #161e0c 50%, #0e1408 100%)",
-          boxShadow: "0 0 3px rgba(10,14,6,0.5), inset 0 0 2px rgba(40,52,24,0.2)",
+            "linear-gradient(180deg, #2e3815 0%, #1a2010 50%, #0e1408 100%)",
           zIndex: 0,
         }}
       />
