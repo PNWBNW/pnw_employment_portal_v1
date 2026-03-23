@@ -27,20 +27,22 @@ export function HeroSection({
 
   return (
     <div ref={containerRef} className="relative h-screen w-full">
-      {/* Overlays positioned over the top portion of the background image */}
+      {/* Overlays that fade on scroll */}
       <motion.div className="absolute inset-0" style={{ opacity: heroOpacity }}>
         {/* Constellation dots in sky */}
         <ConstellationOverlay />
 
         {/* Tree wind sway */}
         <TreeSwayOverlay />
+      </motion.div>
 
-        {/* Interactive doors — positioned over the painted doors */}
+      {/* Doors stay fully opaque regardless of scroll */}
+      <div className="absolute inset-0">
         <PortalDoors
           onEmployerClick={onEmployerClick}
           onWorkerClick={onWorkerClick}
         />
-      </motion.div>
+      </div>
 
       {/* Top-right wallet button — away from the doors */}
       <motion.div

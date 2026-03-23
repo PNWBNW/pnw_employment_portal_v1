@@ -39,14 +39,6 @@ function BlueDoorSVG() {
           <stop offset="80%" stopColor="#003f59" />
           <stop offset="100%" stopColor="#0a323a" />
         </linearGradient>
-        {/* Bright cyan window pane — sampled from painting center */}
-        <radialGradient id="bWindow" cx="0.48" cy="0.42" rx="0.3" ry="0.32">
-          <stop offset="0%" stopColor="#28dbf0" />
-          <stop offset="25%" stopColor="#2bc3ed" />
-          <stop offset="50%" stopColor="#0097d3" />
-          <stop offset="75%" stopColor="#078eba" />
-          <stop offset="100%" stopColor="#005b7a" stopOpacity="0" />
-        </radialGradient>
         {/* Edge vignette blending into trunk bark */}
         <radialGradient id="bVign" cx="0.5" cy="0.45" r="0.55">
           <stop offset="0%" stopColor="transparent" />
@@ -63,10 +55,8 @@ function BlueDoorSVG() {
       <rect x="0" y="0" width="34" height="72" fill="#003848" />
       {/* Dark teal door body */}
       <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#bBody)" filter="url(#bGrain)" />
-      {/* Bright window pane glow in center — the distinctive painted feature */}
-      <ellipse cx="16" cy="30" rx="11" ry="18" fill="url(#bWindow)" />
-      {/* Secondary softer glow lower */}
-      <ellipse cx="18" cy="50" rx="8" ry="10" fill="#0391b6" opacity="0.25" />
+      {/* Subtle depth variation */}
+      <ellipse cx="16" cy="34" rx="10" ry="16" fill="#005b7a" opacity="0.3" />
       {/* Vignette darkening edges to blend with trunk */}
       <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#bVign)" />
       {/* Knob on LEFT (hinge is right for employer door) */}
@@ -103,22 +93,6 @@ function GreenDoorSVG() {
           <stop offset="80%" stopColor="#2b6a2c" />
           <stop offset="100%" stopColor="#266628" />
         </linearGradient>
-        {/* Bright yellow-green window pane — sampled from painting center */}
-        <radialGradient id="gWindow" cx="0.52" cy="0.42" rx="0.3" ry="0.32">
-          <stop offset="0%" stopColor="#e4f284" />
-          <stop offset="20%" stopColor="#ddef7c" />
-          <stop offset="40%" stopColor="#b8ef7a" />
-          <stop offset="60%" stopColor="#6eb648" />
-          <stop offset="80%" stopColor="#498b24" />
-          <stop offset="100%" stopColor="#3f9131" stopOpacity="0" />
-        </radialGradient>
-        {/* Gold-amber right edge from painting frame */}
-        <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="0.5">
-          <stop offset="0%" stopColor="#dea71b" stopOpacity="0" />
-          <stop offset="70%" stopColor="#dea71b" stopOpacity="0" />
-          <stop offset="90%" stopColor="#cd9e18" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#a27710" stopOpacity="0.5" />
-        </linearGradient>
         {/* Edge vignette */}
         <radialGradient id="gVign" cx="0.5" cy="0.45" r="0.55">
           <stop offset="0%" stopColor="transparent" />
@@ -135,12 +109,8 @@ function GreenDoorSVG() {
       <rect x="0" y="0" width="34" height="72" fill="#204808" />
       {/* Dark green door body */}
       <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gBody)" filter="url(#gGrain)" />
-      {/* Bright window pane glow in center */}
-      <ellipse cx="18" cy="30" rx="11" ry="18" fill="url(#gWindow)" />
-      {/* Secondary softer glow lower */}
-      <ellipse cx="16" cy="50" rx="8" ry="10" fill="#6aa93f" opacity="0.25" />
-      {/* Gold-amber edge tint on right side (matches painting) */}
-      <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gGold)" />
+      {/* Subtle depth variation */}
+      <ellipse cx="18" cy="34" rx="10" ry="16" fill="#498e2e" opacity="0.3" />
       {/* Vignette darkening edges */}
       <rect x="0" y="0" width="34" height="68" rx="2" fill="url(#gVign)" />
       {/* Knob on RIGHT (hinge is left for worker door) */}
