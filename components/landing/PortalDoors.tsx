@@ -3,6 +3,134 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+/**
+ * PortalDoors — Two painted wooden doors positioned over the trunk
+ * of the pnw-tree.png hero image. Each door uses SVG with fractalNoise
+ * filters to simulate painterly wood grain matching the artwork's palette.
+ *
+ * Blue door (employer): teal-cyan base sampled from the painting
+ * Green door (worker):  warm green base sampled from the painting
+ * Both have: dark olive frame, golden threshold, warm interior light
+ */
+
+/* ─── SVG Door Art ─── */
+
+function BlueDoorSVG() {
+  return (
+    <svg viewBox="0 0 34 72" className="w-full h-full block">
+      <defs>
+        <filter id="bGrain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.6 0.08"
+            numOctaves="4"
+            seed="2"
+          />
+          <feColorMatrix type="saturate" values="0" />
+          <feBlend in="SourceGraphic" mode="overlay" />
+        </filter>
+        <linearGradient id="bPaint" x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#005880" />
+          <stop offset="15%" stopColor="#0090b8" />
+          <stop offset="30%" stopColor="#00a8d8" />
+          <stop offset="45%" stopColor="#18c0e8" />
+          <stop offset="55%" stopColor="#28d8f0" />
+          <stop offset="65%" stopColor="#0098c0" />
+          <stop offset="78%" stopColor="#006890" />
+          <stop offset="88%" stopColor="#005878" />
+          <stop offset="100%" stopColor="#004060" />
+        </linearGradient>
+        <linearGradient id="bHi" x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0%" stopColor="#40e0f0" stopOpacity="0" />
+          <stop offset="20%" stopColor="#40e0f0" stopOpacity="0.35" />
+          <stop offset="35%" stopColor="#90f0ff" stopOpacity="0.5" />
+          <stop offset="50%" stopColor="#40e0f0" stopOpacity="0.25" />
+          <stop offset="70%" stopColor="#20b0d0" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#40e0f0" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="bThresh" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#c09020" />
+          <stop offset="50%" stopColor="#e8c850" />
+          <stop offset="100%" stopColor="#d0a830" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="34" height="68" rx="1.5" fill="url(#bPaint)" filter="url(#bGrain)" />
+      <rect x="6" y="3" width="12" height="58" rx="1" fill="url(#bHi)" opacity="0.7" />
+      <rect x="16" y="8" width="8" height="48" rx="1" fill="url(#bHi)" opacity="0.4" transform="skewX(-2)" />
+      <rect x="0" y="0" width="2" height="68" fill="#002838" opacity="0.5" />
+      <rect x="32" y="0" width="2" height="68" fill="#003040" opacity="0.4" />
+      <rect x="0" y="0" width="34" height="3" fill="#003848" opacity="0.4" />
+      <rect x="4" y="6" width="26" height="52" rx="1" fill="none" stroke="#40c8e0" strokeWidth="0.5" opacity="0.2" />
+      <ellipse cx="14" cy="12" rx="8" ry="4" fill="#c8a030" opacity="0.06" />
+      <ellipse cx="20" cy="50" rx="6" ry="3" fill="#a08020" opacity="0.04" />
+      <circle cx="28" cy="36" r="2" fill="#c0a030" />
+      <circle cx="28" cy="36" r="1.2" fill="#e0c850" />
+      <circle cx="27.5" cy="35.5" r="0.5" fill="#f0e080" opacity="0.8" />
+      <rect x="0" y="66" width="34" height="6" fill="url(#bThresh)" />
+      <rect x="0" y="66" width="34" height="1" fill="#f0d860" opacity="0.4" />
+    </svg>
+  );
+}
+
+function GreenDoorSVG() {
+  return (
+    <svg viewBox="0 0 34 72" className="w-full h-full block">
+      <defs>
+        <filter id="gGrain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.5 0.09"
+            numOctaves="4"
+            seed="7"
+          />
+          <feColorMatrix type="saturate" values="0" />
+          <feBlend in="SourceGraphic" mode="overlay" />
+        </filter>
+        <linearGradient id="gPaint" x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#2a6610" />
+          <stop offset="12%" stopColor="#489818" />
+          <stop offset="28%" stopColor="#68b830" />
+          <stop offset="42%" stopColor="#80cc48" />
+          <stop offset="55%" stopColor="#90d850" />
+          <stop offset="65%" stopColor="#78c038" />
+          <stop offset="78%" stopColor="#58a020" />
+          <stop offset="88%" stopColor="#3a7810" />
+          <stop offset="100%" stopColor="#2a5808" />
+        </linearGradient>
+        <linearGradient id="gHi" x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0%" stopColor="#d0f080" stopOpacity="0" />
+          <stop offset="20%" stopColor="#d0f080" stopOpacity="0.35" />
+          <stop offset="35%" stopColor="#e8f898" stopOpacity="0.5" />
+          <stop offset="50%" stopColor="#c0e070" stopOpacity="0.25" />
+          <stop offset="70%" stopColor="#90c040" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#d0f080" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="gThresh" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#b88818" />
+          <stop offset="50%" stopColor="#e0c040" />
+          <stop offset="100%" stopColor="#c89828" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="34" height="68" rx="1.5" fill="url(#gPaint)" filter="url(#gGrain)" />
+      <rect x="8" y="3" width="14" height="58" rx="1" fill="url(#gHi)" opacity="0.65" />
+      <rect x="18" y="6" width="7" height="50" rx="1" fill="url(#gHi)" opacity="0.35" transform="skewX(2)" />
+      <rect x="0" y="0" width="2" height="68" fill="#1a4008" opacity="0.5" />
+      <rect x="32" y="0" width="2" height="68" fill="#204810" opacity="0.4" />
+      <rect x="0" y="0" width="34" height="3" fill="#285010" opacity="0.4" />
+      <rect x="4" y="6" width="26" height="52" rx="1" fill="none" stroke="#a0d858" strokeWidth="0.5" opacity="0.2" />
+      <ellipse cx="18" cy="14" rx="9" ry="4" fill="#c8a830" opacity="0.06" />
+      <ellipse cx="14" cy="48" rx="5" ry="3" fill="#a09020" opacity="0.04" />
+      <circle cx="6" cy="36" r="2" fill="#c0a030" />
+      <circle cx="6" cy="36" r="1.2" fill="#e0c850" />
+      <circle cx="5.5" cy="35.5" r="0.5" fill="#f0e080" opacity="0.8" />
+      <rect x="0" y="66" width="34" height="6" fill="url(#gThresh)" />
+      <rect x="0" y="66" width="34" height="1" fill="#e8d050" opacity="0.4" />
+    </svg>
+  );
+}
+
+/* ─── Individual Door ─── */
+
 interface DoorProps {
   side: "employer" | "worker";
   onClick: () => void;
@@ -12,7 +140,6 @@ function Door({ side, onClick }: DoorProps) {
   const [hovered, setHovered] = useState(false);
   const [introPlaying, setIntroPlaying] = useState(true);
 
-  // Auto-play the open animation on mount, then close after a beat
   useEffect(() => {
     const timer = setTimeout(() => setIntroPlaying(false), 2400);
     return () => clearTimeout(timer);
@@ -24,167 +151,159 @@ function Door({ side, onClick }: DoorProps) {
     ? "Manage payroll, credentials & compliance"
     : "View paystubs, agreements & documents";
 
-  // Solid door colors matching the painted doors in pnw-tree.png
-  const doorColor = isEmployer ? "#2563eb" : "#16a34a";
-  const doorColorLight = isEmployer ? "#3b82f6" : "#22c55e";
-  const doorColorDark = isEmployer ? "#1d4ed8" : "#15803d";
-  const frameColor = isEmployer ? "#1e3a5f" : "#14532d";
-  const glowColor = isEmployer
-    ? "rgba(37, 99, 235, 0.6)"
-    : "rgba(22, 163, 74, 0.6)";
-  const lightBright = isEmployer
-    ? "rgba(59, 130, 246, 0.8)"
-    : "rgba(34, 197, 94, 0.8)";
-  const lightMid = isEmployer
-    ? "rgba(59, 130, 246, 0.5)"
-    : "rgba(34, 197, 94, 0.5)";
+  const accentColor = isEmployer ? "#00a8d8" : "#58a020";
+  const glowColor = isEmployer ? "#00c8e8" : "#68b830";
 
-  // Door is "open" during intro animation OR hover
   const isOpen = introPlaying || hovered;
-
-  // Employer = left-hand swing (hinges on RIGHT, opens toward left)
-  // Worker   = right-hand swing (hinges on LEFT, opens toward right)
   const hingeOrigin = isEmployer ? "right center" : "left center";
-
-  // Intro delay: employer door opens first (0.6s), worker follows (1.0s)
   const introDelay = isEmployer ? 0.6 : 1.0;
+
+  // Open angle: wider on hover than intro
+  const openAngle = hovered ? 72 : 25;
 
   return (
     <motion.button
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="relative cursor-pointer"
+      className="relative cursor-pointer block"
       style={{
-        /* Pixel-measured from pnw-tree.png (1024×1536):
-           Blue door: 28px wide × 41px tall → 2.73vw × 4.0vw
-           Green door: ~20px wide × ~27px tall → 1.95vw × 2.64vw
-           Using average + slight padding for clickable area. */
-        width: "clamp(24px, 2.8vw, 42px)",
-        height: "clamp(38px, 4.2vw, 64px)",
-        perspective: "600px",
+        width: "clamp(24px, 3.3vw, 48px)",
+        height: "clamp(38px, 4.7vw, 72px)",
+        perspective: "900px",
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Door panel — solid colored panel that rotates open in 3D */}
-      <motion.div
-        className="absolute inset-0"
+      {/* Dark olive frame surround — matching bark color of trunk */}
+      <div
+        className="absolute rounded-t-[2px]"
         style={{
-          transformOrigin: hingeOrigin,
+          inset: "-3px",
+          background:
+            "linear-gradient(180deg, #2a3418 0%, #1a2010 50%, #0d1408 100%)",
+          border: "1px solid rgba(58, 74, 32, 0.25)",
+          zIndex: 0,
+        }}
+      />
+
+      {/* Warm golden light behind door */}
+      <div
+        className="absolute rounded-t-[1px] overflow-hidden"
+        style={{ inset: "2px", zIndex: 1 }}
+      >
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse at center 40%,
+              rgba(240,200,48,0.19),
+              rgba(212,152,32,0.13) 30%,
+              rgba(160,104,16,0.02) 60%,
+              transparent 100%)`,
+          }}
+          animate={{ opacity: isOpen ? 1 : 0.15 }}
+          transition={{ duration: 0.5 }}
+        />
+        {/* Interior warm glow */}
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(248,208,96,0.25), rgba(224,160,32,0.19), rgba(128,80,8,0.05))",
+          }}
+          animate={{ opacity: isOpen ? 1 : 0 }}
+          transition={{ duration: 0.5 }}
+        />
+      </div>
+
+      {/* THE DOOR — swings open in 3D */}
+      <motion.div
+        className="absolute rounded-t-[1px]"
+        style={{
+          inset: "1px",
           transformStyle: "preserve-3d",
+          transformOrigin: hingeOrigin,
+          zIndex: 2,
         }}
         initial={{ rotateY: 0 }}
         animate={{
           rotateY: hovered
-            ? isEmployer ? -35 : 35
+            ? isEmployer
+              ? -openAngle
+              : openAngle
             : introPlaying
-              ? isEmployer ? -25 : 25
+              ? isEmployer
+                ? -openAngle
+                : openAngle
               : 0,
         }}
         transition={
           hovered
-            ? { duration: 0.5, ease: [0.4, 0, 0.2, 1] }
+            ? { duration: 0.65, ease: [0.22, 1, 0.36, 1] }
             : introPlaying
-              ? { duration: 0.8, delay: introDelay, ease: [0.4, 0, 0.2, 1] }
-              : { duration: 0.6, ease: [0.4, 0, 0.2, 1] }
+              ? { duration: 0.8, delay: introDelay, ease: [0.22, 1, 0.36, 1] }
+              : { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
         }
       >
-        {/* The actual door face — solid, visible, real door look */}
+        {/* Front face — painted wooden door */}
         <div
-          className="absolute inset-0 rounded-[2px]"
-          style={{
-            background: `linear-gradient(170deg, ${doorColorLight} 0%, ${doorColor} 40%, ${doorColorDark} 100%)`,
-            border: `1.5px solid ${frameColor}`,
-            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -2px 4px rgba(0,0,0,0.2)`,
-          }}
+          className="absolute inset-0 rounded-t-[1px] overflow-hidden"
+          style={{ backfaceVisibility: "hidden" }}
         >
-          {/* Door panel inset detail */}
-          <div
-            className="absolute rounded-[1px]"
-            style={{
-              top: "12%",
-              left: "15%",
-              right: "15%",
-              bottom: "45%",
-              border: `1px solid rgba(255,255,255,0.12)`,
-              borderBottom: `1px solid rgba(0,0,0,0.15)`,
-            }}
-          />
-          <div
-            className="absolute rounded-[1px]"
-            style={{
-              top: "60%",
-              left: "15%",
-              right: "15%",
-              bottom: "10%",
-              border: `1px solid rgba(255,255,255,0.12)`,
-              borderBottom: `1px solid rgba(0,0,0,0.15)`,
-            }}
-          />
-          {/* Door handle — small dot on the latch side */}
-          <div
-            className="absolute rounded-full"
-            style={{
-              width: "3px",
-              height: "3px",
-              top: "50%",
-              [isEmployer ? "left" : "right"]: "14%",
-              transform: "translateY(-50%)",
-              background: "rgba(255,255,255,0.5)",
-              boxShadow: "0 0 2px rgba(255,255,255,0.3)",
-            }}
-          />
+          {isEmployer ? <BlueDoorSVG /> : <GreenDoorSVG />}
         </div>
+        {/* Back face — dark wood interior */}
+        <div
+          className="absolute inset-0 rounded-t-[1px]"
+          style={{
+            background:
+              "linear-gradient(180deg, #1a1208 0%, #100a04 70%, #201008 100%)",
+            transform: "rotateY(180deg)",
+            backfaceVisibility: "hidden",
+          }}
+        />
       </motion.div>
 
-      {/* Light pouring from behind the opened door */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={
-              introPlaying
-                ? { duration: 0.6, delay: introDelay + 0.2 }
-                : { duration: 0.4, delay: 0.1 }
-            }
-            className="absolute inset-0 pointer-events-none overflow-visible"
-          >
-            {/* Bright vertical gap light on the opening edge */}
-            <div
-              className="absolute top-[3%] bottom-[3%]"
-              style={{
-                [isEmployer ? "right" : "left"]: "-2px",
-                width: "3px",
-                background: `linear-gradient(180deg, transparent 0%, ${lightBright} 20%, rgba(255,255,255,0.9) 50%, ${lightBright} 80%, transparent 100%)`,
-                boxShadow: `0 0 8px ${lightMid}, 0 0 16px ${glowColor}`,
-                borderRadius: "2px",
-              }}
-            />
+      {/* Light spill onto trunk when open */}
+      <motion.div
+        className="absolute pointer-events-none"
+        style={{
+          top: "-10%",
+          bottom: "-25%",
+          [isEmployer ? "left" : "right"]: "-60%",
+          width: "120%",
+          zIndex: 0,
+        }}
+        animate={{
+          background: isOpen
+            ? `radial-gradient(ellipse at ${isEmployer ? "right" : "left"} center, rgba(240,200,48,0.09), transparent 65%)`
+            : `radial-gradient(ellipse at ${isEmployer ? "right" : "left"} center, rgba(240,200,48,0), transparent 65%)`,
+        }}
+        transition={{ duration: 0.5 }}
+      />
 
-            {/* Interior warm glow behind the door */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `radial-gradient(ellipse at ${isEmployer ? "85%" : "15%"} 50%, rgba(255,240,200,0.4) 0%, rgba(255,220,150,0.15) 40%, transparent 70%)`,
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Painterly glow halo */}
+      <motion.div
+        className="absolute pointer-events-none rounded-t-lg"
+        style={{ inset: "-10px", zIndex: -1 }}
+        animate={{
+          boxShadow: hovered
+            ? `0 0 20px ${glowColor}40, 0 0 45px ${glowColor}20, 0 0 80px ${glowColor}0a, inset 0 0 15px ${glowColor}10`
+            : introPlaying
+              ? "none"
+              : `0 0 6px ${accentColor}15, 0 0 20px ${accentColor}08`,
+        }}
+        transition={{ duration: 0.5 }}
+      />
 
-      {/* Idle state: subtle glow outline to show interactivity */}
+      {/* Idle breathing glow */}
       {!hovered && !introPlaying && (
         <motion.div
           className="absolute pointer-events-none rounded-[2px]"
           style={{
             inset: "-2px",
-            boxShadow: `0 0 8px ${glowColor}, 0 0 16px ${glowColor}`,
-            border: `1px solid ${doorColor}`,
-            opacity: 0,
+            border: `1px solid ${accentColor}`,
           }}
-          animate={{ opacity: [0, 0.5, 0] }}
+          animate={{ opacity: [0, 0.4, 0] }}
           transition={{
             duration: 2.5,
             repeat: Infinity,
@@ -194,39 +313,30 @@ function Door({ side, onClick }: DoorProps) {
         />
       )}
 
-      {/* Hover glow intensifies */}
-      {hovered && (
-        <div
-          className="absolute pointer-events-none rounded-[2px]"
-          style={{
-            inset: "-3px",
-            boxShadow: `0 0 12px ${glowColor}, 0 0 24px ${glowColor}, 0 0 40px ${glowColor}`,
-            border: `1px solid ${doorColorLight}`,
-          }}
-        />
-      )}
-
-      {/* Tooltip bubble */}
+      {/* Tooltip */}
       <AnimatePresence>
         {hovered && (
           <motion.div
             initial={{ opacity: 0, y: 8, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.9 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            transition={{ duration: 0.25, delay: 0.15 }}
             className="absolute left-1/2 -translate-x-1/2 z-50 whitespace-nowrap"
             style={{ bottom: "calc(100% + 14px)" }}
           >
             <div
               className="px-4 py-2.5 rounded-xl text-center"
               style={{
-                background: "rgba(10, 22, 40, 0.95)",
+                background: "rgba(3, 8, 16, 0.92)",
                 backdropFilter: "blur(12px)",
-                border: `1px solid ${doorColor}`,
-                boxShadow: `0 0 20px ${glowColor}, 0 8px 32px rgba(0,0,0,0.6)`,
+                border: `1px solid ${accentColor}50`,
+                boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 12px ${accentColor}18`,
               }}
             >
-              <p className="text-sm font-semibold" style={{ color: doorColorLight }}>
+              <p
+                className="text-sm font-semibold"
+                style={{ color: glowColor }}
+              >
                 {label}
               </p>
               <p className="text-[10px] text-gray-300 mt-0.5">{sublabel}</p>
@@ -236,14 +346,14 @@ function Door({ side, onClick }: DoorProps) {
               style={{
                 borderLeft: "6px solid transparent",
                 borderRight: "6px solid transparent",
-                borderTop: `6px solid ${doorColor}`,
+                borderTop: `6px solid ${accentColor}50`,
               }}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Persistent label above door */}
+      {/* Persistent label */}
       <AnimatePresence>
         {!introPlaying && !hovered && (
           <motion.div
@@ -256,7 +366,10 @@ function Door({ side, onClick }: DoorProps) {
           >
             <span
               className="text-[9px] font-medium tracking-wider uppercase"
-              style={{ color: doorColorLight, textShadow: `0 0 8px ${glowColor}` }}
+              style={{
+                color: glowColor,
+                textShadow: `0 0 8px ${accentColor}80`,
+              }}
             >
               {isEmployer ? "Employer" : "Worker"}
             </span>
@@ -266,6 +379,8 @@ function Door({ side, onClick }: DoorProps) {
     </motion.button>
   );
 }
+
+/* ─── Container ─── */
 
 interface PortalDoorsProps {
   onEmployerClick: () => void;
@@ -289,25 +404,21 @@ export function PortalDoors({
           position: absolute;
           z-index: 20;
           display: flex;
-          /* Slightly right of 50% — doors in image are at 50.8% horizontal */
           left: 50.8%;
           transform: translate(-50%, -50%);
         }
-        /* Mobile portrait (narrow viewports) */
         @media (max-width: 639px) {
           .portal-doors-container {
             top: 37.9vw;
             gap: 3vw;
           }
         }
-        /* Tablet */
         @media (min-width: 640px) and (max-width: 1023px) {
           .portal-doors-container {
             top: 37.9vw;
             gap: 3vw;
           }
         }
-        /* Desktop — no vh cap; doors must track the image position exactly */
         @media (min-width: 1024px) {
           .portal-doors-container {
             top: 37.9vw;
