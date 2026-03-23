@@ -22,52 +22,63 @@ function BlueDoorSVG() {
         <filter id="bGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.6 0.08"
-            numOctaves="4"
+            baseFrequency="0.45 0.07"
+            numOctaves="5"
             seed="2"
           />
           <feColorMatrix type="saturate" values="0" />
-          <feBlend in="SourceGraphic" mode="overlay" />
+          <feBlend in="SourceGraphic" mode="soft-light" />
+          <feGaussianBlur stdDeviation="0.3" />
         </filter>
-        <linearGradient id="bPaint" x1="0" y1="0" x2="0.3" y2="1">
-          <stop offset="0%" stopColor="#005880" />
-          <stop offset="15%" stopColor="#0090b8" />
-          <stop offset="30%" stopColor="#00a8d8" />
-          <stop offset="45%" stopColor="#18c0e8" />
-          <stop offset="55%" stopColor="#28d8f0" />
-          <stop offset="65%" stopColor="#0098c0" />
-          <stop offset="78%" stopColor="#006890" />
-          <stop offset="88%" stopColor="#005878" />
-          <stop offset="100%" stopColor="#004060" />
+        <linearGradient id="bPaint" x1="0.1" y1="0" x2="0.2" y2="1">
+          <stop offset="0%" stopColor="#004058" />
+          <stop offset="18%" stopColor="#006880" />
+          <stop offset="35%" stopColor="#007898" />
+          <stop offset="50%" stopColor="#0090a8" />
+          <stop offset="62%" stopColor="#007890" />
+          <stop offset="78%" stopColor="#005870" />
+          <stop offset="90%" stopColor="#004858" />
+          <stop offset="100%" stopColor="#003848" />
         </linearGradient>
-        <linearGradient id="bHi" x1="0.2" y1="0" x2="0.8" y2="1">
-          <stop offset="0%" stopColor="#40e0f0" stopOpacity="0" />
-          <stop offset="20%" stopColor="#40e0f0" stopOpacity="0.35" />
-          <stop offset="35%" stopColor="#90f0ff" stopOpacity="0.5" />
-          <stop offset="50%" stopColor="#40e0f0" stopOpacity="0.25" />
-          <stop offset="70%" stopColor="#20b0d0" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#40e0f0" stopOpacity="0" />
+        <linearGradient id="bHi" x1="0.3" y1="0" x2="0.7" y2="1">
+          <stop offset="0%" stopColor="#30b0c8" stopOpacity="0" />
+          <stop offset="25%" stopColor="#30b0c8" stopOpacity="0.2" />
+          <stop offset="40%" stopColor="#60c8d8" stopOpacity="0.3" />
+          <stop offset="55%" stopColor="#30a0b8" stopOpacity="0.15" />
+          <stop offset="75%" stopColor="#208898" stopOpacity="0.08" />
+          <stop offset="100%" stopColor="#30b0c8" stopOpacity="0" />
         </linearGradient>
+        <radialGradient id="bVign" cx="0.5" cy="0.5" r="0.6">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="100%" stopColor="#002030" stopOpacity="0.35" />
+        </radialGradient>
         <linearGradient id="bThresh" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#c09020" />
-          <stop offset="50%" stopColor="#e8c850" />
-          <stop offset="100%" stopColor="#d0a830" />
+          <stop offset="0%" stopColor="#a88020" />
+          <stop offset="50%" stopColor="#c8a838" />
+          <stop offset="100%" stopColor="#b09028" />
         </linearGradient>
       </defs>
-      <rect x="0" y="0" width="34" height="68" rx="1.5" fill="url(#bPaint)" filter="url(#bGrain)" />
-      <rect x="6" y="3" width="12" height="58" rx="1" fill="url(#bHi)" opacity="0.7" />
-      <rect x="16" y="8" width="8" height="48" rx="1" fill="url(#bHi)" opacity="0.4" transform="skewX(-2)" />
-      <rect x="0" y="0" width="2" height="68" fill="#002838" opacity="0.5" />
-      <rect x="32" y="0" width="2" height="68" fill="#003040" opacity="0.4" />
-      <rect x="0" y="0" width="34" height="3" fill="#003848" opacity="0.4" />
-      <rect x="4" y="6" width="26" height="52" rx="1" fill="none" stroke="#40c8e0" strokeWidth="0.5" opacity="0.2" />
-      <ellipse cx="14" cy="12" rx="8" ry="4" fill="#c8a030" opacity="0.06" />
-      <ellipse cx="20" cy="50" rx="6" ry="3" fill="#a08020" opacity="0.04" />
-      <circle cx="28" cy="36" r="2" fill="#c0a030" />
-      <circle cx="28" cy="36" r="1.2" fill="#e0c850" />
-      <circle cx="27.5" cy="35.5" r="0.5" fill="#f0e080" opacity="0.8" />
-      <rect x="0" y="66" width="34" height="6" fill="url(#bThresh)" />
-      <rect x="0" y="66" width="34" height="1" fill="#f0d860" opacity="0.4" />
+      {/* Base painted surface */}
+      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#bPaint)" filter="url(#bGrain)" />
+      {/* Soft painterly highlight streaks */}
+      <rect x="8" y="4" width="10" height="56" rx="3" fill="url(#bHi)" opacity="0.6" />
+      <rect x="16" y="10" width="7" height="44" rx="2" fill="url(#bHi)" opacity="0.3" />
+      {/* Vignette to darken edges naturally */}
+      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#bVign)" />
+      {/* Soft edge shadows instead of hard borders */}
+      <rect x="0" y="0" width="2.5" height="68" rx="1" fill="#003040" opacity="0.3" />
+      <rect x="31.5" y="0" width="2.5" height="68" rx="1" fill="#003848" opacity="0.25" />
+      <rect x="0" y="0" width="34" height="3" rx="2" fill="#003040" opacity="0.25" />
+      {/* Warm painted light hints */}
+      <ellipse cx="14" cy="16" rx="9" ry="6" fill="#c8a830" opacity="0.04" />
+      <ellipse cx="18" cy="48" rx="7" ry="5" fill="#a08828" opacity="0.03" />
+      {/* Knob on LEFT (hinge is right for employer door) */}
+      <circle cx="7" cy="36" r="2" fill="#b09828" />
+      <circle cx="7" cy="36" r="1.2" fill="#d0b840" />
+      <circle cx="6.6" cy="35.5" r="0.5" fill="#e8d060" opacity="0.7" />
+      {/* Golden threshold */}
+      <rect x="0" y="66" width="34" height="6" rx="1" fill="url(#bThresh)" />
+      <rect x="0" y="66" width="34" height="0.8" fill="#d8c048" opacity="0.3" />
     </svg>
   );
 }
@@ -79,52 +90,63 @@ function GreenDoorSVG() {
         <filter id="gGrain">
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.5 0.09"
-            numOctaves="4"
+            baseFrequency="0.4 0.08"
+            numOctaves="5"
             seed="7"
           />
           <feColorMatrix type="saturate" values="0" />
-          <feBlend in="SourceGraphic" mode="overlay" />
+          <feBlend in="SourceGraphic" mode="soft-light" />
+          <feGaussianBlur stdDeviation="0.3" />
         </filter>
-        <linearGradient id="gPaint" x1="0" y1="0" x2="0.3" y2="1">
-          <stop offset="0%" stopColor="#2a6610" />
-          <stop offset="12%" stopColor="#489818" />
-          <stop offset="28%" stopColor="#68b830" />
-          <stop offset="42%" stopColor="#80cc48" />
-          <stop offset="55%" stopColor="#90d850" />
-          <stop offset="65%" stopColor="#78c038" />
-          <stop offset="78%" stopColor="#58a020" />
-          <stop offset="88%" stopColor="#3a7810" />
-          <stop offset="100%" stopColor="#2a5808" />
+        <linearGradient id="gPaint" x1="0.1" y1="0" x2="0.2" y2="1">
+          <stop offset="0%" stopColor="#285810" />
+          <stop offset="18%" stopColor="#3a7818" />
+          <stop offset="35%" stopColor="#4a9020" />
+          <stop offset="50%" stopColor="#58a028" />
+          <stop offset="62%" stopColor="#4a8820" />
+          <stop offset="78%" stopColor="#387018" />
+          <stop offset="90%" stopColor="#2a5810" />
+          <stop offset="100%" stopColor="#204808" />
         </linearGradient>
-        <linearGradient id="gHi" x1="0.2" y1="0" x2="0.8" y2="1">
-          <stop offset="0%" stopColor="#d0f080" stopOpacity="0" />
-          <stop offset="20%" stopColor="#d0f080" stopOpacity="0.35" />
-          <stop offset="35%" stopColor="#e8f898" stopOpacity="0.5" />
-          <stop offset="50%" stopColor="#c0e070" stopOpacity="0.25" />
-          <stop offset="70%" stopColor="#90c040" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#d0f080" stopOpacity="0" />
+        <linearGradient id="gHi" x1="0.3" y1="0" x2="0.7" y2="1">
+          <stop offset="0%" stopColor="#90c048" stopOpacity="0" />
+          <stop offset="25%" stopColor="#90c048" stopOpacity="0.2" />
+          <stop offset="40%" stopColor="#b0d060" stopOpacity="0.3" />
+          <stop offset="55%" stopColor="#88b040" stopOpacity="0.15" />
+          <stop offset="75%" stopColor="#689830" stopOpacity="0.08" />
+          <stop offset="100%" stopColor="#90c048" stopOpacity="0" />
         </linearGradient>
+        <radialGradient id="gVign" cx="0.5" cy="0.5" r="0.6">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="100%" stopColor="#0a2800" stopOpacity="0.35" />
+        </radialGradient>
         <linearGradient id="gThresh" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#b88818" />
-          <stop offset="50%" stopColor="#e0c040" />
-          <stop offset="100%" stopColor="#c89828" />
+          <stop offset="0%" stopColor="#a88020" />
+          <stop offset="50%" stopColor="#c8a838" />
+          <stop offset="100%" stopColor="#b09028" />
         </linearGradient>
       </defs>
-      <rect x="0" y="0" width="34" height="68" rx="1.5" fill="url(#gPaint)" filter="url(#gGrain)" />
-      <rect x="8" y="3" width="14" height="58" rx="1" fill="url(#gHi)" opacity="0.65" />
-      <rect x="18" y="6" width="7" height="50" rx="1" fill="url(#gHi)" opacity="0.35" transform="skewX(2)" />
-      <rect x="0" y="0" width="2" height="68" fill="#1a4008" opacity="0.5" />
-      <rect x="32" y="0" width="2" height="68" fill="#204810" opacity="0.4" />
-      <rect x="0" y="0" width="34" height="3" fill="#285010" opacity="0.4" />
-      <rect x="4" y="6" width="26" height="52" rx="1" fill="none" stroke="#a0d858" strokeWidth="0.5" opacity="0.2" />
-      <ellipse cx="18" cy="14" rx="9" ry="4" fill="#c8a830" opacity="0.06" />
-      <ellipse cx="14" cy="48" rx="5" ry="3" fill="#a09020" opacity="0.04" />
-      <circle cx="6" cy="36" r="2" fill="#c0a030" />
-      <circle cx="6" cy="36" r="1.2" fill="#e0c850" />
-      <circle cx="5.5" cy="35.5" r="0.5" fill="#f0e080" opacity="0.8" />
-      <rect x="0" y="66" width="34" height="6" fill="url(#gThresh)" />
-      <rect x="0" y="66" width="34" height="1" fill="#e8d050" opacity="0.4" />
+      {/* Base painted surface */}
+      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#gPaint)" filter="url(#gGrain)" />
+      {/* Soft painterly highlight streaks */}
+      <rect x="10" y="4" width="10" height="56" rx="3" fill="url(#gHi)" opacity="0.6" />
+      <rect x="18" y="10" width="7" height="44" rx="2" fill="url(#gHi)" opacity="0.3" />
+      {/* Vignette to darken edges naturally */}
+      <rect x="0" y="0" width="34" height="68" rx="2.5" fill="url(#gVign)" />
+      {/* Soft edge shadows */}
+      <rect x="0" y="0" width="2.5" height="68" rx="1" fill="#1a3808" opacity="0.3" />
+      <rect x="31.5" y="0" width="2.5" height="68" rx="1" fill="#1a4008" opacity="0.25" />
+      <rect x="0" y="0" width="34" height="3" rx="2" fill="#1a3808" opacity="0.25" />
+      {/* Warm painted light hints */}
+      <ellipse cx="16" cy="16" rx="9" ry="6" fill="#c8a830" opacity="0.04" />
+      <ellipse cx="14" cy="48" rx="7" ry="5" fill="#a08828" opacity="0.03" />
+      {/* Knob on RIGHT (hinge is left for worker door) */}
+      <circle cx="27" cy="36" r="2" fill="#b09828" />
+      <circle cx="27" cy="36" r="1.2" fill="#d0b840" />
+      <circle cx="27.4" cy="35.5" r="0.5" fill="#e8d060" opacity="0.7" />
+      {/* Golden threshold */}
+      <rect x="0" y="66" width="34" height="6" rx="1" fill="url(#gThresh)" />
+      <rect x="0" y="66" width="34" height="0.8" fill="#d8c048" opacity="0.3" />
     </svg>
   );
 }
@@ -174,14 +196,14 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Dark olive frame surround — matching bark color of trunk */}
+      {/* Soft dark frame surround — matching bark color of trunk */}
       <div
-        className="absolute rounded-t-[2px]"
+        className="absolute rounded-[3px]"
         style={{
-          inset: "-3px",
+          inset: "-2px",
           background:
-            "linear-gradient(180deg, #2a3418 0%, #1a2010 50%, #0d1408 100%)",
-          border: "1px solid rgba(58, 74, 32, 0.25)",
+            "linear-gradient(180deg, #222c14 0%, #161e0c 50%, #0e1408 100%)",
+          boxShadow: "0 0 3px rgba(10,14,6,0.5), inset 0 0 2px rgba(40,52,24,0.2)",
           zIndex: 0,
         }}
       />
@@ -402,7 +424,7 @@ function DoorBlackout({ side }: { side: "employer" | "worker" }) {
       className="absolute pointer-events-none"
       style={{
         left: isEmployer ? "46.09%" : "51.95%",
-        top: "32.61vw",
+        top: "32.85vw",
         width: "3.71%",
         height: "6.64vw",
         backgroundColor: "rgb(14,18,8)",
@@ -444,7 +466,7 @@ export function PortalDoors({
         className="absolute"
         style={{
           left: "46.09%",
-          top: "32.61vw",
+          top: "32.85vw",
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
@@ -458,7 +480,7 @@ export function PortalDoors({
         className="absolute"
         style={{
           left: "51.95%",
-          top: "32.61vw",
+          top: "32.85vw",
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
