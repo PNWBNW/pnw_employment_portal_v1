@@ -25,6 +25,7 @@ import { LAYER2_TRANSITIONS } from "../lib/pnw-adapter/layer2_adapter";
 import type { ExecutionResult, AdapterConfig } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { executeTransition } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { domainHash, toHex } from "../lib/pnw-adapter/hash";
+import { pluginRegistry } from "../plugins/registry";
 
 // ----------------------------------------------------------------
 // Constants
@@ -120,6 +121,12 @@ export async function mintBatchAnchor(
   // Get Layer 2 transition info
   const transition = LAYER2_TRANSITIONS.mint_cycle_nft;
 
+  // Emit anchor start event
+  void pluginRegistry.emit("onBatchAnchorStart", {
+    manifest,
+    batch_root: manifest.row_root,
+  });
+
   // Execute on-chain
   const result: ExecutionResult = await executeTransition(
     config,
@@ -128,6 +135,13 @@ export async function mintBatchAnchor(
     inputs,
     DEFAULT_FEE,
   );
+
+  void pluginRegistry.emit("onBatchAnchorSuccess", {
+    manifest,
+    batch_root: manifest.row_root,
+    nft_id: nftId,
+    tx_id: result.tx_id,
+  });
 
   return {
     tx_id: result.tx_id,

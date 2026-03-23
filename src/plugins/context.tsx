@@ -87,6 +87,14 @@ export function PluginProvider({
   // Track plugin ids registered by this provider for cleanup.
   const ownedIds = useRef<Set<string>>(new Set());
 
+  // Monotonic version counter — bumped on each unmount so a stale boot()
+  // from a previous React Strict Mode cycle knows to bail out.
+  const versionRef = useRef(0);
+
+  // Promise that resolves once the previous teardown finishes.  The next
+  // boot() awaits this so it never races with in-flight onUninstall() calls.
+  const teardownRef = useRef<Promise<void>>(Promise.resolve());
+
   // Refresh the snapshot whenever the registry changes.
   function refresh() {
     setPlugins(pluginRegistry.list());
@@ -94,28 +102,40 @@ export function PluginProvider({
 
   // Register initial plugins on mount.
   useEffect(() => {
-    let cancelled = false;
+    const mountVersion = ++versionRef.current;
 
     async function boot() {
+      // Wait for any prior teardown to finish before re-registering.
+      await teardownRef.current;
+
       for (const plugin of initialPlugins) {
+        // Bail if a newer mount has already superseded us.
+        if (versionRef.current !== mountVersion) return;
         if (!pluginRegistry.has(plugin.id)) {
           await pluginRegistry.register(plugin);
           ownedIds.current.add(plugin.id);
         }
       }
-      if (!cancelled) refresh();
+      if (versionRef.current === mountVersion) refresh();
     }
 
     void boot();
 
     return () => {
-      cancelled = true;
-      // Unregister only the plugins registered by this provider instance.
+      // Bump version so the in-flight boot() above bails out.
+      versionRef.current++;
+
+      // Capture current owned ids and clear immediately so duplicate
+      // teardowns (shouldn't happen, but defensive) are no-ops.
       const ids = Array.from(ownedIds.current);
-      ids.forEach((id) => {
-        void pluginRegistry.unregister(id);
-      });
       ownedIds.current.clear();
+
+      // Chain teardown so the next boot() can await it.
+      teardownRef.current = (async () => {
+        for (const id of ids) {
+          await pluginRegistry.unregister(id);
+        }
+      })();
     };
     // Intentionally empty deps — run once on mount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
