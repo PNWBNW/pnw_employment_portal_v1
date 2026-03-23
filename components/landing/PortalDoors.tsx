@@ -13,6 +13,100 @@ import { motion, AnimatePresence } from "framer-motion";
  * Both have: dark olive frame, golden threshold, warm interior light
  */
 
+/* ─── Trunk Frame SVG ─── */
+
+/**
+ * Organic bark frame that wraps each door, matching the tree trunk palette.
+ * Uses fractalNoise for bark texture. The frame has slightly irregular edges
+ * to feel like carved-out trunk wood rather than manufactured trim.
+ */
+function TrunkFrameSVG() {
+  return (
+    <svg
+      viewBox="0 0 44 82"
+      className="absolute inset-0 w-full h-full"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <filter id="barkGrain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.12 0.04"
+            numOctaves="6"
+            seed="13"
+          />
+          <feColorMatrix type="saturate" values="0" />
+          <feBlend in="SourceGraphic" mode="overlay" />
+          <feGaussianBlur stdDeviation="0.25" />
+        </filter>
+        {/* Dark bark body — sampled from trunk in painting */}
+        <linearGradient id="barkBody" x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#1a2210" />
+          <stop offset="15%" stopColor="#1e2812" />
+          <stop offset="35%" stopColor="#222e16" />
+          <stop offset="55%" stopColor="#1c2410" />
+          <stop offset="75%" stopColor="#161e0c" />
+          <stop offset="100%" stopColor="#0e1408" />
+        </linearGradient>
+        {/* Subtle moss/lichen highlight on outer edges */}
+        <linearGradient id="barkHighlight" x1="0" y1="0" x2="1" y2="0.5">
+          <stop offset="0%" stopColor="#2a3518" stopOpacity="0.6" />
+          <stop offset="50%" stopColor="#1e2812" stopOpacity="0" />
+          <stop offset="100%" stopColor="#2a3518" stopOpacity="0.4" />
+        </linearGradient>
+        {/* Inner shadow for depth — the carved-out doorway */}
+        <linearGradient id="barkInnerShadow" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#0a0e06" stopOpacity="0.8" />
+          <stop offset="20%" stopColor="#0a0e06" stopOpacity="0.3" />
+          <stop offset="80%" stopColor="#0a0e06" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#0a0e06" stopOpacity="0.7" />
+        </linearGradient>
+      </defs>
+
+      {/* Outer bark frame — slightly organic shape */}
+      <path
+        d="M3,1 C1.5,1 0.5,2 0.5,3.5 L0.3,77 C0.3,79 1.2,80.5 3,80.8 L41,80.8 C42.8,80.5 43.7,79 43.7,77 L43.5,3.5 C43.5,2 42.5,1 41,1 Z"
+        fill="url(#barkBody)"
+        filter="url(#barkGrain)"
+      />
+      {/* Bark highlight layer */}
+      <path
+        d="M3,1 C1.5,1 0.5,2 0.5,3.5 L0.3,77 C0.3,79 1.2,80.5 3,80.8 L41,80.8 C42.8,80.5 43.7,79 43.7,77 L43.5,3.5 C43.5,2 42.5,1 41,1 Z"
+        fill="url(#barkHighlight)"
+      />
+
+      {/* Inner doorway cutout — dark recess */}
+      <rect x="4" y="3" width="36" height="74" rx="1.5" fill="#080c04" />
+
+      {/* Inner edge shadow for carved-in depth */}
+      <rect
+        x="4"
+        y="3"
+        width="36"
+        height="74"
+        rx="1.5"
+        fill="url(#barkInnerShadow)"
+      />
+
+      {/* Top lintel bark ridge — slightly thicker, organic */}
+      <path
+        d="M3.5,2.5 L40.5,2.5 L40.5,4.5 C38,5 30,5.2 22,5 C14,4.8 6,5 3.5,4.5 Z"
+        fill="#1e2812"
+        opacity="0.6"
+        filter="url(#barkGrain)"
+      />
+
+      {/* Bottom threshold bark ridge */}
+      <path
+        d="M3.5,76 C6,76.5 14,76.8 22,77 C30,77.2 38,76.5 40.5,76 L40.5,79.5 L3.5,79.5 Z"
+        fill="#161e0c"
+        opacity="0.5"
+        filter="url(#barkGrain)"
+      />
+    </svg>
+  );
+}
+
 /* ─── SVG Door Art ─── */
 
 function BlueDoorSVG() {
@@ -168,21 +262,15 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Bark-colored frame — flush with container so blackout covers it */}
-      <div
-        className="absolute rounded-[2px]"
-        style={{
-          inset: "0",
-          background:
-            "linear-gradient(180deg, #2e3815 0%, #1a2010 50%, #0e1408 100%)",
-          zIndex: 0,
-        }}
-      />
+      {/* Organic trunk bark frame */}
+      <div className="absolute" style={{ inset: "-12%", zIndex: 0 }}>
+        <TrunkFrameSVG />
+      </div>
 
       {/* Warm golden light behind door */}
       <div
         className="absolute rounded-t-[1px] overflow-hidden"
-        style={{ inset: "2px", zIndex: 1 }}
+        style={{ inset: "0", zIndex: 1 }}
       >
         <motion.div
           className="absolute inset-0"
@@ -315,7 +403,7 @@ function Door({ side, onClick }: DoorProps) {
             exit={{ opacity: 0, y: 8, scale: 0.9 }}
             transition={{ duration: 0.25, delay: 0.15 }}
             className="absolute left-1/2 -translate-x-1/2 z-50 whitespace-nowrap"
-            style={{ bottom: "calc(100% + 14px)" }}
+            style={{ bottom: "calc(100% + 6px)" }}
           >
             <div
               className="px-4 py-2.5 rounded-xl text-center"
@@ -346,7 +434,7 @@ function Door({ side, onClick }: DoorProps) {
         )}
       </AnimatePresence>
 
-      {/* Persistent label */}
+      {/* Wooden placard above door */}
       <AnimatePresence>
         {!introPlaying && !hovered && (
           <motion.div
@@ -355,17 +443,58 @@ function Door({ side, onClick }: DoorProps) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
             className="absolute left-1/2 -translate-x-1/2 z-30 whitespace-nowrap"
-            style={{ bottom: "calc(100% + 6px)" }}
+            style={{ bottom: "calc(100% + 2px)" }}
           >
-            <span
-              className="text-[9px] font-medium tracking-wider uppercase"
-              style={{
-                color: glowColor,
-                textShadow: `0 0 8px ${accentColor}80`,
-              }}
+            <svg
+              viewBox="0 0 60 14"
+              className="block"
+              style={{ width: "clamp(48px, 5vw, 72px)", height: "auto" }}
             >
-              {isEmployer ? "Employer" : "Worker"}
-            </span>
+              <defs>
+                <filter id={`plGrain${side}`}>
+                  <feTurbulence
+                    type="fractalNoise"
+                    baseFrequency="0.08 0.03"
+                    numOctaves="4"
+                    seed={isEmployer ? 31 : 37}
+                  />
+                  <feColorMatrix type="saturate" values="0" />
+                  <feBlend in="SourceGraphic" mode="soft-light" />
+                </filter>
+                <linearGradient id={`plBody${side}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#2a3018" />
+                  <stop offset="40%" stopColor="#1e2612" />
+                  <stop offset="100%" stopColor="#161c0e" />
+                </linearGradient>
+              </defs>
+              {/* Plank shape — slightly organic edges */}
+              <path
+                d="M4,1.5 C2.5,1.5 1.5,2.5 1.5,3.5 L1.5,10.5 C1.5,11.5 2.5,12.5 4,12.5 L56,12.5 C57.5,12.5 58.5,11.5 58.5,10.5 L58.5,3.5 C58.5,2.5 57.5,1.5 56,1.5 Z"
+                fill={`url(#plBody${side})`}
+                filter={`url(#plGrain${side})`}
+                stroke="#0e1408"
+                strokeWidth="0.5"
+              />
+              {/* Carved text */}
+              <text
+                x="30"
+                y="9"
+                textAnchor="middle"
+                fontSize="5"
+                fontWeight="600"
+                letterSpacing="0.8"
+                fill={glowColor}
+                style={{ textTransform: "uppercase" } as React.CSSProperties}
+                opacity="0.9"
+              >
+                {isEmployer ? "Employer" : "Worker"}
+              </text>
+              {/* Nail holes */}
+              <circle cx="6" cy="7" r="0.8" fill="#0a0e06" />
+              <circle cx="6" cy="7" r="0.4" fill="#1e2612" />
+              <circle cx="54" cy="7" r="0.8" fill="#0a0e06" />
+              <circle cx="54" cy="7" r="0.4" fill="#1e2612" />
+            </svg>
           </motion.div>
         )}
       </AnimatePresence>
@@ -389,15 +518,15 @@ function Door({ side, onClick }: DoorProps) {
 
 function DoorBlackout({ side }: { side: "employer" | "worker" }) {
   const isEmployer = side === "employer";
-  // Exactly the same size/position as the SVG door so it sits invisibly behind it
+  // Slightly larger than the door to cover the frame area
   return (
     <div
       className="absolute pointer-events-none"
       style={{
-        left: isEmployer ? "46.09%" : "51.95%",
-        top: "32.85vw",
-        width: "3.71%",
-        height: "6.64vw",
+        left: isEmployer ? "45.65%" : "51.51%",
+        top: "32.05vw",
+        width: "4.59%",
+        height: "8.24vw",
         backgroundColor: "rgb(14,18,8)",
         zIndex: 19,
       }}
