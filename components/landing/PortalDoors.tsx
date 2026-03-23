@@ -380,25 +380,37 @@ function Door({ side, onClick }: DoorProps) {
   );
 }
 
-/* ─── Blackout Patch ───
- * Covers the original painted door in the hero image so the SVG door
- * appears to BE the door, not a layer on top of it.
+/* ─── Blackout Patches ───
+ * Solid dark patches that fully cover the original painted doors in the
+ * hero image. The SVG doors are then placed on top, so it feels like
+ * you're interacting with the painting itself.
+ *
+ * Pixel measurements from pnw-tree.png (1024×1536) via color sampling:
+ *   Blue door colored pixels:  x=476-506, y=345-398
+ *   Green door colored pixels: x=536-566, y=330-398
+ *   Gold frame elements extend a few px beyond in each direction.
+ *
+ * Blackout patches are sized generously (+6px padding) to fully erase
+ * the originals, using the trunk's dark bark color.
  */
+
 function DoorBlackout({ side }: { side: "employer" | "worker" }) {
   const isEmployer = side === "employer";
-  // Slightly larger than the door to fully cover the painted original
   return (
     <div
       className="absolute pointer-events-none"
       style={{
-        left: isEmployer ? "45.5%" : "51.0%",
-        top: "34.4vw",
-        width: "3.6%",
-        height: "5.8vw",
+        // Blue blackout: px(466,334) → px(516,408)  |  Green: px(526,322) → px(576,408)
+        left: isEmployer ? "45.51%" : "51.37%",
+        top: isEmployer ? "32.62vw" : "31.45vw",
+        width: "4.88%",
+        height: isEmployer ? "7.23vw" : "8.40vw",
+        // Solid dark bark color matching the trunk, with soft feathered edge
         background: `radial-gradient(ellipse at center,
-          rgba(20,28,12,0.95) 30%,
-          rgba(20,28,12,0.85) 60%,
-          rgba(20,28,12,0.4) 85%,
+          rgb(18,24,10) 0%,
+          rgb(18,24,10) 55%,
+          rgba(18,24,10,0.92) 70%,
+          rgba(18,24,10,0.6) 85%,
           transparent 100%)`,
         zIndex: 19,
       }}
@@ -414,17 +426,14 @@ interface PortalDoorsProps {
 }
 
 /**
- * Pixel measurements from pnw-tree.png (1024×1536):
- * Image displayed as w-full h-auto → 1px = (100/1024)vw = 0.09766vw
+ * Pixel measurements from pnw-tree.png (1024×1536) via PIL color sampling:
  *
- * Blue door:  left edge ~474px, top ~358px, width ~26px, height ~54px
- * Green door: left edge ~530px, top ~358px, width ~26px, height ~54px
+ *   Blue door (including frame): x=472-510, y=340-402  → 38×62px
+ *   Green door (including frame): x=532-570, y=328-402  → 38×74px
  *
- * As percentages of image width (since image is w-full):
- *   left:   (px / 1024) * 100  → percentage of viewport width
- *   top:    (px / 1024) * 100  → vw units (image aspect ratio preserved)
- *   width:  (px / 1024) * 100  → percentage of viewport width
- *   height: (px / 1024) * 100  → vw units
+ * Image is displayed w-full h-auto, so:
+ *   CSS left/width = (px / 1024) * 100  → percentage of viewport width
+ *   CSS top/height = (px / 1024) * 100  → vw units
  */
 export function PortalDoors({
   onEmployerClick,
@@ -432,32 +441,32 @@ export function PortalDoors({
 }: PortalDoorsProps) {
   return (
     <>
-      {/* Blackout patches to hide the painted doors in the image */}
+      {/* Blackout patches — fully erase the painted doors from the image */}
       <DoorBlackout side="employer" />
       <DoorBlackout side="worker" />
 
-      {/* Blue (employer) door — positioned exactly over the left painted door */}
+      {/* Blue (employer) door */}
       <div
         className="absolute"
         style={{
-          left: "46.29%",
-          top: "34.96vw",
-          width: "2.54%",
-          height: "5.27vw",
+          left: "46.09%",
+          top: "33.20vw",
+          width: "3.71%",
+          height: "6.05vw",
           zIndex: 20,
         }}
       >
         <Door side="employer" onClick={onEmployerClick} />
       </div>
 
-      {/* Green (worker) door — positioned exactly over the right painted door */}
+      {/* Green (worker) door */}
       <div
         className="absolute"
         style={{
-          left: "51.76%",
-          top: "34.96vw",
-          width: "2.54%",
-          height: "5.27vw",
+          left: "51.95%",
+          top: "32.03vw",
+          width: "3.71%",
+          height: "7.23vw",
           zIndex: 20,
         }}
       >
