@@ -41,28 +41,28 @@ function CraftsmanTrimSVG() {
           <feComposite in="broadBW" in2="broadBW" operator="arithmetic" k1="0" k2="0.08" k3="0" k4="0" result="broadFaint" />
           <feBlend in="grained" in2="broadFaint" mode="multiply" />
         </filter>
-        {/* Trim body — warm bark brown-gold sampled from trunk in painting */}
+        {/* Trim body */}
         <linearGradient id="trimBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#8a7a38" />
-          <stop offset="30%" stopColor="#7a6e2e" />
-          <stop offset="70%" stopColor="#6e6428" />
-          <stop offset="100%" stopColor="#5e5420" />
+          <stop offset="0%" stopColor="#6e7838" />
+          <stop offset="30%" stopColor="#656e2c" />
+          <stop offset="70%" stopColor="#5a6428" />
+          <stop offset="100%" stopColor="#4e5820" />
         </linearGradient>
         <linearGradient id="trimBodyH" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#8a7a38" />
-          <stop offset="50%" stopColor="#9a8a44" />
-          <stop offset="100%" stopColor="#8a7a38" />
+          <stop offset="0%" stopColor="#6e7838" />
+          <stop offset="50%" stopColor="#7a8440" />
+          <stop offset="100%" stopColor="#6e7838" />
         </linearGradient>
-        {/* Sill — warm golden amber */}
+        {/* Sill — warm golden */}
         <linearGradient id="sillBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#9a8828" />
-          <stop offset="50%" stopColor="#8e8438" />
-          <stop offset="100%" stopColor="#7a7028" />
+          <stop offset="0%" stopColor="#7a7218" />
+          <stop offset="50%" stopColor="#7c7b30" />
+          <stop offset="100%" stopColor="#656e2c" />
         </linearGradient>
-        {/* Decorative inlay — lighter golden accent */}
+        {/* Decorative inlay — lighter accent */}
         <linearGradient id="inlayFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#a89840" />
-          <stop offset="100%" stopColor="#8a7a38" />
+          <stop offset="0%" stopColor="#8a8a3a" />
+          <stop offset="100%" stopColor="#6e7838" />
         </linearGradient>
       </defs>
 
@@ -73,18 +73,18 @@ function CraftsmanTrimSVG() {
         fill="url(#trimBodyH)" filter="url(#trimGrain)"
       />
       {/* Crown top highlight */}
-      <path d="M1,0.3 Q23,-0.3 45,0.3" stroke="#a89840" strokeWidth="0.5" fill="none" opacity="0.5" />
+      <path d="M1,0.3 Q23,-0.3 45,0.3" stroke="#8a8a3a" strokeWidth="0.5" fill="none" opacity="0.5" />
       {/* Main head casing with gentle arch on underside */}
       <path
         d="M0,3 L0,7 Q23,5.5 46,7 L46,3 Q23,1.5 0,3 Z"
         fill="url(#trimBodyH)" filter="url(#trimGrain)"
       />
       {/* Arch underside shadow */}
-      <path d="M4,6.8 Q23,5.5 42,6.8" stroke="#4a3e18" strokeWidth="0.6" fill="none" opacity="0.5" />
+      <path d="M4,6.8 Q23,5.5 42,6.8" stroke="#2c3a17" strokeWidth="0.6" fill="none" opacity="0.5" />
       {/* Decorative keystone at center of arch */}
       <path
         d="M20,4 L20,7 Q23,6 26,7 L26,4 Q23,3 20,4 Z"
-        fill="#9a8a44" opacity="0.4"
+        fill="#7a8440" opacity="0.4"
       />
 
       {/* ── CORBELS / BRACKETS — where head meets legs ── */}
@@ -93,43 +93,43 @@ function CraftsmanTrimSVG() {
         d="M0.5,7 L4.5,7 L4.5,12 Q4.5,8 0.5,7.5 Z"
         fill="url(#trimBody)" filter="url(#trimGrain)"
       />
-      <path d="M4.5,7 L4.5,11.5 Q4.2,8.5 1.5,7.3" stroke="#a89840" strokeWidth="0.3" fill="none" opacity="0.35" />
+      <path d="M4.5,7 L4.5,11.5 Q4.2,8.5 1.5,7.3" stroke="#8a8a3a" strokeWidth="0.3" fill="none" opacity="0.35" />
       {/* Right corbel */}
       <path
         d="M45.5,7 L41.5,7 L41.5,12 Q41.5,8 45.5,7.5 Z"
         fill="url(#trimBody)" filter="url(#trimGrain)"
       />
-      <path d="M41.5,7 L41.5,11.5 Q41.8,8.5 44.5,7.3" stroke="#a89840" strokeWidth="0.3" fill="none" opacity="0.35" />
+      <path d="M41.5,7 L41.5,11.5 Q41.8,8.5 44.5,7.3" stroke="#8a8a3a" strokeWidth="0.3" fill="none" opacity="0.35" />
 
       {/* ── LEFT JAMB — with beveled ogee profile ── */}
       <rect x="0" y="7" width="4.5" height="70.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
       {/* Outer round-over bevel */}
-      <path d="M0,7 Q0.8,7 0.8,7.5 L0.8,77 Q0.8,77.5 0,77.5" fill="#9a8a44" opacity="0.25" />
+      <path d="M0,7 Q0.8,7 0.8,7.5 L0.8,77 Q0.8,77.5 0,77.5" fill="#7a8440" opacity="0.25" />
       {/* Inner ogee curve — concave then convex profile */}
-      <path d="M4.5,7.5 Q3.5,7.5 3.2,8 L3.2,77 Q3.5,77.5 4.5,77.5" fill="#4a3e18" opacity="0.35" />
+      <path d="M4.5,7.5 Q3.5,7.5 3.2,8 L3.2,77 Q3.5,77.5 4.5,77.5" fill="#2c3a17" opacity="0.35" />
       {/* Decorative routed channel in leg */}
-      <path d="M1.8,14 L1.8,72" stroke="#7a6e30" strokeWidth="0.8" fill="none" opacity="0.25" />
+      <path d="M1.8,14 L1.8,72" stroke="#5a6428" strokeWidth="0.8" fill="none" opacity="0.25" />
       <path d="M1.8,14 L1.8,72" stroke="#7a8440" strokeWidth="0.3" fill="none" opacity="0.2" />
 
       {/* ── RIGHT JAMB — mirrored ── */}
       <rect x="41.5" y="7" width="4.5" height="70.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      <path d="M46,7 Q45.2,7 45.2,7.5 L45.2,77 Q45.2,77.5 46,77.5" fill="#9a8a44" opacity="0.25" />
-      <path d="M41.5,7.5 Q42.5,7.5 42.8,8 L42.8,77 Q42.5,77.5 41.5,77.5" fill="#4a3e18" opacity="0.35" />
-      <path d="M44.2,14 L44.2,72" stroke="#7a6e30" strokeWidth="0.8" fill="none" opacity="0.25" />
+      <path d="M46,7 Q45.2,7 45.2,7.5 L45.2,77 Q45.2,77.5 46,77.5" fill="#7a8440" opacity="0.25" />
+      <path d="M41.5,7.5 Q42.5,7.5 42.8,8 L42.8,77 Q42.5,77.5 41.5,77.5" fill="#2c3a17" opacity="0.35" />
+      <path d="M44.2,14 L44.2,72" stroke="#5a6428" strokeWidth="0.8" fill="none" opacity="0.25" />
       <path d="M44.2,14 L44.2,72" stroke="#7a8440" strokeWidth="0.3" fill="none" opacity="0.2" />
 
       {/* ── PLINTH BLOCKS — decorative base blocks where legs meet sill ── */}
       {/* Left plinth */}
       <rect x="-0.5" y="74" width="5.5" height="3.5" rx="0.3" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      <path d="M-0.5,74 L5,74" stroke="#a89840" strokeWidth="0.3" opacity="0.4" />
+      <path d="M-0.5,74 L5,74" stroke="#8a8a3a" strokeWidth="0.3" opacity="0.4" />
       {/* Carved rosette in plinth */}
       <circle cx="2.25" cy="75.8" r="1" fill="none" stroke="#7a8440" strokeWidth="0.3" opacity="0.35" />
-      <circle cx="2.25" cy="75.8" r="0.4" fill="#9a8a44" opacity="0.2" />
+      <circle cx="2.25" cy="75.8" r="0.4" fill="#7a8440" opacity="0.2" />
       {/* Right plinth */}
       <rect x="41" y="74" width="5.5" height="3.5" rx="0.3" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      <path d="M41,74 L46.5,74" stroke="#a89840" strokeWidth="0.3" opacity="0.4" />
+      <path d="M41,74 L46.5,74" stroke="#8a8a3a" strokeWidth="0.3" opacity="0.4" />
       <circle cx="43.75" cy="75.8" r="1" fill="none" stroke="#7a8440" strokeWidth="0.3" opacity="0.35" />
-      <circle cx="43.75" cy="75.8" r="0.4" fill="#9a8a44" opacity="0.2" />
+      <circle cx="43.75" cy="75.8" r="0.4" fill="#7a8440" opacity="0.2" />
 
       {/* ── SILL — with bullnose front edge ── */}
       <path
@@ -137,14 +137,14 @@ function CraftsmanTrimSVG() {
         fill="url(#sillBody)" filter="url(#trimGrain)"
       />
       {/* Bullnose top curve highlight */}
-      <path d="M-1.5,77.5 Q23,77 47.5,77.5" stroke="#a89840" strokeWidth="0.4" fill="none" opacity="0.4" />
+      <path d="M-1.5,77.5 Q23,77 47.5,77.5" stroke="#8a8a3a" strokeWidth="0.4" fill="none" opacity="0.4" />
       {/* Sill bottom shadow */}
-      <path d="M-0.5,83 Q23,83.3 46.5,83" stroke="#4a3e18" strokeWidth="0.5" fill="none" opacity="0.5" />
+      <path d="M-0.5,83 Q23,83.3 46.5,83" stroke="#2c3a17" strokeWidth="0.5" fill="none" opacity="0.5" />
 
       {/* ── INNER OPENING — arched top matching head casing ── */}
       <path
         d="M4.5,7 Q23,5.8 41.5,7 L41.5,77.5 L4.5,77.5 Z"
-        fill="#1a1808"
+        fill="#141e08"
       />
     </svg>
   );
@@ -171,24 +171,24 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
   const id = isBlue ? "b" : "g";
   const seed = isBlue ? 2 : 7;
 
-  // Door body colors — warmed to match painting's golden ambient light
-  const bodyDark = isBlue ? "#0a5a6e" : "#2e7630";
-  const bodyMid = isBlue ? "#1a7088" : "#3e8e38";
-  const bodyLight = isBlue ? "#2a7e94" : "#4a9a42";
-  const bodyEdge = isBlue ? "#084e5e" : "#246828";
+  // Door body colors — vivid and saturated
+  const bodyDark = isBlue ? "#005878" : "#2a7a2e";
+  const bodyMid = isBlue ? "#006e98" : "#3a9838";
+  const bodyLight = isBlue ? "#0080a8" : "#48a842";
+  const bodyEdge = isBlue ? "#004a6a" : "#207028";
 
-  // Panel recess colors — warmer shadows
-  const panelDark = isBlue ? "#084a5c" : "#226428";
-  const panelMid = isBlue ? "#145e78" : "#328432";
-  const panelLight = isBlue ? "#1a6a84" : "#3c8e3a";
+  // Panel recess colors
+  const panelDark = isBlue ? "#004868" : "#1e6826";
+  const panelMid = isBlue ? "#005e88" : "#2e8832";
+  const panelLight = isBlue ? "#006a94" : "#38963a";
 
-  // Highlight/shadow for bevels — golden-shifted highlights
-  const bevelLight = isBlue ? "#28a0c8" : "#5ab848";
-  const bevelShadow = isBlue ? "#042c3a" : "#183a18";
+  // Highlight/shadow for bevels
+  const bevelLight = isBlue ? "#18a0d8" : "#58c050";
+  const bevelShadow = isBlue ? "#002840" : "#143818";
 
-  // Accent for carved details — warmer
-  const carveLight = isBlue ? "#48b0c8" : "#6cc858";
-  const carveMid = isBlue ? "#1888a8" : "#44a040";
+  // Accent for carved details
+  const carveLight = isBlue ? "#40b8e0" : "#70d868";
+  const carveMid = isBlue ? "#0090c0" : "#40a840";
 
   const kx = knobSide === "left" ? 7.5 : 26.5;
 
@@ -196,15 +196,15 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
     <svg viewBox="0 0 34 68" className="w-full h-full block">
       <defs>
         <filter id={`${id}WoodGrain`}>
-          {/* Fine brush stroke grain */}
-          <feTurbulence type="fractalNoise" baseFrequency="0.03 0.14" numOctaves="5" seed={seed} result="grain" />
+          {/* Coarse paint/wood grain — more octaves and stronger blend for organic feel */}
+          <feTurbulence type="fractalNoise" baseFrequency="0.02 0.1" numOctaves="5" seed={seed} result="grain" />
           <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
-          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.3" k3="0" k4="0" result="faint" />
+          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.22" k3="0" k4="0" result="faint" />
           <feBlend in="SourceGraphic" in2="faint" mode="soft-light" result="grained" />
-          {/* Broad patches — simulates uneven paint layering */}
-          <feTurbulence type="fractalNoise" baseFrequency="0.005 0.01" numOctaves="3" seed={seed + 10} result="broad" />
+          {/* Second pass: larger-scale color variation like uneven paint application */}
+          <feTurbulence type="fractalNoise" baseFrequency="0.008 0.015" numOctaves="3" seed={seed + 10} result="broad" />
           <feColorMatrix in="broad" type="saturate" values="0" result="broadBW" />
-          <feComposite in="broadBW" in2="broadBW" operator="arithmetic" k1="0" k2="0.18" k3="0" k4="0" result="broadFaint" />
+          <feComposite in="broadBW" in2="broadBW" operator="arithmetic" k1="0" k2="0.1" k3="0" k4="0" result="broadFaint" />
           <feBlend in="grained" in2="broadFaint" mode="multiply" />
         </filter>
         <linearGradient id={`${id}Body`} x1="0" y1="0" x2="0.2" y2="1">
@@ -375,12 +375,8 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Craftsman door trim — soft-light lets bark texture influence while preserving trim color */}
-      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "soft-light", opacity: 0.92, filter: "blur(0.3px) url(#paintWarp)" }}>
-        <CraftsmanTrimSVG />
-      </div>
-      {/* Second trim pass at low opacity normal blend — ensures trim color reads clearly */}
-      <div className="absolute pointer-events-none" style={{ inset: "-12%", zIndex: 0, opacity: 0.55, filter: "blur(0.4px) url(#paintWarp)" }}>
+      {/* Craftsman door trim — multiply blend lets trunk bark texture show through */}
+      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply" }}>
         <CraftsmanTrimSVG />
       </div>
 
@@ -442,50 +438,30 @@ function Door({ side, onClick }: DoorProps) {
               : { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
         }
       >
-        {/* Front face — painted wooden door with gentle warp */}
+        {/* Front face — painted wooden door */}
         <div
           className="absolute inset-0 rounded-t-[1px] overflow-hidden"
-          style={{ backfaceVisibility: "hidden", filter: "url(#paintWarp)" }}
+          style={{ backfaceVisibility: "hidden" }}
         >
           {isEmployer
             ? <CraftsmanDoorSVG color="blue" knobSide="left" />
             : <CraftsmanDoorSVG color="green" knobSide="right" />
           }
-          {/* Canvas/linen texture — simulates paint on textured surface */}
+          {/* Paint texture overlay — uneven pigment simulation */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23907848' opacity='0.04'/%3E%3Crect x='0' y='0' width='2' height='1' fill='%23b09868' opacity='0.05'/%3E%3Crect x='2' y='2' width='2' height='1' fill='%23706030' opacity='0.05'/%3E%3C/svg%3E")`,
-              backgroundSize: "3px 3px",
-              mixBlendMode: "overlay",
-              opacity: 0.8,
-            }}
-          />
-          {/* Golden ambient wash — matches the painting's warm backlight */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: `linear-gradient(170deg, rgba(200,170,60,0.14), rgba(180,140,40,0.06) 50%, rgba(100,80,20,0.1)),
-                           radial-gradient(ellipse at 30% 15%, rgba(240,200,80,0.13), transparent 55%),
-                           radial-gradient(ellipse at 75% 55%, rgba(30,20,5,0.14), transparent 45%),
-                           radial-gradient(ellipse at 45% 80%, rgba(180,150,60,0.09), transparent 40%),
-                           radial-gradient(ellipse at 60% 30%, rgba(200,160,50,0.08), transparent 35%)`,
+              background: `radial-gradient(ellipse at 30% 25%, rgba(200,180,100,0.07), transparent 55%),
+                           radial-gradient(ellipse at 75% 65%, rgba(30,20,8,0.09), transparent 50%),
+                           radial-gradient(ellipse at 50% 90%, rgba(160,140,60,0.05), transparent 40%)`,
               mixBlendMode: "soft-light",
             }}
           />
-          {/* Impasto highlight — thick paint catches golden light at center */}
+          {/* Soft inner vignette — paint feathering at edges */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              background: "radial-gradient(ellipse 60% 40% at 40% 35%, rgba(220,190,90,0.1), transparent 70%)",
-              mixBlendMode: "overlay",
-            }}
-          />
-          {/* Paint edge vignette — darker edges where paint pools and thickens */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              boxShadow: "inset 0 0 10px 4px rgba(10,14,4,0.45), inset 0 -3px 6px 2px rgba(10,14,4,0.25), inset 3px 0 6px 1px rgba(10,14,4,0.15), inset -3px 0 6px 1px rgba(10,14,4,0.15)",
+              boxShadow: "inset 0 0 6px 2px rgba(10,14,4,0.35)",
               mixBlendMode: "multiply",
             }}
           />
@@ -624,9 +600,9 @@ function Door({ side, onClick }: DoorProps) {
                   <feBlend in="SourceGraphic" mode="soft-light" />
                 </filter>
                 <linearGradient id={`plBody${side}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6a5e24" />
-                  <stop offset="40%" stopColor="#5a4e20" />
-                  <stop offset="100%" stopColor="#4a4018" />
+                  <stop offset="0%" stopColor="#495119" />
+                  <stop offset="40%" stopColor="#3e4c19" />
+                  <stop offset="100%" stopColor="#304011" />
                 </linearGradient>
               </defs>
               {/* Plank shape — slightly organic edges */}
@@ -634,7 +610,7 @@ function Door({ side, onClick }: DoorProps) {
                 d="M4,1.5 C2.5,1.5 1.5,2.5 1.5,3.5 L1.5,10.5 C1.5,11.5 2.5,12.5 4,12.5 L56,12.5 C57.5,12.5 58.5,11.5 58.5,10.5 L58.5,3.5 C58.5,2.5 57.5,1.5 56,1.5 Z"
                 fill={`url(#plBody${side})`}
                 filter={`url(#plGrain${side})`}
-                stroke="#4a3e18"
+                stroke="#2c3a17"
                 strokeWidth="0.5"
               />
               {/* Carved text */}
@@ -652,10 +628,10 @@ function Door({ side, onClick }: DoorProps) {
                 {isEmployer ? "Employer" : "Worker"}
               </text>
               {/* Nail holes */}
-              <circle cx="6" cy="7" r="0.8" fill="#2e2808" />
-              <circle cx="6" cy="7" r="0.4" fill="#5a4e20" />
-              <circle cx="54" cy="7" r="0.8" fill="#2e2808" />
-              <circle cx="54" cy="7" r="0.4" fill="#5a4e20" />
+              <circle cx="6" cy="7" r="0.8" fill="#1e2e02" />
+              <circle cx="6" cy="7" r="0.4" fill="#3e4c19" />
+              <circle cx="54" cy="7" r="0.8" fill="#1e2e02" />
+              <circle cx="54" cy="7" r="0.4" fill="#3e4c19" />
             </svg>
           </motion.div>
         )}
@@ -690,7 +666,7 @@ function DoorBlackout({ side }: { side: "employer" | "worker" }) {
         top: "32.05vw",
         width: "4.59%",
         height: "8.24vw",
-        background: "radial-gradient(ellipse at 50% 40%, rgb(22,20,10), rgb(16,14,6) 60%, rgb(18,16,8) 100%)",
+        background: "radial-gradient(ellipse at 50% 40%, rgb(18,22,10), rgb(12,16,6) 60%, rgb(14,18,8) 100%)",
         filter: "url(#barkTexture)",
         zIndex: 19,
       }}
@@ -721,24 +697,9 @@ export function PortalDoors({
 }: PortalDoorsProps) {
   return (
     <>
-      {/* Shared SVG filters for painterly effects */}
+      {/* Shared SVG filters — NO displacement, just texture + softening */}
       <svg className="absolute w-0 h-0" aria-hidden="true">
         <defs>
-          {/* Gentle paint warp — subtle displacement to break perfect digital lines */}
-          <filter id="paintWarp" x="-3%" y="-3%" width="106%" height="106%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.025 0.04" numOctaves="4" seed="5" result="warp" />
-            <feDisplacementMap in="SourceGraphic" in2="warp" scale="1.1" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-          {/* Warm amber color cast to match the painting's golden light */}
-          <filter id="paintWarmth" x="0%" y="0%" width="100%" height="100%">
-            {/* Shift colors warmer: boost red/green slightly, reduce blue */}
-            <feColorMatrix type="matrix" values="
-              1.08 0.04 0.0  0 0.02
-              0.02 1.04 0.0  0 0.01
-              0.0  0.0  0.88 0 0.0
-              0    0    0    1 0
-            " />
-          </filter>
           {/* Bark-like texture for blackout patches */}
           <filter id="barkTexture" x="0%" y="0%" width="100%" height="100%">
             <feTurbulence type="fractalNoise" baseFrequency="0.04 0.09" numOctaves="5" seed="42" result="bark" />
@@ -762,9 +723,7 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
-          filter: "blur(0.5px) contrast(1.08) saturate(0.75) url(#paintWarmth)",
-          mask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
-          WebkitMask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
+          filter: "blur(0.35px) contrast(1.05) saturate(0.9)",
         }}
       >
         <Door side="employer" onClick={onEmployerClick} />
@@ -779,9 +738,7 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
-          filter: "blur(0.5px) contrast(1.08) saturate(0.75) url(#paintWarmth)",
-          mask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
-          WebkitMask: "radial-gradient(ellipse 95% 92% at 50% 48%, black 70%, transparent 100%)",
+          filter: "blur(0.35px) contrast(1.05) saturate(0.9)",
         }}
       >
         <Door side="worker" onClick={onWorkerClick} />
