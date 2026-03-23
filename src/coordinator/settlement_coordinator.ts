@@ -437,6 +437,7 @@ async function executeChunkWithRetry(
       current.status = "settled";
       current.tx_id = result.tx_id;
       current.last_error = undefined;
+
       return current;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
