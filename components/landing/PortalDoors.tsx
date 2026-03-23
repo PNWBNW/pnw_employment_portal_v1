@@ -30,79 +30,118 @@ function CraftsmanTrimSVG() {
       preserveAspectRatio="none"
     >
       <defs>
-        {/* Wood grain — very subtle, just enough for texture */}
+        {/* Subtle wood grain */}
         <filter id="trimGrain">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.03 0.15"
-            numOctaves="3"
-            seed="19"
-            result="grain"
-          />
+          <feTurbulence type="fractalNoise" baseFrequency="0.03 0.15" numOctaves="3" seed="19" result="grain" />
           <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
-          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.15" k3="0" k4="0" result="faint" />
+          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.12" k3="0" k4="0" result="faint" />
           <feBlend in="SourceGraphic" in2="faint" mode="soft-light" />
         </filter>
-        {/* Trim body — vivid olive-green from trunk, pushed brighter */}
+        {/* Trim body */}
         <linearGradient id="trimBody" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#6e7838" />
           <stop offset="30%" stopColor="#656e2c" />
           <stop offset="70%" stopColor="#5a6428" />
           <stop offset="100%" stopColor="#4e5820" />
         </linearGradient>
-        {/* Bevel highlight — lighter edge catching light */}
-        <linearGradient id="trimHighL" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#7d7421" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#7d7421" stopOpacity="0" />
+        <linearGradient id="trimBodyH" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#6e7838" />
+          <stop offset="50%" stopColor="#7a8440" />
+          <stop offset="100%" stopColor="#6e7838" />
         </linearGradient>
-        <linearGradient id="trimHighR" x1="1" y1="0" x2="0" y2="0">
-          <stop offset="0%" stopColor="#3e4c19" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#3e4c19" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="trimHighTop" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#76702a" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#76702a" stopOpacity="0" />
-        </linearGradient>
-        {/* Sill gradient — warm golden-olive */}
+        {/* Sill — warm golden */}
         <linearGradient id="sillBody" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#7a7218" />
           <stop offset="50%" stopColor="#7c7b30" />
           <stop offset="100%" stopColor="#656e2c" />
         </linearGradient>
+        {/* Decorative inlay — lighter accent */}
+        <linearGradient id="inlayFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#8a8a3a" />
+          <stop offset="100%" stopColor="#6e7838" />
+        </linearGradient>
       </defs>
 
-      {/* ── HEAD CASING — wide flat board across top ── */}
-      <rect x="0" y="0" width="46" height="6" rx="0.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      {/* Top bevel highlight */}
-      <rect x="0" y="0" width="46" height="1.5" rx="0.3" fill="url(#trimHighTop)" />
-      {/* Bottom edge shadow on head casing */}
-      <rect x="0" y="5" width="46" height="1" fill="#2c3a17" opacity="0.5" />
-      {/* Reveal line — thin dark gap between head and jambs */}
-      <rect x="4" y="5.5" width="38" height="0.5" fill="#1a2808" opacity="0.7" />
+      {/* ── HEAD CASING — arched with crown molding profile ── */}
+      {/* Crown — top decorative curve */}
+      <path
+        d="M-1,4 L-1,1.5 Q-1,0 1,0 L45,0 Q47,0 47,1.5 L47,4 Q37,2.5 23,2.5 Q9,2.5 -1,4 Z"
+        fill="url(#trimBodyH)" filter="url(#trimGrain)"
+      />
+      {/* Crown top highlight */}
+      <path d="M1,0.3 Q23,-0.3 45,0.3" stroke="#8a8a3a" strokeWidth="0.5" fill="none" opacity="0.5" />
+      {/* Main head casing with gentle arch on underside */}
+      <path
+        d="M0,3 L0,7 Q23,5.5 46,7 L46,3 Q23,1.5 0,3 Z"
+        fill="url(#trimBodyH)" filter="url(#trimGrain)"
+      />
+      {/* Arch underside shadow */}
+      <path d="M4,6.8 Q23,5.5 42,6.8" stroke="#2c3a17" strokeWidth="0.6" fill="none" opacity="0.5" />
+      {/* Decorative keystone at center of arch */}
+      <path
+        d="M20,4 L20,7 Q23,6 26,7 L26,4 Q23,3 20,4 Z"
+        fill="#7a8440" opacity="0.4"
+      />
 
-      {/* ── LEFT JAMB (side casing) ── */}
-      <rect x="0" y="5.5" width="4.5" height="72" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      {/* Left outer bevel — light catches left edge */}
-      <rect x="0" y="5.5" width="1.2" height="72" fill="url(#trimHighL)" />
-      {/* Right inner bevel — shadow where jamb meets door */}
-      <rect x="3.5" y="5.5" width="1" height="72" fill="#2c3a17" opacity="0.45" />
+      {/* ── CORBELS / BRACKETS — where head meets legs ── */}
+      {/* Left corbel — curved support bracket */}
+      <path
+        d="M0.5,7 L4.5,7 L4.5,12 Q4.5,8 0.5,7.5 Z"
+        fill="url(#trimBody)" filter="url(#trimGrain)"
+      />
+      <path d="M4.5,7 L4.5,11.5 Q4.2,8.5 1.5,7.3" stroke="#8a8a3a" strokeWidth="0.3" fill="none" opacity="0.35" />
+      {/* Right corbel */}
+      <path
+        d="M45.5,7 L41.5,7 L41.5,12 Q41.5,8 45.5,7.5 Z"
+        fill="url(#trimBody)" filter="url(#trimGrain)"
+      />
+      <path d="M41.5,7 L41.5,11.5 Q41.8,8.5 44.5,7.3" stroke="#8a8a3a" strokeWidth="0.3" fill="none" opacity="0.35" />
 
-      {/* ── RIGHT JAMB ── */}
-      <rect x="41.5" y="5.5" width="4.5" height="72" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      {/* Right outer bevel — shadow on right edge */}
-      <rect x="44.8" y="5.5" width="1.2" height="72" fill="url(#trimHighR)" />
-      {/* Left inner bevel — shadow where jamb meets door */}
-      <rect x="41.5" y="5.5" width="1" height="72" fill="#2c3a17" opacity="0.45" />
+      {/* ── LEFT JAMB — with beveled ogee profile ── */}
+      <rect x="0" y="7" width="4.5" height="70.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      {/* Outer round-over bevel */}
+      <path d="M0,7 Q0.8,7 0.8,7.5 L0.8,77 Q0.8,77.5 0,77.5" fill="#7a8440" opacity="0.25" />
+      {/* Inner ogee curve — concave then convex profile */}
+      <path d="M4.5,7.5 Q3.5,7.5 3.2,8 L3.2,77 Q3.5,77.5 4.5,77.5" fill="#2c3a17" opacity="0.35" />
+      {/* Decorative routed channel in leg */}
+      <path d="M1.8,14 L1.8,72" stroke="#5a6428" strokeWidth="0.8" fill="none" opacity="0.25" />
+      <path d="M1.8,14 L1.8,72" stroke="#7a8440" strokeWidth="0.3" fill="none" opacity="0.2" />
 
-      {/* ── SILL / THRESHOLD — wider, slightly proud ── */}
-      <rect x="-1" y="77" width="48" height="5" rx="0.5" fill="url(#sillBody)" filter="url(#trimGrain)" />
-      {/* Sill top bevel — catches light */}
-      <rect x="-1" y="77" width="48" height="1" fill="#76702a" opacity="0.35" />
+      {/* ── RIGHT JAMB — mirrored ── */}
+      <rect x="41.5" y="7" width="4.5" height="70.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      <path d="M46,7 Q45.2,7 45.2,7.5 L45.2,77 Q45.2,77.5 46,77.5" fill="#7a8440" opacity="0.25" />
+      <path d="M41.5,7.5 Q42.5,7.5 42.8,8 L42.8,77 Q42.5,77.5 41.5,77.5" fill="#2c3a17" opacity="0.35" />
+      <path d="M44.2,14 L44.2,72" stroke="#5a6428" strokeWidth="0.8" fill="none" opacity="0.25" />
+      <path d="M44.2,14 L44.2,72" stroke="#7a8440" strokeWidth="0.3" fill="none" opacity="0.2" />
+
+      {/* ── PLINTH BLOCKS — decorative base blocks where legs meet sill ── */}
+      {/* Left plinth */}
+      <rect x="-0.5" y="74" width="5.5" height="3.5" rx="0.3" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      <path d="M-0.5,74 L5,74" stroke="#8a8a3a" strokeWidth="0.3" opacity="0.4" />
+      {/* Carved rosette in plinth */}
+      <circle cx="2.25" cy="75.8" r="1" fill="none" stroke="#7a8440" strokeWidth="0.3" opacity="0.35" />
+      <circle cx="2.25" cy="75.8" r="0.4" fill="#7a8440" opacity="0.2" />
+      {/* Right plinth */}
+      <rect x="41" y="74" width="5.5" height="3.5" rx="0.3" fill="url(#trimBody)" filter="url(#trimGrain)" />
+      <path d="M41,74 L46.5,74" stroke="#8a8a3a" strokeWidth="0.3" opacity="0.4" />
+      <circle cx="43.75" cy="75.8" r="1" fill="none" stroke="#7a8440" strokeWidth="0.3" opacity="0.35" />
+      <circle cx="43.75" cy="75.8" r="0.4" fill="#7a8440" opacity="0.2" />
+
+      {/* ── SILL — with bullnose front edge ── */}
+      <path
+        d="M-1.5,77.5 L47.5,77.5 L47.5,82 Q47.5,83 46.5,83 L-0.5,83 Q-1.5,83 -1.5,82 Z"
+        fill="url(#sillBody)" filter="url(#trimGrain)"
+      />
+      {/* Bullnose top curve highlight */}
+      <path d="M-1.5,77.5 Q23,77 47.5,77.5" stroke="#8a8a3a" strokeWidth="0.4" fill="none" opacity="0.4" />
       {/* Sill bottom shadow */}
-      <rect x="-1" y="81" width="48" height="1" fill="#2c3a17" opacity="0.5" />
+      <path d="M-0.5,83 Q23,83.3 46.5,83" stroke="#2c3a17" strokeWidth="0.5" fill="none" opacity="0.5" />
 
-      {/* ── INNER OPENING — dark recess behind door ── */}
-      <rect x="4.5" y="6" width="37" height="71" fill="#141e08" />
+      {/* ── INNER OPENING — arched top matching head casing ── */}
+      <path
+        d="M4.5,7 Q23,5.8 41.5,7 L41.5,77.5 L4.5,77.5 Z"
+        fill="#141e08"
+      />
     </svg>
   );
 }
@@ -128,13 +167,13 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
   const id = isBlue ? "b" : "g";
   const seed = isBlue ? 2 : 7;
 
-  // Door body colors — pushed saturated and brighter
+  // Door body colors — vivid and saturated
   const bodyDark = isBlue ? "#005878" : "#2a7a2e";
   const bodyMid = isBlue ? "#006e98" : "#3a9838";
   const bodyLight = isBlue ? "#0080a8" : "#48a842";
-  const bodyEdge = isBlue ? "#004060" : "#1e6424";
+  const bodyEdge = isBlue ? "#004a6a" : "#207028";
 
-  // Panel recess colors (slightly darker than body)
+  // Panel recess colors
   const panelDark = isBlue ? "#004868" : "#1e6826";
   const panelMid = isBlue ? "#005e88" : "#2e8832";
   const panelLight = isBlue ? "#006a94" : "#38963a";
@@ -143,25 +182,21 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
   const bevelLight = isBlue ? "#18a0d8" : "#58c050";
   const bevelShadow = isBlue ? "#002840" : "#143818";
 
-  const kx = knobSide === "left" ? 7 : 27;
+  // Accent for carved details
+  const carveLight = isBlue ? "#40b8e0" : "#70d868";
+  const carveMid = isBlue ? "#0090c0" : "#40a840";
+
+  const kx = knobSide === "left" ? 7.5 : 26.5;
 
   return (
     <svg viewBox="0 0 34 68" className="w-full h-full block">
       <defs>
         <filter id={`${id}WoodGrain`}>
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.03 0.14"
-            numOctaves="3"
-            seed={seed}
-            result="grain"
-          />
+          <feTurbulence type="fractalNoise" baseFrequency="0.03 0.14" numOctaves="3" seed={seed} result="grain" />
           <feColorMatrix in="grain" type="saturate" values="0" result="bw" />
-          {/* Reduce noise intensity to ~20% so colors stay vivid */}
-          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.2" k3="0" k4="0" result="faint" />
+          <feComposite in="bw" in2="bw" operator="arithmetic" k1="0" k2="0.15" k3="0" k4="0" result="faint" />
           <feBlend in="SourceGraphic" in2="faint" mode="soft-light" />
         </filter>
-        {/* Door body gradient */}
         <linearGradient id={`${id}Body`} x1="0" y1="0" x2="0.2" y2="1">
           <stop offset="0%" stopColor={bodyDark} />
           <stop offset="25%" stopColor={bodyMid} />
@@ -169,7 +204,6 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
           <stop offset="75%" stopColor={bodyMid} />
           <stop offset="100%" stopColor={bodyDark} />
         </linearGradient>
-        {/* Panel recess gradient */}
         <linearGradient id={`${id}Panel`} x1="0" y1="0" x2="0.15" y2="1">
           <stop offset="0%" stopColor={panelDark} />
           <stop offset="40%" stopColor={panelMid} />
@@ -177,79 +211,111 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
         </linearGradient>
       </defs>
 
-      {/* ── DOOR SLAB — full body ── */}
-      <rect x="0" y="0" width="34" height="68" rx="0.5" fill={`url(#${id}Body)`} filter={`url(#${id}WoodGrain)`} />
+      {/* ── DOOR SLAB ── */}
+      <rect x="0" y="0" width="34" height="68" rx="0.8" fill={`url(#${id}Body)`} filter={`url(#${id}WoodGrain)`} />
 
-      {/* ── STILES (vertical side rails) — implied by the panel cutouts ── */}
-      {/* Left stile highlight */}
-      <rect x="0" y="0" width="0.8" height="68" fill={bevelLight} opacity="0.15" />
+      {/* Left stile rounded highlight */}
+      <path d="M0.8,0.8 L0.8,67.2" stroke={bevelLight} strokeWidth="0.6" fill="none" opacity="0.2" />
       {/* Right stile shadow */}
-      <rect x="33.2" y="0" width="0.8" height="68" fill={bevelShadow} opacity="0.25" />
+      <path d="M33.2,0.8 L33.2,67.2" stroke={bevelShadow} strokeWidth="0.6" fill="none" opacity="0.3" />
+      {/* Top highlight */}
+      <path d="M0.8,0.5 L33.2,0.5" stroke={bevelLight} strokeWidth="0.4" fill="none" opacity="0.15" />
 
-      {/* ── TOP RAIL — above first panel ── */}
-      <rect x="0" y="0" width="34" height="0.6" fill={bevelLight} opacity="0.12" />
-
-      {/* ═══ PANEL 1 — small top panel ═══ */}
-      {/* Panel recess */}
-      <rect x="5" y="3" width="24" height="13" rx="0.5" fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`} />
-      {/* Top bevel — light edge */}
-      <line x1="5" y1="3" x2="29" y2="3" stroke={bevelLight} strokeWidth="0.5" opacity="0.3" />
-      {/* Left bevel — light edge */}
-      <line x1="5" y1="3" x2="5" y2="16" stroke={bevelLight} strokeWidth="0.5" opacity="0.2" />
-      {/* Bottom bevel — shadow */}
-      <line x1="5" y1="16" x2="29" y2="16" stroke={bevelShadow} strokeWidth="0.6" opacity="0.4" />
-      {/* Right bevel — shadow */}
-      <line x1="29" y1="3" x2="29" y2="16" stroke={bevelShadow} strokeWidth="0.6" opacity="0.35" />
-
-      {/* ── MID RAIL — between panel 1 and 2 ── */}
-      <rect x="3.5" y="16" width="27" height="2.5" fill={bodyEdge} opacity="0.3" />
-      <line x1="3.5" y1="16" x2="30.5" y2="16" stroke={bevelLight} strokeWidth="0.3" opacity="0.2" />
-
-      {/* ═══ PANEL 2 — large center panel ═══ */}
-      <rect x="5" y="19" width="24" height="27" rx="0.5" fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`} />
-      {/* Top bevel */}
-      <line x1="5" y1="19" x2="29" y2="19" stroke={bevelLight} strokeWidth="0.5" opacity="0.3" />
-      {/* Left bevel */}
-      <line x1="5" y1="19" x2="5" y2="46" stroke={bevelLight} strokeWidth="0.5" opacity="0.2" />
+      {/* ═══ PANEL 1 — arched top panel ═══ */}
+      <path
+        d="M5.5,5 Q17,2.5 28.5,5 L28.5,15.5 Q17,16.5 5.5,15.5 Z"
+        fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`}
+      />
+      {/* Arch top bevel — light */}
+      <path d="M5.5,5 Q17,2.5 28.5,5" stroke={bevelLight} strokeWidth="0.5" fill="none" opacity="0.35" />
+      {/* Sides */}
+      <line x1="5.5" y1="5" x2="5.5" y2="15.5" stroke={bevelLight} strokeWidth="0.4" opacity="0.2" />
+      <line x1="28.5" y1="5" x2="28.5" y2="15.5" stroke={bevelShadow} strokeWidth="0.5" opacity="0.35" />
       {/* Bottom bevel */}
-      <line x1="5" y1="46" x2="29" y2="46" stroke={bevelShadow} strokeWidth="0.6" opacity="0.4" />
-      {/* Right bevel */}
-      <line x1="29" y1="19" x2="29" y2="46" stroke={bevelShadow} strokeWidth="0.6" opacity="0.35" />
+      <path d="M5.5,15.5 Q17,16.5 28.5,15.5" stroke={bevelShadow} strokeWidth="0.5" fill="none" opacity="0.35" />
+      {/* Carved fan / sunburst detail inside arched panel */}
+      <path d="M17,4 L12,12" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.12" />
+      <path d="M17,4 L17,13" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.15" />
+      <path d="M17,4 L22,12" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.12" />
+      <path d="M17,4 L9,10" stroke={carveLight} strokeWidth="0.15" fill="none" opacity="0.08" />
+      <path d="M17,4 L25,10" stroke={carveLight} strokeWidth="0.15" fill="none" opacity="0.08" />
+      {/* Small carved arc at top of sunburst */}
+      <path d="M12,10 Q17,7 22,10" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.12" />
 
-      {/* ── LOCK RAIL — between panel 2 and 3 (where knob sits) ── */}
-      <rect x="3.5" y="46" width="27" height="2.5" fill={bodyEdge} opacity="0.3" />
-      <line x1="3.5" y1="46" x2="30.5" y2="46" stroke={bevelLight} strokeWidth="0.3" opacity="0.2" />
+      {/* ── UPPER RAIL with routed bead detail ── */}
+      <rect x="3.5" y="16" width="27" height="2.5" fill={bodyEdge} opacity="0.35" />
+      <path d="M5,17.2 Q17,16.8 29,17.2" stroke={carveMid} strokeWidth="0.25" fill="none" opacity="0.2" />
 
-      {/* ═══ PANEL 3 — small bottom panel ═══ */}
-      <rect x="5" y="49" width="24" height="14" rx="0.5" fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`} />
-      {/* Top bevel */}
-      <line x1="5" y1="49" x2="29" y2="49" stroke={bevelLight} strokeWidth="0.5" opacity="0.3" />
-      {/* Left bevel */}
-      <line x1="5" y1="49" x2="5" y2="63" stroke={bevelLight} strokeWidth="0.5" opacity="0.2" />
-      {/* Bottom bevel */}
-      <line x1="5" y1="63" x2="29" y2="63" stroke={bevelShadow} strokeWidth="0.6" opacity="0.4" />
-      {/* Right bevel */}
-      <line x1="29" y1="49" x2="29" y2="63" stroke={bevelShadow} strokeWidth="0.6" opacity="0.35" />
+      {/* ═══ PANEL 2 — large center panel with cathedral arch ═══ */}
+      <path
+        d="M5.5,19.5 Q17,18 28.5,19.5 L28.5,44 Q17,45 5.5,44 Z"
+        fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`}
+      />
+      {/* Top arch */}
+      <path d="M5.5,19.5 Q17,18 28.5,19.5" stroke={bevelLight} strokeWidth="0.5" fill="none" opacity="0.3" />
+      <line x1="5.5" y1="19.5" x2="5.5" y2="44" stroke={bevelLight} strokeWidth="0.4" opacity="0.2" />
+      <line x1="28.5" y1="19.5" x2="28.5" y2="44" stroke={bevelShadow} strokeWidth="0.5" opacity="0.35" />
+      <path d="M5.5,44 Q17,45 28.5,44" stroke={bevelShadow} strokeWidth="0.5" fill="none" opacity="0.35" />
+      {/* Carved diamond / lozenge inlay in center panel */}
+      <path
+        d="M17,24 L22,31.5 L17,39 L12,31.5 Z"
+        fill="none" stroke={carveLight} strokeWidth="0.3" opacity="0.15"
+      />
+      {/* Inner diamond */}
+      <path
+        d="M17,26 L20,31.5 L17,37 L14,31.5 Z"
+        fill="none" stroke={carveLight} strokeWidth="0.2" opacity="0.1"
+      />
+      {/* Small carved circles at diamond tips */}
+      <circle cx="17" cy="24" r="0.6" fill="none" stroke={carveMid} strokeWidth="0.2" opacity="0.15" />
+      <circle cx="17" cy="39" r="0.6" fill="none" stroke={carveMid} strokeWidth="0.2" opacity="0.15" />
+      <circle cx="12" cy="31.5" r="0.6" fill="none" stroke={carveMid} strokeWidth="0.2" opacity="0.15" />
+      <circle cx="22" cy="31.5" r="0.6" fill="none" stroke={carveMid} strokeWidth="0.2" opacity="0.15" />
 
-      {/* ── BOTTOM RAIL ── */}
-      <rect x="0" y="65" width="34" height="3" fill={bodyEdge} opacity="0.25" />
-      <line x1="0" y1="67.5" x2="34" y2="67.5" stroke={bevelShadow} strokeWidth="0.5" opacity="0.3" />
+      {/* ── LOCK RAIL with bead ── */}
+      <rect x="3.5" y="44.5" width="27" height="2.5" fill={bodyEdge} opacity="0.35" />
+      <path d="M5,45.7 Q17,45.3 29,45.7" stroke={carveMid} strokeWidth="0.25" fill="none" opacity="0.2" />
 
-      {/* ── KNOB — craftsman round knob with backplate ── */}
-      {/* Square backplate */}
-      <rect x={kx - 2.5} y={44 - 2.5} width="5" height="5" rx="0.5" fill="#8a7020" />
-      <rect x={kx - 2.5} y={44 - 2.5} width="5" height="5" rx="0.5" fill="#705818" opacity="0.4" />
-      {/* Backplate bevel */}
-      <line x1={kx - 2.5} y1={44 - 2.5} x2={kx + 2.5} y2={44 - 2.5} stroke="#b09828" strokeWidth="0.3" opacity="0.5" />
-      <line x1={kx - 2.5} y1={44 - 2.5} x2={kx - 2.5} y2={44 + 2.5} stroke="#b09828" strokeWidth="0.3" opacity="0.4" />
+      {/* ═══ PANEL 3 — bottom panel with gentle arch ═══ */}
+      <path
+        d="M5.5,48 L28.5,48 L28.5,61 Q17,62.5 5.5,61 Z"
+        fill={`url(#${id}Panel)`} filter={`url(#${id}WoodGrain)`}
+      />
+      <line x1="5.5" y1="48" x2="28.5" y2="48" stroke={bevelLight} strokeWidth="0.4" opacity="0.3" />
+      <line x1="5.5" y1="48" x2="5.5" y2="61" stroke={bevelLight} strokeWidth="0.4" opacity="0.2" />
+      <line x1="28.5" y1="48" x2="28.5" y2="61" stroke={bevelShadow} strokeWidth="0.5" opacity="0.35" />
+      <path d="M5.5,61 Q17,62.5 28.5,61" stroke={bevelShadow} strokeWidth="0.5" fill="none" opacity="0.35" />
+      {/* Carved quatrefoil / small rosette */}
+      <circle cx="17" cy="54.5" r="2.5" fill="none" stroke={carveLight} strokeWidth="0.25" opacity="0.13" />
+      <path d="M17,52 Q18.5,54.5 17,57" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.1" />
+      <path d="M17,52 Q15.5,54.5 17,57" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.1" />
+      <path d="M14.5,54.5 Q17,53 19.5,54.5" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.1" />
+      <path d="M14.5,54.5 Q17,56 19.5,54.5" stroke={carveLight} strokeWidth="0.2" fill="none" opacity="0.1" />
+
+      {/* ── BOTTOM RAIL — with ogee profile ── */}
+      <path
+        d="M0,64 L34,64 L34,67.5 Q34,68 33.2,68 L0.8,68 Q0,68 0,67.5 Z"
+        fill={bodyEdge} opacity="0.35"
+      />
+      <path d="M0,64 L34,64" stroke={bevelLight} strokeWidth="0.3" fill="none" opacity="0.15" />
+      <path d="M1,67.6 Q17,68 33,67.6" stroke={bevelShadow} strokeWidth="0.4" fill="none" opacity="0.25" />
+
+      {/* ── HARDWARE — ornate oval backplate + round knob ── */}
+      {/* Oval escutcheon plate */}
+      <ellipse cx={kx} cy={45} rx="2.2" ry="4" fill="#8a7020" />
+      <ellipse cx={kx} cy={45} rx="2.2" ry="4" fill="#6a5818" opacity="0.3" />
+      {/* Escutcheon bevel */}
+      <ellipse cx={kx} cy={45} rx="2.2" ry="4" fill="none" stroke="#b09828" strokeWidth="0.25" opacity="0.45" />
+      {/* Decorative scrollwork on plate */}
+      <path d={`M${kx - 1.2},42 Q${kx},41.5 ${kx + 1.2},42`} stroke="#c8a838" strokeWidth="0.2" fill="none" opacity="0.35" />
+      <path d={`M${kx - 1.2},48 Q${kx},48.5 ${kx + 1.2},48`} stroke="#c8a838" strokeWidth="0.2" fill="none" opacity="0.35" />
       {/* Round knob */}
-      <circle cx={kx} cy={44} r="1.8" fill="#b09828" />
-      <circle cx={kx} cy={44} r="1.2" fill="#c8a838" />
-      <circle cx={kx - 0.3} cy={43.5} r="0.45" fill="#e0c850" opacity="0.6" />
-
-      {/* ── Keyhole below knob ── */}
-      <ellipse cx={kx} cy={47.5} rx="0.5" ry="0.7" fill="#1a1208" />
-      <rect x={kx - 0.25} y={47.8} width="0.5" height="0.8" fill="#1a1208" />
+      <circle cx={kx} cy={44} r="1.6" fill="#b09828" />
+      <circle cx={kx} cy={44} r="1.1" fill="#c8a838" />
+      <circle cx={kx - 0.25} cy={43.6} r="0.4" fill="#e0c850" opacity="0.55" />
+      {/* Keyhole */}
+      <ellipse cx={kx} cy={47} rx="0.45" ry="0.6" fill="#1a1208" />
+      <rect x={kx - 0.2} y={47.3} width="0.4" height="0.7" fill="#1a1208" />
     </svg>
   );
 }
