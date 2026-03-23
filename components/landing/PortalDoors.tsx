@@ -41,28 +41,28 @@ function CraftsmanTrimSVG() {
           <feComposite in="broadBW" in2="broadBW" operator="arithmetic" k1="0" k2="0.08" k3="0" k4="0" result="broadFaint" />
           <feBlend in="grained" in2="broadFaint" mode="multiply" />
         </filter>
-        {/* Trim body */}
+        {/* Trim body — warm bark brown-gold sampled from trunk in painting */}
         <linearGradient id="trimBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6e7838" />
-          <stop offset="30%" stopColor="#656e2c" />
-          <stop offset="70%" stopColor="#5a6428" />
-          <stop offset="100%" stopColor="#4e5820" />
+          <stop offset="0%" stopColor="#8a7a38" />
+          <stop offset="30%" stopColor="#7a6e2e" />
+          <stop offset="70%" stopColor="#6e6428" />
+          <stop offset="100%" stopColor="#5e5420" />
         </linearGradient>
         <linearGradient id="trimBodyH" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#6e7838" />
-          <stop offset="50%" stopColor="#7a8440" />
-          <stop offset="100%" stopColor="#6e7838" />
+          <stop offset="0%" stopColor="#8a7a38" />
+          <stop offset="50%" stopColor="#9a8a44" />
+          <stop offset="100%" stopColor="#8a7a38" />
         </linearGradient>
-        {/* Sill — warm golden */}
+        {/* Sill — warm golden amber */}
         <linearGradient id="sillBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7a7218" />
-          <stop offset="50%" stopColor="#7c7b30" />
-          <stop offset="100%" stopColor="#656e2c" />
+          <stop offset="0%" stopColor="#9a8828" />
+          <stop offset="50%" stopColor="#8e8438" />
+          <stop offset="100%" stopColor="#7a7028" />
         </linearGradient>
-        {/* Decorative inlay — lighter accent */}
+        {/* Decorative inlay — lighter golden accent */}
         <linearGradient id="inlayFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#8a8a3a" />
-          <stop offset="100%" stopColor="#6e7838" />
+          <stop offset="0%" stopColor="#a89840" />
+          <stop offset="100%" stopColor="#8a7a38" />
         </linearGradient>
       </defs>
 
@@ -73,18 +73,18 @@ function CraftsmanTrimSVG() {
         fill="url(#trimBodyH)" filter="url(#trimGrain)"
       />
       {/* Crown top highlight */}
-      <path d="M1,0.3 Q23,-0.3 45,0.3" stroke="#8a8a3a" strokeWidth="0.5" fill="none" opacity="0.5" />
+      <path d="M1,0.3 Q23,-0.3 45,0.3" stroke="#a89840" strokeWidth="0.5" fill="none" opacity="0.5" />
       {/* Main head casing with gentle arch on underside */}
       <path
         d="M0,3 L0,7 Q23,5.5 46,7 L46,3 Q23,1.5 0,3 Z"
         fill="url(#trimBodyH)" filter="url(#trimGrain)"
       />
       {/* Arch underside shadow */}
-      <path d="M4,6.8 Q23,5.5 42,6.8" stroke="#2c3a17" strokeWidth="0.6" fill="none" opacity="0.5" />
+      <path d="M4,6.8 Q23,5.5 42,6.8" stroke="#4a3e18" strokeWidth="0.6" fill="none" opacity="0.5" />
       {/* Decorative keystone at center of arch */}
       <path
         d="M20,4 L20,7 Q23,6 26,7 L26,4 Q23,3 20,4 Z"
-        fill="#7a8440" opacity="0.4"
+        fill="#9a8a44" opacity="0.4"
       />
 
       {/* ── CORBELS / BRACKETS — where head meets legs ── */}
@@ -93,43 +93,43 @@ function CraftsmanTrimSVG() {
         d="M0.5,7 L4.5,7 L4.5,12 Q4.5,8 0.5,7.5 Z"
         fill="url(#trimBody)" filter="url(#trimGrain)"
       />
-      <path d="M4.5,7 L4.5,11.5 Q4.2,8.5 1.5,7.3" stroke="#8a8a3a" strokeWidth="0.3" fill="none" opacity="0.35" />
+      <path d="M4.5,7 L4.5,11.5 Q4.2,8.5 1.5,7.3" stroke="#a89840" strokeWidth="0.3" fill="none" opacity="0.35" />
       {/* Right corbel */}
       <path
         d="M45.5,7 L41.5,7 L41.5,12 Q41.5,8 45.5,7.5 Z"
         fill="url(#trimBody)" filter="url(#trimGrain)"
       />
-      <path d="M41.5,7 L41.5,11.5 Q41.8,8.5 44.5,7.3" stroke="#8a8a3a" strokeWidth="0.3" fill="none" opacity="0.35" />
+      <path d="M41.5,7 L41.5,11.5 Q41.8,8.5 44.5,7.3" stroke="#a89840" strokeWidth="0.3" fill="none" opacity="0.35" />
 
       {/* ── LEFT JAMB — with beveled ogee profile ── */}
       <rect x="0" y="7" width="4.5" height="70.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
       {/* Outer round-over bevel */}
-      <path d="M0,7 Q0.8,7 0.8,7.5 L0.8,77 Q0.8,77.5 0,77.5" fill="#7a8440" opacity="0.25" />
+      <path d="M0,7 Q0.8,7 0.8,7.5 L0.8,77 Q0.8,77.5 0,77.5" fill="#9a8a44" opacity="0.25" />
       {/* Inner ogee curve — concave then convex profile */}
-      <path d="M4.5,7.5 Q3.5,7.5 3.2,8 L3.2,77 Q3.5,77.5 4.5,77.5" fill="#2c3a17" opacity="0.35" />
+      <path d="M4.5,7.5 Q3.5,7.5 3.2,8 L3.2,77 Q3.5,77.5 4.5,77.5" fill="#4a3e18" opacity="0.35" />
       {/* Decorative routed channel in leg */}
-      <path d="M1.8,14 L1.8,72" stroke="#5a6428" strokeWidth="0.8" fill="none" opacity="0.25" />
+      <path d="M1.8,14 L1.8,72" stroke="#7a6e30" strokeWidth="0.8" fill="none" opacity="0.25" />
       <path d="M1.8,14 L1.8,72" stroke="#7a8440" strokeWidth="0.3" fill="none" opacity="0.2" />
 
       {/* ── RIGHT JAMB — mirrored ── */}
       <rect x="41.5" y="7" width="4.5" height="70.5" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      <path d="M46,7 Q45.2,7 45.2,7.5 L45.2,77 Q45.2,77.5 46,77.5" fill="#7a8440" opacity="0.25" />
-      <path d="M41.5,7.5 Q42.5,7.5 42.8,8 L42.8,77 Q42.5,77.5 41.5,77.5" fill="#2c3a17" opacity="0.35" />
-      <path d="M44.2,14 L44.2,72" stroke="#5a6428" strokeWidth="0.8" fill="none" opacity="0.25" />
+      <path d="M46,7 Q45.2,7 45.2,7.5 L45.2,77 Q45.2,77.5 46,77.5" fill="#9a8a44" opacity="0.25" />
+      <path d="M41.5,7.5 Q42.5,7.5 42.8,8 L42.8,77 Q42.5,77.5 41.5,77.5" fill="#4a3e18" opacity="0.35" />
+      <path d="M44.2,14 L44.2,72" stroke="#7a6e30" strokeWidth="0.8" fill="none" opacity="0.25" />
       <path d="M44.2,14 L44.2,72" stroke="#7a8440" strokeWidth="0.3" fill="none" opacity="0.2" />
 
       {/* ── PLINTH BLOCKS — decorative base blocks where legs meet sill ── */}
       {/* Left plinth */}
       <rect x="-0.5" y="74" width="5.5" height="3.5" rx="0.3" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      <path d="M-0.5,74 L5,74" stroke="#8a8a3a" strokeWidth="0.3" opacity="0.4" />
+      <path d="M-0.5,74 L5,74" stroke="#a89840" strokeWidth="0.3" opacity="0.4" />
       {/* Carved rosette in plinth */}
       <circle cx="2.25" cy="75.8" r="1" fill="none" stroke="#7a8440" strokeWidth="0.3" opacity="0.35" />
-      <circle cx="2.25" cy="75.8" r="0.4" fill="#7a8440" opacity="0.2" />
+      <circle cx="2.25" cy="75.8" r="0.4" fill="#9a8a44" opacity="0.2" />
       {/* Right plinth */}
       <rect x="41" y="74" width="5.5" height="3.5" rx="0.3" fill="url(#trimBody)" filter="url(#trimGrain)" />
-      <path d="M41,74 L46.5,74" stroke="#8a8a3a" strokeWidth="0.3" opacity="0.4" />
+      <path d="M41,74 L46.5,74" stroke="#a89840" strokeWidth="0.3" opacity="0.4" />
       <circle cx="43.75" cy="75.8" r="1" fill="none" stroke="#7a8440" strokeWidth="0.3" opacity="0.35" />
-      <circle cx="43.75" cy="75.8" r="0.4" fill="#7a8440" opacity="0.2" />
+      <circle cx="43.75" cy="75.8" r="0.4" fill="#9a8a44" opacity="0.2" />
 
       {/* ── SILL — with bullnose front edge ── */}
       <path
@@ -137,14 +137,14 @@ function CraftsmanTrimSVG() {
         fill="url(#sillBody)" filter="url(#trimGrain)"
       />
       {/* Bullnose top curve highlight */}
-      <path d="M-1.5,77.5 Q23,77 47.5,77.5" stroke="#8a8a3a" strokeWidth="0.4" fill="none" opacity="0.4" />
+      <path d="M-1.5,77.5 Q23,77 47.5,77.5" stroke="#a89840" strokeWidth="0.4" fill="none" opacity="0.4" />
       {/* Sill bottom shadow */}
-      <path d="M-0.5,83 Q23,83.3 46.5,83" stroke="#2c3a17" strokeWidth="0.5" fill="none" opacity="0.5" />
+      <path d="M-0.5,83 Q23,83.3 46.5,83" stroke="#4a3e18" strokeWidth="0.5" fill="none" opacity="0.5" />
 
       {/* ── INNER OPENING — arched top matching head casing ── */}
       <path
         d="M4.5,7 Q23,5.8 41.5,7 L41.5,77.5 L4.5,77.5 Z"
-        fill="#141e08"
+        fill="#1a1808"
       />
     </svg>
   );
@@ -375,8 +375,12 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Craftsman door trim — multiply blend lets trunk bark texture show through */}
-      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply", filter: "blur(0.3px) url(#paintWarp)" }}>
+      {/* Craftsman door trim — soft-light lets bark texture influence while preserving trim color */}
+      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "soft-light", opacity: 0.92, filter: "blur(0.3px) url(#paintWarp)" }}>
+        <CraftsmanTrimSVG />
+      </div>
+      {/* Second trim pass at low opacity normal blend — ensures trim color reads clearly */}
+      <div className="absolute pointer-events-none" style={{ inset: "-12%", zIndex: 0, opacity: 0.55, filter: "blur(0.4px) url(#paintWarp)" }}>
         <CraftsmanTrimSVG />
       </div>
 
@@ -620,9 +624,9 @@ function Door({ side, onClick }: DoorProps) {
                   <feBlend in="SourceGraphic" mode="soft-light" />
                 </filter>
                 <linearGradient id={`plBody${side}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#495119" />
-                  <stop offset="40%" stopColor="#3e4c19" />
-                  <stop offset="100%" stopColor="#304011" />
+                  <stop offset="0%" stopColor="#6a5e24" />
+                  <stop offset="40%" stopColor="#5a4e20" />
+                  <stop offset="100%" stopColor="#4a4018" />
                 </linearGradient>
               </defs>
               {/* Plank shape — slightly organic edges */}
@@ -630,7 +634,7 @@ function Door({ side, onClick }: DoorProps) {
                 d="M4,1.5 C2.5,1.5 1.5,2.5 1.5,3.5 L1.5,10.5 C1.5,11.5 2.5,12.5 4,12.5 L56,12.5 C57.5,12.5 58.5,11.5 58.5,10.5 L58.5,3.5 C58.5,2.5 57.5,1.5 56,1.5 Z"
                 fill={`url(#plBody${side})`}
                 filter={`url(#plGrain${side})`}
-                stroke="#2c3a17"
+                stroke="#4a3e18"
                 strokeWidth="0.5"
               />
               {/* Carved text */}
@@ -648,10 +652,10 @@ function Door({ side, onClick }: DoorProps) {
                 {isEmployer ? "Employer" : "Worker"}
               </text>
               {/* Nail holes */}
-              <circle cx="6" cy="7" r="0.8" fill="#1e2e02" />
-              <circle cx="6" cy="7" r="0.4" fill="#3e4c19" />
-              <circle cx="54" cy="7" r="0.8" fill="#1e2e02" />
-              <circle cx="54" cy="7" r="0.4" fill="#3e4c19" />
+              <circle cx="6" cy="7" r="0.8" fill="#2e2808" />
+              <circle cx="6" cy="7" r="0.4" fill="#5a4e20" />
+              <circle cx="54" cy="7" r="0.8" fill="#2e2808" />
+              <circle cx="54" cy="7" r="0.4" fill="#5a4e20" />
             </svg>
           </motion.div>
         )}
@@ -686,7 +690,7 @@ function DoorBlackout({ side }: { side: "employer" | "worker" }) {
         top: "32.05vw",
         width: "4.59%",
         height: "8.24vw",
-        background: "radial-gradient(ellipse at 50% 40%, rgb(18,22,10), rgb(12,16,6) 60%, rgb(14,18,8) 100%)",
+        background: "radial-gradient(ellipse at 50% 40%, rgb(22,20,10), rgb(16,14,6) 60%, rgb(18,16,8) 100%)",
         filter: "url(#barkTexture)",
         zIndex: 19,
       }}
