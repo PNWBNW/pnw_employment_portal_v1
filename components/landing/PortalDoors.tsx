@@ -365,8 +365,8 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Craftsman door trim */}
-      <div className="absolute" style={{ inset: "-12%", zIndex: 0 }}>
+      {/* Craftsman door trim — multiply blend lets trunk bark show through */}
+      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply" }}>
         <CraftsmanTrimSVG />
       </div>
 
@@ -431,12 +431,22 @@ function Door({ side, onClick }: DoorProps) {
         {/* Front face — painted wooden door */}
         <div
           className="absolute inset-0 rounded-t-[1px] overflow-hidden"
-          style={{ backfaceVisibility: "hidden" }}
+          style={{ backfaceVisibility: "hidden", filter: "url(#paintWarp)" }}
         >
           {isEmployer
             ? <CraftsmanDoorSVG color="blue" knobSide="left" />
             : <CraftsmanDoorSVG color="green" knobSide="right" />
           }
+          {/* Canvas/paint texture overlay — unifies with hero's painted look */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23808080' opacity='0.03'/%3E%3Crect x='0' y='0' width='2' height='2' fill='%23606060' opacity='0.04'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23a0a0a0' opacity='0.03'/%3E%3C/svg%3E")`,
+              backgroundSize: "3px 3px",
+              mixBlendMode: "overlay",
+              opacity: 0.35,
+            }}
+          />
         </div>
         {/* Back face — dark wood interior */}
         <div
@@ -468,29 +478,33 @@ function Door({ side, onClick }: DoorProps) {
         transition={{ duration: 0.5 }}
       />
 
-      {/* Painterly glow halo */}
+      {/* Painterly glow — radial gradient instead of box-shadow for organic light feel */}
       <motion.div
-        className="absolute pointer-events-none rounded-t-lg"
-        style={{ inset: "-10px", zIndex: -1 }}
+        className="absolute pointer-events-none"
+        style={{
+          inset: "-18px",
+          zIndex: -1,
+          background: `radial-gradient(ellipse at center, ${glowColor}25, ${glowColor}0a 50%, transparent 75%)`,
+          mixBlendMode: "screen",
+          borderRadius: "8px",
+        }}
         animate={{
-          boxShadow: hovered
-            ? `0 0 20px ${glowColor}40, 0 0 45px ${glowColor}20, 0 0 80px ${glowColor}0a, inset 0 0 15px ${glowColor}10`
-            : introPlaying
-              ? "none"
-              : `0 0 6px ${accentColor}15, 0 0 20px ${accentColor}08`,
+          opacity: hovered ? 0.7 : introPlaying ? 0 : 0.15,
         }}
         transition={{ duration: 0.5 }}
       />
 
-      {/* Idle breathing glow */}
+      {/* Idle breathing glow — soft radial pulse, no hard borders */}
       {!hovered && !introPlaying && (
         <motion.div
-          className="absolute pointer-events-none rounded-[2px]"
+          className="absolute pointer-events-none"
           style={{
-            inset: "-2px",
-            border: `1px solid ${accentColor}`,
+            inset: "-8px",
+            background: `radial-gradient(ellipse at center, ${accentColor}20, transparent 70%)`,
+            mixBlendMode: "screen",
+            borderRadius: "6px",
           }}
-          animate={{ opacity: [0, 0.4, 0] }}
+          animate={{ opacity: [0, 0.5, 0] }}
           transition={{
             duration: 2.5,
             repeat: Infinity,
@@ -625,6 +639,7 @@ function Door({ side, onClick }: DoorProps) {
 function DoorBlackout({ side }: { side: "employer" | "worker" }) {
   const isEmployer = side === "employer";
   // Slightly larger than the door to cover the frame area
+  // Uses bark-textured gradient instead of flat solid to blend with trunk
   return (
     <div
       className="absolute pointer-events-none"
@@ -633,7 +648,8 @@ function DoorBlackout({ side }: { side: "employer" | "worker" }) {
         top: "32.05vw",
         width: "4.59%",
         height: "8.24vw",
-        backgroundColor: "rgb(14,18,8)",
+        background: "radial-gradient(ellipse at 50% 40%, rgb(18,22,10), rgb(12,16,6) 60%, rgb(14,18,8) 100%)",
+        filter: "url(#barkTexture)",
         zIndex: 19,
       }}
     />
@@ -663,6 +679,24 @@ export function PortalDoors({
 }: PortalDoorsProps) {
   return (
     <>
+      {/* Shared SVG filters for painterly effects */}
+      <svg className="absolute w-0 h-0" aria-hidden="true">
+        <defs>
+          {/* Subtle edge displacement — breaks mathematical precision */}
+          <filter id="paintWarp">
+            <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="4" seed="5" result="warp" />
+            <feDisplacementMap in="SourceGraphic" in2="warp" scale="1.2" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          {/* Bark-like texture for blackout patches */}
+          <filter id="barkTexture" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.06 0.12" numOctaves="5" seed="42" result="bark" />
+            <feColorMatrix in="bark" type="saturate" values="0" result="barkBW" />
+            <feComposite in="barkBW" in2="barkBW" operator="arithmetic" k1="0" k2="0.08" k3="0" k4="0" result="faintBark" />
+            <feBlend in="SourceGraphic" in2="faintBark" mode="soft-light" />
+          </filter>
+        </defs>
+      </svg>
+
       {/* Blackout patches — fully erase the painted doors from the image */}
       <DoorBlackout side="employer" />
       <DoorBlackout side="worker" />
@@ -676,6 +710,7 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
+          filter: "blur(0.3px) contrast(1.05) saturate(0.92)",
         }}
       >
         <Door side="employer" onClick={onEmployerClick} />
@@ -690,6 +725,7 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
+          filter: "blur(0.3px) contrast(1.05) saturate(0.92)",
         }}
       >
         <Door side="worker" onClick={onWorkerClick} />
