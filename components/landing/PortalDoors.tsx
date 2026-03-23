@@ -222,14 +222,14 @@ function CraftsmanDoorSVG({ color, knobSide }: CraftsmanDoorProps) {
       </defs>
 
       {/* ── DOOR SLAB ── */}
-      <rect x="0" y="0" width="34" height="68" rx="1.2" fill={`url(#${id}Body)`} filter={`url(#${id}WoodGrain)`} />
+      <rect x="0" y="0" width="34" height="68" rx="0.8" fill={`url(#${id}Body)`} filter={`url(#${id}WoodGrain)`} />
 
-      {/* Left stile rounded highlight — softened for painterly feel */}
-      <path d="M0.8,0.8 L0.8,67.2" stroke={bevelLight} strokeWidth="0.8" fill="none" opacity="0.12" />
+      {/* Left stile rounded highlight */}
+      <path d="M0.8,0.8 L0.8,67.2" stroke={bevelLight} strokeWidth="0.6" fill="none" opacity="0.2" />
       {/* Right stile shadow */}
-      <path d="M33.2,0.8 L33.2,67.2" stroke={bevelShadow} strokeWidth="0.8" fill="none" opacity="0.18" />
+      <path d="M33.2,0.8 L33.2,67.2" stroke={bevelShadow} strokeWidth="0.6" fill="none" opacity="0.3" />
       {/* Top highlight */}
-      <path d="M0.8,0.5 L33.2,0.5" stroke={bevelLight} strokeWidth="0.5" fill="none" opacity="0.1" />
+      <path d="M0.8,0.5 L33.2,0.5" stroke={bevelLight} strokeWidth="0.4" fill="none" opacity="0.15" />
 
       {/* ═══ PANEL 1 — arched top panel ═══ */}
       <path
@@ -375,8 +375,8 @@ function Door({ side, onClick }: DoorProps) {
       }}
       whileTap={{ scale: 0.97 }}
     >
-      {/* Craftsman door trim — multiply blend + painterly filter lets it merge with bark */}
-      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply", filter: "url(#paintOverlay)" }}>
+      {/* Craftsman door trim — multiply blend lets trunk bark texture show through */}
+      <div className="absolute" style={{ inset: "-12%", zIndex: 0, mixBlendMode: "multiply" }}>
         <CraftsmanTrimSVG />
       </div>
 
@@ -438,40 +438,31 @@ function Door({ side, onClick }: DoorProps) {
               : { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
         }
       >
-        {/* Front face — painted wooden door with heavy painterly treatment */}
+        {/* Front face — painted wooden door */}
         <div
           className="absolute inset-0 rounded-t-[1px] overflow-hidden"
-          style={{ backfaceVisibility: "hidden", filter: "url(#paintWarp)" }}
+          style={{ backfaceVisibility: "hidden" }}
         >
           {isEmployer
             ? <CraftsmanDoorSVG color="blue" knobSide="left" />
             : <CraftsmanDoorSVG color="green" knobSide="right" />
           }
-          {/* Brush stroke texture — coarser than wood grain, simulates thick paint */}
+          {/* Paint texture overlay — uneven pigment simulation */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6'%3E%3Crect width='6' height='6' fill='%23808060' opacity='0.05'/%3E%3Crect x='0' y='0' width='3' height='2' fill='%23605040' opacity='0.06'/%3E%3Crect x='3' y='3' width='3' height='3' fill='%23a09060' opacity='0.04'/%3E%3Crect x='1' y='4' width='2' height='1' fill='%23706050' opacity='0.05'/%3E%3C/svg%3E")`,
-              backgroundSize: "4px 4px",
-              mixBlendMode: "overlay",
-              opacity: 0.55,
-            }}
-          />
-          {/* Painted vignette — dark soft edge bleed as if paint feathers at door boundaries */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              boxShadow: "inset 0 0 8px 3px rgba(10,14,4,0.45), inset 0 0 3px 1px rgba(10,14,4,0.3)",
-              mixBlendMode: "multiply",
-            }}
-          />
-          {/* Warm color wash — uneven pigment like real paint application */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: `radial-gradient(ellipse at 35% 30%, rgba(180,160,80,0.06), transparent 60%),
-                           radial-gradient(ellipse at 70% 70%, rgba(40,30,10,0.08), transparent 50%)`,
+              background: `radial-gradient(ellipse at 30% 25%, rgba(200,180,100,0.07), transparent 55%),
+                           radial-gradient(ellipse at 75% 65%, rgba(30,20,8,0.09), transparent 50%),
+                           radial-gradient(ellipse at 50% 90%, rgba(160,140,60,0.05), transparent 40%)`,
               mixBlendMode: "soft-light",
+            }}
+          />
+          {/* Soft inner vignette — paint feathering at edges */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              boxShadow: "inset 0 0 6px 2px rgba(10,14,4,0.35)",
+              mixBlendMode: "multiply",
             }}
           />
         </div>
@@ -706,30 +697,14 @@ export function PortalDoors({
 }: PortalDoorsProps) {
   return (
     <>
-      {/* Shared SVG filters for painterly effects */}
+      {/* Shared SVG filters — NO displacement, just texture + softening */}
       <svg className="absolute w-0 h-0" aria-hidden="true">
         <defs>
-          {/* Heavy edge displacement — warps geometry like paint on rough canvas */}
-          <filter id="paintWarp" x="-5%" y="-5%" width="110%" height="110%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.025 0.04" numOctaves="5" seed="5" result="warp" />
-            <feDisplacementMap in="SourceGraphic" in2="warp" scale="3" xChannelSelector="R" yChannelSelector="G" result="displaced" />
-            {/* Slight Gaussian softening after displacement to kill aliased edges */}
-            <feGaussianBlur in="displaced" stdDeviation="0.4" />
-          </filter>
-          {/* Painterly overlay — combines displacement + brush stroke texture + color bleed */}
-          <filter id="paintOverlay" x="-3%" y="-3%" width="106%" height="106%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.06 0.1" numOctaves="6" seed="13" result="brush" />
-            <feColorMatrix in="brush" type="saturate" values="0" result="brushBW" />
-            <feComposite in="brushBW" in2="brushBW" operator="arithmetic" k1="0" k2="0.18" k3="0" k4="0" result="brushFaint" />
-            <feBlend in="SourceGraphic" in2="brushFaint" mode="soft-light" result="textured" />
-            {/* Very slight blur to soften everything */}
-            <feGaussianBlur in="textured" stdDeviation="0.3" />
-          </filter>
           {/* Bark-like texture for blackout patches */}
           <filter id="barkTexture" x="0%" y="0%" width="100%" height="100%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.04 0.09" numOctaves="6" seed="42" result="bark" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.04 0.09" numOctaves="5" seed="42" result="bark" />
             <feColorMatrix in="bark" type="saturate" values="0" result="barkBW" />
-            <feComposite in="barkBW" in2="barkBW" operator="arithmetic" k1="0" k2="0.14" k3="0" k4="0" result="faintBark" />
+            <feComposite in="barkBW" in2="barkBW" operator="arithmetic" k1="0" k2="0.12" k3="0" k4="0" result="faintBark" />
             <feBlend in="SourceGraphic" in2="faintBark" mode="soft-light" />
           </filter>
         </defs>
@@ -748,7 +723,7 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
-          filter: "blur(0.5px) contrast(1.08) saturate(0.85)",
+          filter: "blur(0.35px) contrast(1.05) saturate(0.9)",
         }}
       >
         <Door side="employer" onClick={onEmployerClick} />
@@ -763,7 +738,7 @@ export function PortalDoors({
           width: "3.71%",
           height: "6.64vw",
           zIndex: 20,
-          filter: "blur(0.5px) contrast(1.08) saturate(0.85)",
+          filter: "blur(0.35px) contrast(1.05) saturate(0.9)",
         }}
       >
         <Door side="worker" onClick={onWorkerClick} />
