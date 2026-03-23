@@ -396,17 +396,15 @@ function Door({ side, onClick }: DoorProps) {
 
 function DoorBlackout({ side }: { side: "employer" | "worker" }) {
   const isEmployer = side === "employer";
-  // Full opaque blackout — must completely erase the painted doors
-  // so the SVG doors are the ONLY doors visible on the image.
-  // Sized larger than the SVG doors to guarantee full coverage.
+  // Exactly the same size/position as the SVG door so it sits invisibly behind it
   return (
     <div
       className="absolute pointer-events-none"
       style={{
-        left: isEmployer ? "44.8%" : "50.7%",
-        top: "31.0vw",
-        width: "5.6%",
-        height: "9.0vw",
+        left: isEmployer ? "46.09%" : "51.95%",
+        top: "32.61vw",
+        width: "3.71%",
+        height: "6.64vw",
         backgroundColor: "rgb(14,18,8)",
         zIndex: 19,
       }}
