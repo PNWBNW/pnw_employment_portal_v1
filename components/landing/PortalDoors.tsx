@@ -168,8 +168,8 @@ function Door({ side, onClick }: DoorProps) {
       onMouseLeave={() => setHovered(false)}
       className="relative cursor-pointer block"
       style={{
-        width: "clamp(24px, 3.3vw, 48px)",
-        height: "clamp(38px, 4.7vw, 72px)",
+        width: "100%",
+        height: "100%",
         perspective: "900px",
       }}
       whileTap={{ scale: 0.97 }}
@@ -380,6 +380,32 @@ function Door({ side, onClick }: DoorProps) {
   );
 }
 
+/* ─── Blackout Patch ───
+ * Covers the original painted door in the hero image so the SVG door
+ * appears to BE the door, not a layer on top of it.
+ */
+function DoorBlackout({ side }: { side: "employer" | "worker" }) {
+  const isEmployer = side === "employer";
+  // Slightly larger than the door to fully cover the painted original
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        left: isEmployer ? "45.5%" : "51.0%",
+        top: "34.4vw",
+        width: "3.6%",
+        height: "5.8vw",
+        background: `radial-gradient(ellipse at center,
+          rgba(20,28,12,0.95) 30%,
+          rgba(20,28,12,0.85) 60%,
+          rgba(20,28,12,0.4) 85%,
+          transparent 100%)`,
+        zIndex: 19,
+      }}
+    />
+  );
+}
+
 /* ─── Container ─── */
 
 interface PortalDoorsProps {
@@ -387,47 +413,54 @@ interface PortalDoorsProps {
   onWorkerClick: () => void;
 }
 
+/**
+ * Pixel measurements from pnw-tree.png (1024×1536):
+ * Image displayed as w-full h-auto → 1px = (100/1024)vw = 0.09766vw
+ *
+ * Blue door:  left edge ~474px, top ~358px, width ~26px, height ~54px
+ * Green door: left edge ~530px, top ~358px, width ~26px, height ~54px
+ *
+ * As percentages of image width (since image is w-full):
+ *   left:   (px / 1024) * 100  → percentage of viewport width
+ *   top:    (px / 1024) * 100  → vw units (image aspect ratio preserved)
+ *   width:  (px / 1024) * 100  → percentage of viewport width
+ *   height: (px / 1024) * 100  → vw units
+ */
 export function PortalDoors({
   onEmployerClick,
   onWorkerClick,
 }: PortalDoorsProps) {
   return (
     <>
-      {/* Positioning measured from pnw-tree.png pixel analysis:
-          Image: 1024×1536 → displayed w-full h-auto → height = 150vw.
-          Blue door center:  x=48.0%, y=37.6vw (px 492, 385)
-          Green door center: x=53.5%, y=38.2vw (px 548, 391)
-          Combined center:   x=50.8%, y=37.9vw
-          Gap between doors: 3.13vw (32px) */}
-      <style jsx>{`
-        .portal-doors-container {
-          position: absolute;
-          z-index: 20;
-          display: flex;
-          left: 50.8%;
-          transform: translate(-50%, -50%);
-        }
-        @media (max-width: 639px) {
-          .portal-doors-container {
-            top: 37.9vw;
-            gap: 3vw;
-          }
-        }
-        @media (min-width: 640px) and (max-width: 1023px) {
-          .portal-doors-container {
-            top: 37.9vw;
-            gap: 3vw;
-          }
-        }
-        @media (min-width: 1024px) {
-          .portal-doors-container {
-            top: 37.9vw;
-            gap: 3vw;
-          }
-        }
-      `}</style>
-      <div className="portal-doors-container">
+      {/* Blackout patches to hide the painted doors in the image */}
+      <DoorBlackout side="employer" />
+      <DoorBlackout side="worker" />
+
+      {/* Blue (employer) door — positioned exactly over the left painted door */}
+      <div
+        className="absolute"
+        style={{
+          left: "46.29%",
+          top: "34.96vw",
+          width: "2.54%",
+          height: "5.27vw",
+          zIndex: 20,
+        }}
+      >
         <Door side="employer" onClick={onEmployerClick} />
+      </div>
+
+      {/* Green (worker) door — positioned exactly over the right painted door */}
+      <div
+        className="absolute"
+        style={{
+          left: "51.76%",
+          top: "34.96vw",
+          width: "2.54%",
+          height: "5.27vw",
+          zIndex: 20,
+        }}
+      >
         <Door side="worker" onClick={onWorkerClick} />
       </div>
     </>
