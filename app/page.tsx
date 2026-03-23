@@ -9,6 +9,7 @@ import { EnterKeysModal } from "@/components/key-manager/EnterKeysModal";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { CinematicSections } from "@/components/landing/CinematicSections";
 import { FooterCTA } from "@/components/landing/FooterCTA";
+import { RootNetworkSection } from "@/components/landing/RootNetworkSection";
 
 export default function LandingPage() {
   const { isConnected, connect: sessionConnect } = useAleoSession();
@@ -77,6 +78,8 @@ export default function LandingPage() {
         />
 
         <CinematicSections />
+
+        <RootNetworkSection />
 
         <FooterCTA
           onEmployerClick={() => handlePortalClick("employer")}
