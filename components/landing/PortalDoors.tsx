@@ -396,22 +396,18 @@ function Door({ side, onClick }: DoorProps) {
 
 function DoorBlackout({ side }: { side: "employer" | "worker" }) {
   const isEmployer = side === "employer";
+  // Full opaque blackout — must completely erase the painted doors
+  // so the SVG doors are the ONLY doors visible on the image.
+  // Sized larger than the SVG doors to guarantee full coverage.
   return (
     <div
       className="absolute pointer-events-none"
       style={{
-        // Blue blackout: px(466,334) → px(516,408)  |  Green: px(526,322) → px(576,408)
-        left: isEmployer ? "45.51%" : "51.37%",
-        top: isEmployer ? "32.62vw" : "31.45vw",
-        width: "4.88%",
-        height: isEmployer ? "7.23vw" : "8.40vw",
-        // Solid dark bark color matching the trunk, with soft feathered edge
-        background: `radial-gradient(ellipse at center,
-          rgb(18,24,10) 0%,
-          rgb(18,24,10) 55%,
-          rgba(18,24,10,0.92) 70%,
-          rgba(18,24,10,0.6) 85%,
-          transparent 100%)`,
+        left: isEmployer ? "44.8%" : "50.7%",
+        top: "31.0vw",
+        width: "5.6%",
+        height: "9.0vw",
+        backgroundColor: "rgb(14,18,8)",
         zIndex: 19,
       }}
     />
@@ -445,28 +441,28 @@ export function PortalDoors({
       <DoorBlackout side="employer" />
       <DoorBlackout side="worker" />
 
-      {/* Blue (employer) door */}
+      {/* Blue (employer) door — both doors are identical size */}
       <div
         className="absolute"
         style={{
           left: "46.09%",
-          top: "33.20vw",
+          top: "32.61vw",
           width: "3.71%",
-          height: "6.05vw",
+          height: "6.64vw",
           zIndex: 20,
         }}
       >
         <Door side="employer" onClick={onEmployerClick} />
       </div>
 
-      {/* Green (worker) door */}
+      {/* Green (worker) door — same size, bottom-aligned with employer */}
       <div
         className="absolute"
         style={{
           left: "51.95%",
-          top: "32.03vw",
+          top: "32.61vw",
           width: "3.71%",
-          height: "7.23vw",
+          height: "6.64vw",
           zIndex: 20,
         }}
       >
