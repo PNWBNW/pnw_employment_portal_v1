@@ -114,7 +114,7 @@ function ConfirmContent() {
           On-Chain Command Preview
         </h4>
         <pre className="overflow-x-auto rounded bg-black/50 p-3 text-xs text-green-400 font-mono whitespace-pre-wrap break-all">
-          {`snarkos developer execute pnw_router.aleo create_job_offer \\
+          {`snarkos developer execute pnw_router_v2.aleo create_job_offer \\
   "${computed.agreement_id}" \\
   "${computed.parties_key}" \\
   ${tracked.offer.employer_name_hash}field \\
