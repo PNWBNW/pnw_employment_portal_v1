@@ -152,8 +152,8 @@ export function AleoWalletProviderWrapper({
         "credits.aleo",
         "payroll_core.aleo",
         "payroll_nfts.aleo",
-        "credential_nfts.aleo",
-        "audit_authorization.aleo",
+        "credential_nft.aleo",
+        "audit_nft.aleo",
       ]}
       onError={(error) => console.error("[Wallet]", error.message)}
     >
