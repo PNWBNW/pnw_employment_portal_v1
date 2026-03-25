@@ -1,8 +1,8 @@
 // ============================================================
 // Program ID Registry
 // Mirrors pnw_mvp_v2/config/testnet.manifest.json
-// Synced from commit: pending-initial-sync
-// Synced on: 2026-03-15
+// Synced from commit: df41aff (pnw_mvp_v2 main)
+// Synced on: 2026-03-25
 // ============================================================
 
 export const PROGRAMS = {
