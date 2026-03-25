@@ -20,8 +20,8 @@ export type Layer2Transition =
 export const LAYER2_TRANSITIONS: Record<Layer2Transition, { program: string; transition: string }> = {
   mint_cycle_nft: { program: "payroll_nfts.aleo", transition: "mint_cycle_nft" },
   update_cycle_nft: { program: "payroll_nfts.aleo", transition: "update_cycle_nft" },
-  mint_credential_nft: { program: "credential_nfts.aleo", transition: "mint_credential_nft" },
-  revoke_credential_nft: { program: "credential_nfts.aleo", transition: "revoke_credential_nft" },
+  mint_credential_nft: { program: "credential_nft.aleo", transition: "mint_credential_nft" },
+  revoke_credential_nft: { program: "credential_nft.aleo", transition: "revoke_credential_nft" },
   mint_paystub_nft: { program: "payroll_nfts.aleo", transition: "mint_paystub_nft" },
-  authorize_audit: { program: "audit_authorization.aleo", transition: "authorize_audit" },
+  authorize_audit: { program: "audit_nft.aleo", transition: "mint_authorization_nft" },
 };

@@ -18,7 +18,7 @@ import type {
 import { CREDENTIAL_TYPE_LABELS } from "@/src/stores/credential_store";
 
 // ----------------------------------------------------------------
-// Credential type → numeric code (matches credential_nfts.aleo)
+// Credential type → numeric code (matches credential_nft.aleo)
 // ----------------------------------------------------------------
 
 const CREDENTIAL_TYPE_CODES: Record<CredentialType, number> = {
@@ -119,7 +119,7 @@ export async function issueCredential(
 
   // Build command preview (stub — actual execution via layer2_adapter once pnw_mvp_v2 is synced)
   const command_preview =
-    `snarkos developer execute credential_nfts.aleo mint_credential_nft ` +
+    `snarkos developer execute credential_nft.aleo mint_credential_nft ` +
     `"${credential_id}" "${input.worker_name_hash}" "${employerNameHash}" ` +
     `"${scope_hash}" "${doc_hash}" "${credential_type_code}u32"`;
 
@@ -156,7 +156,7 @@ export type RevokeCredentialResult = {
 
 export function buildRevokeCommand(credential: CredentialRecord): string {
   return (
-    `snarkos developer execute credential_nfts.aleo revoke_credential_nft ` +
+    `snarkos developer execute credential_nft.aleo revoke_credential_nft ` +
     `"${credential.credential_id}" "${credential.doc_hash}"`
   );
 }
