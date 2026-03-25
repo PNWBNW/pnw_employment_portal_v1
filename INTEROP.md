@@ -76,9 +76,9 @@ export const PROGRAMS = {
     employer_agreement_v2:    "employer_agreement_v2.aleo",
     employer_license_registry:"employer_license_registry.aleo",
     employer_profiles:        "employer_profiles.aleo",
-    worker_profiles:          "worker_profiles.aleo",
+    worker_profiles:          "pnw_worker_profiles.aleo",
     pnw_name_registry:        "pnw_name_registry.aleo",
-    pnw_router:               "pnw_router.aleo",
+    pnw_router:               "pnw_router_v2.aleo",
   },
   layer2: {
     payroll_nfts:    "payroll_nfts.aleo",

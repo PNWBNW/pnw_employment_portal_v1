@@ -27,7 +27,7 @@ export type Layer1Transition =
 
 // Stub: actual implementation synced from pnw_mvp_v2
 export const LAYER1_TRANSITIONS: Record<Layer1Transition, { program: string; transition: string }> = {
-  create_worker_profile: { program: "worker_profiles.aleo", transition: "create_worker_profile" },
+  create_worker_profile: { program: "pnw_worker_profiles.aleo", transition: "create_worker_profile" },
   create_job_offer: { program: "employer_agreement_v2.aleo", transition: "create_job_offer" },
   accept_job_offer: { program: "employer_agreement_v2.aleo", transition: "accept_job_offer" },
   pause_agreement: { program: "employer_agreement_v2.aleo", transition: "pause_agreement" },
