@@ -150,6 +150,8 @@ export function AleoWalletProviderWrapper({
       decryptPermission={DecryptPermission.UponRequest}
       programs={[
         "credits.aleo",
+        "test_usdcx_stablecoin.aleo",
+        "test_usdcx_freezelist.aleo",
         "pnw_name_registry.aleo",
         "employer_license_registry.aleo",
         "employer_profiles.aleo",
