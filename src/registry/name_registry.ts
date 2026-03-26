@@ -99,11 +99,24 @@ const OBJ_NAME = 0x5001;
  * This matches the portal-side computation used when calling register_worker_name
  * or register_employer_name — the actual hash input to the program.
  */
+/**
+ * Convert a 32-byte hash to a decimal field element string.
+ * Aleo field inputs must be decimal integers, not hex.
+ */
+function bytesToFieldDecimal(bytes: Uint8Array): string {
+  let value = 0n;
+  for (const byte of bytes) {
+    value = (value << 8n) | BigInt(byte);
+  }
+  return value.toString(10);
+}
+
 export function computeNameHash(name: string): Field {
   const data = tlvEncode(OBJ_NAME, [
     { tag: 0x01, value: new TextEncoder().encode(name) },
   ]);
-  return toHex(domainHash(DOMAIN_TAGS.NAME, data));
+  const hashBytes = domainHash(DOMAIN_TAGS.NAME, data);
+  return bytesToFieldDecimal(hashBytes);
 }
 
 // ----------------------------------------------------------------
