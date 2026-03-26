@@ -93,7 +93,7 @@ export function RegisterEmployerNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-    const count = (nameCount + 1) as 1 | 2 | 3;
+    const count = nameCount; // program expects current count (0, 1, or 2), not count+1
     const registerCmd = buildRegisterEmployerNameCommand(hash, suffixCode, count, DEFAULT_NAMING_FEE);
 
     setCommandPreview(registerCmd);
@@ -104,7 +104,7 @@ export function RegisterEmployerNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-    const count = (nameCount + 1) as 1 | 2 | 3;
+    const count = nameCount; // program expects current count (0, 1, or 2), not count+1
 
     const result = await execute(
       "pnw_name_registry.aleo",
