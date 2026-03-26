@@ -74,17 +74,25 @@ export function useTransactionExecutor(): TransactionExecutor {
           if (!executeTransaction) {
             throw new PermanentError("Wallet not connected or does not support execution");
           }
+          console.log("[PNW-TX] Sending to wallet:", {
+            program: params.program,
+            function: params.function,
+            inputs: params.inputs,
+            fee: params.fee,
+          });
           const result = await executeTransaction({
             program: params.program,
             function: params.function,
             inputs: params.inputs,
             fee: params.fee,
           });
+          console.log("[PNW-TX] Wallet returned:", result);
           if (!result) throw new PermanentError("Wallet returned no result");
           return result.transactionId;
         };
 
         // Submit transaction
+        console.log("[PNW-TX] Executing:", { programId, functionName, inputs, fee });
         const txId = await executeAleoTransaction(
           walletExecute,
           programId,
@@ -92,9 +100,13 @@ export function useTransactionExecutor(): TransactionExecutor {
           inputs,
           fee,
         );
+        console.log("[PNW-TX] Got txId:", txId);
 
         // Poll for confirmation
-        const txResult = await pollTransactionStatus(txId, (s) => setStatus(s));
+        const txResult = await pollTransactionStatus(txId, (s) => {
+          console.log("[PNW-TX] Poll status:", s);
+          setStatus(s);
+        });
 
         setLastResult(txResult);
         setStatus(txResult.status);
@@ -107,6 +119,7 @@ export function useTransactionExecutor(): TransactionExecutor {
 
         return txResult;
       } catch (err) {
+        console.error("[PNW-TX] Transaction failed:", err);
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
 

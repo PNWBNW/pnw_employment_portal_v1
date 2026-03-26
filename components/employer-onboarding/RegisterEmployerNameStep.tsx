@@ -106,15 +106,22 @@ export function RegisterEmployerNameStep() {
     const hash = availability.nameHash;
     const count = nameCount; // program expects current count (0, 1, or 2), not count+1
 
+    const inputs = [
+      `${hash}field`,
+      `${suffixCode}u8`,
+      `${count}u8`,
+      `${DEFAULT_NAMING_FEE}u128`,
+    ];
+
+    console.log("[PNW] register_employer_name inputs:", JSON.stringify(inputs, null, 2));
+    console.log("[PNW] hash raw value:", hash);
+    console.log("[PNW] hash type:", typeof hash);
+    console.log("[PNW] hash length:", hash.length);
+
     const result = await execute(
       "pnw_name_registry.aleo",
       "register_employer_name",
-      [
-        `${hash}field`,
-        `${suffixCode}u8`,
-        `${count}u8`,
-        `${DEFAULT_NAMING_FEE}u128`,
-      ],
+      inputs,
     );
 
     if (result.status === "confirmed") {
