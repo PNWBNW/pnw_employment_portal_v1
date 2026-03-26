@@ -123,7 +123,7 @@ export async function executeAleoTransaction(
 // ----------------------------------------------------------------
 
 const POLL_INTERVAL_MS = 3_000;
-const MAX_POLL_DURATION_MS = 120_000; // 2 minutes
+const MAX_POLL_DURATION_MS = 300_000; // 5 minutes
 
 /**
  * Poll the Aleo REST API for transaction confirmation.
