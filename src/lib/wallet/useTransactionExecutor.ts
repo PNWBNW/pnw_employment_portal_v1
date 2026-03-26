@@ -12,6 +12,12 @@ import {
   PermanentError,
 } from "./wallet-executor";
 
+type WalletTransactionStatusFn = (txId: string) => Promise<{
+  status: string;
+  transactionId?: string;
+  error?: string;
+}>;
+
 // ----------------------------------------------------------------
 // Hook return type
 // ----------------------------------------------------------------
@@ -41,6 +47,61 @@ export type TransactionExecutor = {
   reset: () => void;
 };
 
+// ----------------------------------------------------------------
+// Wallet-native transaction status polling
+// ----------------------------------------------------------------
+
+const WALLET_POLL_INTERVAL_MS = 5_000;
+const WALLET_POLL_TIMEOUT_MS = 300_000; // 5 minutes
+
+async function pollViaWallet(
+  txId: string,
+  walletStatus: WalletTransactionStatusFn,
+  onStatusChange?: (status: TransactionStatus) => void,
+): Promise<TransactionResult> {
+  const startTime = Date.now();
+  onStatusChange?.("pending");
+
+  while (Date.now() - startTime < WALLET_POLL_TIMEOUT_MS) {
+    await new Promise((r) => setTimeout(r, WALLET_POLL_INTERVAL_MS));
+
+    try {
+      const result = await walletStatus(txId);
+      console.log("[PNW-TX] Wallet transactionStatus response:", result);
+
+      const s = result.status?.toLowerCase();
+
+      if (s === "finalized" || s === "confirmed" || s === "accepted" || s === "completed") {
+        onStatusChange?.("confirmed");
+        return {
+          txId: result.transactionId ?? txId,
+          status: "confirmed",
+        };
+      }
+
+      if (s === "rejected" || s === "failed") {
+        onStatusChange?.("rejected");
+        return {
+          txId: result.transactionId ?? txId,
+          status: "rejected",
+          error: result.error ?? "Transaction rejected by network",
+        };
+      }
+
+      // Still pending/proving — keep polling
+    } catch (err) {
+      console.warn("[PNW-TX] Wallet poll error:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  onStatusChange?.("unknown");
+  return {
+    txId,
+    status: "unknown",
+    error: "Transaction status check timed out after 5 minutes",
+  };
+}
+
 /**
  * React hook wrapping wallet-executor for UI components.
  *
@@ -49,7 +110,7 @@ export type TransactionExecutor = {
  *   const result = await execute("program.aleo", "function_name", inputs);
  */
 export function useTransactionExecutor(): TransactionExecutor {
-  const { executeTransaction } = useWallet();
+  const { executeTransaction, transactionStatus: walletTransactionStatus } = useWallet();
 
   const [status, setStatus] = useState<TransactionStatus | "idle" | "submitting">("idle");
   const [isExecuting, setIsExecuting] = useState(false);
@@ -102,11 +163,25 @@ export function useTransactionExecutor(): TransactionExecutor {
         );
         console.log("[PNW-TX] Got txId:", txId);
 
-        // Poll for confirmation
-        const txResult = await pollTransactionStatus(txId, (s) => {
-          console.log("[PNW-TX] Poll status:", s);
-          setStatus(s);
-        });
+        // Use wallet's transactionStatus if available (handles wallet-specific IDs like shield_...)
+        // Falls back to REST API polling for standard at1... IDs
+        const isWalletSpecificId = !txId.startsWith("at1");
+        let txResult: TransactionResult;
+
+        if (isWalletSpecificId && walletTransactionStatus) {
+          console.log("[PNW-TX] Using wallet transactionStatus polling (wallet-specific ID)");
+          txResult = await pollViaWallet(
+            txId,
+            walletTransactionStatus as WalletTransactionStatusFn,
+            (s) => { console.log("[PNW-TX] Wallet poll status:", s); setStatus(s); },
+          );
+        } else {
+          console.log("[PNW-TX] Using REST API polling (standard tx ID)");
+          txResult = await pollTransactionStatus(txId, (s) => {
+            console.log("[PNW-TX] Poll status:", s);
+            setStatus(s);
+          });
+        }
 
         setLastResult(txResult);
         setStatus(txResult.status);
