@@ -12,7 +12,7 @@ import {
 } from "@/src/registry/profile_types";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { PROGRAMS } from "@/src/config/programs";
-import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
+import { domainHash, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { tlvEncode } from "@/src/lib/pnw-adapter/canonical_encoder";
 import { US_STATE_CODES, COUNTRY_CODES } from "./geo_codes";
 
@@ -46,6 +46,10 @@ export function CreateProfileStep() {
     return null;
   }
 
+  function bytesToAleoU8Array(bytes: Uint8Array): string {
+    return "[ " + Array.from(bytes).map(b => `${b}u8`).join(", ") + " ]";
+  }
+
   function computeProfileAnchor(): string {
     // Profile anchor = BLAKE3("PNW::DOC", TLV(name_hash, address, timestamp))
     const encoder = new TextEncoder();
@@ -61,7 +65,7 @@ export function CreateProfileStep() {
       { tag: 0x02, value: encoder.encode(address ?? "") },
       { tag: 0x03, value: tsBytes },
     ]);
-    return toHex(domainHash(DOMAIN_TAGS.DOC, data));
+    return bytesToAleoU8Array(domainHash(DOMAIN_TAGS.DOC, data));
   }
 
   function handleBuildCommand() {
@@ -115,11 +119,16 @@ export function CreateProfileStep() {
       citizenship_flag: citizenshipFlag,
     };
 
+    // Ensure name hash is within field modulus
+    const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+    const rawHash = BigInt(input.worker_name_hash);
+    const safeHash = (rawHash % FIELD_MODULUS).toString(10);
+
     const result = await execute(
       PROGRAMS.layer1.worker_profiles,
       "create_worker_profile",
       [
-        `${input.worker_name_hash}field`,
+        `${safeHash}field`,
         encodeStringToU128(input.first_name),
         encodeStringToU128(input.middle_name),
         encodeStringToU128(input.last_name),
