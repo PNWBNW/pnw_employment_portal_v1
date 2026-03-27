@@ -26,7 +26,8 @@ type AvailabilityState =
 
 export function RegisterEmployerNameStep() {
   const { address } = useAleoSession();
-  const { addBusiness, setStep, queryError } = useEmployerIdentityStore();
+  const { addBusiness, setStep, queryError, businesses } = useEmployerIdentityStore();
+  const hasCompletedBusiness = businesses.some(b => b.profileAnchored);
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
 
   const [name, setName] = useState("");
@@ -380,6 +381,16 @@ export function RegisterEmployerNameStep() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Back to dashboard (only if user already has a completed business) */}
+      {hasCompletedBusiness && (
+        <button
+          onClick={() => setStep("complete")}
+          className="w-full rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+        >
+          Back to Dashboard
+        </button>
       )}
 
       {/* Connected wallet info */}

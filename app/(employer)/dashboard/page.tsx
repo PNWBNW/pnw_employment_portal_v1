@@ -26,18 +26,21 @@ export default function DashboardPage() {
   const [isScanning, setIsScanning] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!viewKey || !address) return;
+    if (!address) return;
 
     setIsScanning(true);
     setWorkersLoading(true);
 
     try {
-      const [workerRecords, usdcxBalance] = await Promise.all([
-        readAgreementRecords(viewKey, address),
-        scanUSDCxBalance(viewKey, address),
-      ]);
-      setWorkers(workerRecords);
+      // Load USDCx balance (public — doesn't need view key)
+      const usdcxBalance = await scanUSDCxBalance("", address);
       setBalance(usdcxBalance);
+
+      // Load workers only if view key available (private record scan)
+      if (viewKey) {
+        const workerRecords = await readAgreementRecords(viewKey, address);
+        setWorkers(workerRecords);
+      }
     } catch (err) {
       console.warn("Dashboard data load failed:", err);
     } finally {
