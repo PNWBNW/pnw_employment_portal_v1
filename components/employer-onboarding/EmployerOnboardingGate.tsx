@@ -4,9 +4,8 @@ import { useEffect, useCallback, type ReactNode } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import {
   useEmployerIdentityStore,
-  type EmployerOnboardingStep,
 } from "@/src/stores/employer_identity_store";
-import { queryEmployerName } from "@/src/registry/name_registry";
+import { queryEmployerNameCount } from "@/src/registry/name_registry";
 import { RegisterEmployerNameStep } from "./RegisterEmployerNameStep";
 import { CreateEmployerProfileStep } from "./CreateEmployerProfileStep";
 
@@ -17,63 +16,82 @@ type Props = {
 /**
  * EmployerOnboardingGate — wraps the entire employer portal.
  *
- * Checks on-chain state to determine if the connected wallet has:
- *   1. A registered .pnw employer name
- *   2. An anchored employer profile
- *
- * If either is missing, the gate blocks portal access and shows the
- * appropriate registration step instead.
+ * Logic:
+ * 1. If session has a completed business (name + profile) → show portal
+ * 2. If session has a name but no profile → show profile step
+ * 3. If no session data → query on-chain name count:
+ *    - count > 0 but no session → show portal (user completed before)
+ *    - count = 0 → show name registration step
  */
 export function EmployerOnboardingGate({ children }: Props) {
   const { address } = useAleoSession();
   const {
     step,
-    employerNameHash,
+    businesses,
+    activeBusiness,
     setStep,
-    setEmployerNameHash,
     setQueryError,
   } = useEmployerIdentityStore();
 
   const checkOnboardingStatus = useCallback(async () => {
     if (!address) return;
 
-    setStep("checking");
-    setQueryError(null);
-
-    try {
-      const nameHash = await queryEmployerName(address);
-
-      if (!nameHash) {
-        setStep("register_name");
-        return;
-      }
-
-      // Name exists — save it
-      setEmployerNameHash(nameHash);
-
-      // For MVP we trust session state for profile step
-      setStep("create_profile");
-    } catch {
-      setQueryError("Failed to check on-chain identity. Check your network connection.");
-      setStep("register_name");
+    // 1. If we have a completed business in session, go straight to portal
+    const hasCompleted = businesses.some(b => b.profileAnchored);
+    if (hasCompleted) {
+      setStep("complete");
+      return;
     }
-  }, [address, setStep, setEmployerNameHash, setQueryError]);
 
-  useEffect(() => {
-    // If we already know onboarding is complete from session, skip the check
-    if (step === "complete") return;
-
-    // If we have a name hash cached from session, go to profile step
-    if (employerNameHash && step === "checking") {
+    // 2. If we have a business with no profile, go to profile step
+    const hasUnfinished = businesses.some(b => !b.profileAnchored);
+    if (hasUnfinished) {
       setStep("create_profile");
       return;
     }
 
-    // Otherwise, query on-chain
+    // 3. No session data — check on-chain
+    setQueryError(null);
+
+    try {
+      const count = await queryEmployerNameCount(address);
+
+      if (count > 0) {
+        // User has names on-chain but not in session
+        // They may have registered via terminal or previous session
+        // Let them through to the portal — they can add business details later
+        setStep("complete");
+        return;
+      }
+
+      // No names at all — start registration
+      setStep("register_name");
+    } catch {
+      setQueryError("Failed to check on-chain identity. Check your network connection.");
+      setStep("register_name");
+    }
+  }, [address, businesses, setStep, setQueryError]);
+
+  useEffect(() => {
+    // Already complete — don't re-check
+    if (step === "complete") return;
+
+    // Run the check
     if (address && step === "checking") {
       checkOnboardingStatus();
     }
-  }, [address, step, employerNameHash, checkOnboardingStatus, setStep]);
+  }, [address, step, checkOnboardingStatus]);
+
+  // Not connected
+  if (!address) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Connect your wallet to continue.
+        </p>
+      </div>
+    );
+  }
 
   // Loading state
   if (step === "checking") {
