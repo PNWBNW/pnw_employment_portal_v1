@@ -20,13 +20,18 @@ import { US_STATE_CODES, COUNTRY_CODES } from "@/components/worker-onboarding/ge
 export function CreateEmployerProfileStep() {
   const { address } = useAleoSession();
   const {
-    employerNameHash,
-    chosenName,
-    suffixCode,
+    businesses,
+    activeBusinessIndex,
     setStep,
     setProfileAnchored,
   } = useEmployerIdentityStore();
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
+
+  // Get active business directly from array (not via getter for reactivity)
+  const activeBiz = activeBusinessIndex !== null ? businesses[activeBusinessIndex] : null;
+  const employerNameHash = activeBiz?.nameHash ?? null;
+  const chosenName = activeBiz?.name ?? null;
+  const suffixCode = activeBiz?.suffixCode ?? null;
 
   // Form state — matches employer_profiles.aleo record fields
   const [legalName, setLegalName] = useState("");
@@ -122,11 +127,16 @@ export function CreateEmployerProfileStep() {
     const profileAnchor = computeProfileAnchor();
     const input = buildInput();
 
+    // Ensure name hash is within field modulus (safety check for stale session data)
+    const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+    const rawHash = BigInt(input.employer_name_hash);
+    const safeHash = (rawHash % FIELD_MODULUS).toString(10);
+
     const result = await execute(
       PROGRAMS.layer1.employer_profiles,
       "create_employer_profile",
       [
-        `${input.employer_name_hash}field`,
+        `${safeHash}field`,
         `${input.suffix_code}u8`,
         encodeStringToU128(input.legal_name),
         encodeStringToU128(input.registration_id),
