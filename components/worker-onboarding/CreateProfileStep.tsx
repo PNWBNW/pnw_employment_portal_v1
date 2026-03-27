@@ -121,7 +121,8 @@ export function CreateProfileStep() {
 
     // Ensure name hash is within field modulus
     const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
-    const rawHash = BigInt(input.worker_name_hash);
+    const hashStr = input.worker_name_hash.replace(/field$/, "").trim();
+    const rawHash = BigInt(hashStr);
     const safeHash = (rawHash % FIELD_MODULUS).toString(10);
 
     const result = await execute(
