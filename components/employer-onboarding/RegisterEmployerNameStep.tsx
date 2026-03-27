@@ -119,7 +119,7 @@ export function RegisterEmployerNameStep() {
     console.log("[PNW] hash length:", hash.length);
 
     const result = await execute(
-      "pnw_name_registry.aleo",
+      PROGRAMS.layer1.pnw_name_registrar,
       "register_employer_name",
       inputs,
     );
