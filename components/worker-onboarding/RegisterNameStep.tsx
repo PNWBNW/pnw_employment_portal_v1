@@ -79,7 +79,7 @@ export function RegisterNameStep() {
 
     const hash = availability.nameHash;
     const result = await execute(
-      PROGRAMS.layer1.pnw_name_registry,
+      PROGRAMS.layer1.pnw_name_registrar,
       "register_worker_name",
       [`${hash}field`, `${DEFAULT_NAMING_FEE}u128`],
     );
