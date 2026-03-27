@@ -38,27 +38,33 @@ const STORAGE_KEY = "pnw_worker_identity";
 function persistToSession(state: Partial<WorkerIdentityState>): void {
   if (typeof window === "undefined") return;
   try {
-    const existing = sessionStorage.getItem(STORAGE_KEY);
+    const existing = localStorage.getItem(STORAGE_KEY);
     const prev = existing ? JSON.parse(existing) : {};
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...state }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...state }));
   } catch {
-    // sessionStorage unavailable
+    // localStorage unavailable
   }
 }
 
 function restoreFromSession(): Partial<WorkerIdentityState> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed === "object" && parsed !== null) {
       const obj = parsed as Record<string, unknown>;
+      const profileAnchored = typeof obj.profileAnchored === "boolean" ? obj.profileAnchored : false;
+      // If profile not completed, always re-check on startup
+      const step = profileAnchored
+        ? ((typeof obj.step === "string" ? obj.step : "complete") as OnboardingStep)
+        : "checking";
+
       return {
         workerNameHash: typeof obj.workerNameHash === "string" ? obj.workerNameHash : null,
         chosenName: typeof obj.chosenName === "string" ? obj.chosenName : null,
-        profileAnchored: typeof obj.profileAnchored === "boolean" ? obj.profileAnchored : false,
-        step: typeof obj.step === "string" ? obj.step as OnboardingStep : "checking",
+        profileAnchored,
+        step,
       };
     }
   } catch {
@@ -104,7 +110,7 @@ export const useWorkerIdentityStore = create<WorkerIdentityState & WorkerIdentit
           queryError: null,
         });
         if (typeof window !== "undefined") {
-          sessionStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_KEY);
         }
       },
     };
