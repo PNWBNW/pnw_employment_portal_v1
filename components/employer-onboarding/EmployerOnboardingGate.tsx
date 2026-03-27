@@ -18,37 +18,50 @@ type Props = {
 
 /**
  * Parse an EmployerProfile record from the wallet into a RegisteredBusiness.
+ * Shield returns records with a `recordPlaintext` string containing Leo record syntax.
  */
 function parseProfileRecord(record: unknown): RegisteredBusiness | null {
   try {
     if (!record || typeof record !== "object") return null;
     const r = record as Record<string, unknown>;
 
-    // Record data may be nested under "data" or "plaintext" or at top level
-    const data = (
-      r.data && typeof r.data === "object" ? r.data :
-      r.plaintext && typeof r.plaintext === "object" ? r.plaintext :
-      r
-    ) as Record<string, unknown>;
+    const plaintext = typeof r.recordPlaintext === "string" ? r.recordPlaintext : null;
+    if (!plaintext) return null;
 
-    // Extract fields — strip .private suffix and type suffix
-    const nameHashRaw = String(data.employer_name_hash ?? "")
-      .replace(/\.private$/, "")
-      .replace(/field$/, "")
-      .trim();
-    const suffixRaw = String(data.suffix_code ?? data.industry_code ?? "1")
-      .replace(/\.private$/, "")
-      .replace(/u8$/, "")
-      .trim();
+    // Parse from Leo record plaintext format:
+    // "employer_name_hash: 12345field.private,"
+    const hashMatch = plaintext.match(/employer_name_hash:\s*(\d+)field/);
+    const suffixMatch = plaintext.match(/suffix_code:\s*(\d+)u8/);
 
-    if (!nameHashRaw || nameHashRaw === "undefined" || nameHashRaw === "null") return null;
+    if (!hashMatch?.[1]) return null;
 
-    const suffixCode = parseInt(suffixRaw, 10) || 1;
+    const nameHash = hashMatch[1];
+    const suffixCode = parseInt(suffixMatch?.[1] ?? "1", 10);
     const suffix = INDUSTRY_SUFFIXES[suffixCode];
 
+    // Try to decode the legal name from u128
+    const legalNameMatch = plaintext.match(/legal_name_u128:\s*(\d+)u128/);
+    let displayName = suffix?.code?.toLowerCase() ?? `biz_${suffixCode}`;
+
+    if (legalNameMatch?.[1]) {
+      try {
+        // Decode u128 back to string (big-endian)
+        let val = BigInt(legalNameMatch[1]);
+        const bytes: number[] = [];
+        while (val > 0n) {
+          bytes.unshift(Number(val & 0xffn));
+          val >>= 8n;
+        }
+        const decoded = new TextDecoder().decode(new Uint8Array(bytes)).trim();
+        if (decoded.length > 0) displayName = decoded;
+      } catch {
+        // Keep suffix-based name
+      }
+    }
+
     return {
-      nameHash: nameHashRaw,
-      name: suffix?.code?.toLowerCase() ?? `biz_${suffixCode}`,
+      nameHash,
+      name: displayName,
       suffixCode,
       profileAnchored: true,
     };
