@@ -16,7 +16,8 @@ import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 
 export default function DashboardPage() {
   const { address, viewKey } = useAleoSession();
-  const { activeBusiness } = useEmployerIdentityStore();
+  const { businesses, activeBusinessIndex } = useEmployerIdentityStore();
+  const activeBusiness = activeBusinessIndex !== null ? businesses[activeBusinessIndex] ?? null : null;
   const { workers, setWorkers, setLoading: setWorkersLoading } =
     useWorkerStore();
   const { history } = usePayrollRunStore();

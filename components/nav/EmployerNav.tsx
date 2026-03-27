@@ -56,8 +56,10 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
     businesses,
     activeBusinessIndex,
     setActiveBusiness,
-    activeBusiness,
   } = useEmployerIdentityStore();
+
+  // Compute active business directly (Zustand getters aren't reactive)
+  const activeBusiness = activeBusinessIndex !== null ? businesses[activeBusinessIndex] ?? null : null;
 
   // Only show businesses with completed profiles
   const completedBusinesses = businesses.filter(b => b.profileAnchored);
