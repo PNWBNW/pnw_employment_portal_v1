@@ -16,7 +16,7 @@ export const PROGRAMS = {
     employer_profiles: "employer_profiles_v2.aleo",
     worker_profiles: "pnw_worker_profiles_v2.aleo",
     pnw_name_registry: "pnw_name_registry_v2.aleo",
-    pnw_name_registrar: "pnw_name_registrar_v2.aleo",
+    pnw_name_registrar: "pnw_name_registrar_v3.aleo",
     pnw_router: "pnw_router_v3.aleo",
   },
   layer2: {
