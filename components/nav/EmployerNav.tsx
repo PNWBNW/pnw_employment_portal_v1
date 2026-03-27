@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/src/lib/utils";
+import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
+import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
@@ -48,14 +51,62 @@ interface EmployerNavProps {
 
 export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
   const pathname = usePathname();
+  const { address } = useAleoSession();
+  const {
+    businesses,
+    activeBusinessIndex,
+    setActiveBusiness,
+    activeBusiness,
+  } = useEmployerIdentityStore();
+
+  // Only show businesses with completed profiles
+  const completedBusinesses = businesses.filter(b => b.profileAnchored);
+  const hasMultiple = completedBusinesses.length > 1;
 
   const navContent = (
     <nav className="flex h-full w-56 flex-col border-r border-border bg-card">
-      <div className="flex h-14 items-center border-b border-border px-4">
+      {/* Header with .pnw identity */}
+      <div className="border-b border-border px-4 py-3">
         <span className="text-sm font-bold tracking-tight text-primary">
           PNW Portal
         </span>
+        {activeBusiness ? (
+          <div className="mt-2">
+            <p className="text-sm font-semibold text-foreground">
+              {activeBusiness.name}.pnw
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {INDUSTRY_SUFFIXES[activeBusiness.suffixCode]?.label ?? "Business"}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-1 text-xs text-muted-foreground truncate">
+            {address ? `${address.slice(0, 10)}...${address.slice(-6)}` : "Not connected"}
+          </p>
+        )}
       </div>
+
+      {/* Business switcher (only if multiple completed businesses) */}
+      {hasMultiple && (
+        <div className="border-b border-border px-3 py-2">
+          <label className="text-xs font-medium text-muted-foreground">
+            Active Business
+          </label>
+          <select
+            value={activeBusinessIndex ?? 0}
+            onChange={(e) => setActiveBusiness(Number(e.target.value))}
+            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {businesses.map((biz, i) => (
+              biz.profileAnchored && (
+                <option key={biz.nameHash} value={i}>
+                  {biz.name}.pnw
+                </option>
+              )
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex-1 space-y-1 p-2">
         {NAV_ITEMS.map((item) => {
@@ -83,6 +134,11 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
         <p className="text-xs text-muted-foreground">
           Testnet
         </p>
+        {address && (
+          <p className="mt-1 font-mono text-xs text-muted-foreground truncate">
+            {address.slice(0, 10)}...{address.slice(-6)}
+          </p>
+        )}
       </div>
     </nav>
   );

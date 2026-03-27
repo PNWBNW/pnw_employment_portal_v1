@@ -26,7 +26,7 @@ type AvailabilityState =
 
 export function RegisterEmployerNameStep() {
   const { address } = useAleoSession();
-  const { setEmployerNameHash, setStep, queryError } = useEmployerIdentityStore();
+  const { addBusiness, setStep, queryError } = useEmployerIdentityStore();
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
 
   const [name, setName] = useState("");
@@ -125,7 +125,7 @@ export function RegisterEmployerNameStep() {
     );
 
     if (result.status === "confirmed") {
-      setEmployerNameHash(hash, name, suffixCode);
+      addBusiness(hash, name, suffixCode);
       setStep("create_profile");
     }
     // "rejected" and "unknown" errors are surfaced via txError from the hook
@@ -133,7 +133,7 @@ export function RegisterEmployerNameStep() {
 
   function handleConfirmRegistration() {
     if (availability.status !== "available") return;
-    setEmployerNameHash(availability.nameHash, name, suffixCode);
+    addBusiness(availability.nameHash, name, suffixCode);
     setStep("create_profile");
   }
 

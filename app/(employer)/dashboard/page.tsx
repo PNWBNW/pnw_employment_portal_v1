@@ -11,9 +11,12 @@ import {
   formatUSDCxShort,
   type USDCxBalance,
 } from "@/src/records/usdcx_scanner";
+import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
+import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 
 export default function DashboardPage() {
   const { address, viewKey } = useAleoSession();
+  const { activeBusiness } = useEmployerIdentityStore();
   const { workers, setWorkers, setLoading: setWorkersLoading } =
     useWorkerStore();
   const { history } = usePayrollRunStore();
@@ -67,10 +70,27 @@ export default function DashboardPage() {
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Connected Address</p>
-          <p className="mt-1 break-all font-mono text-xs text-card-foreground">
-            {address}
-          </p>
+          {activeBusiness ? (
+            <>
+              <p className="text-sm text-muted-foreground">Business Identity</p>
+              <p className="mt-1 text-lg font-bold text-card-foreground">
+                {activeBusiness.name}.pnw
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {INDUSTRY_SUFFIXES[activeBusiness.suffixCode]?.label ?? "Business"}
+              </p>
+              <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                {address}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">Connected Address</p>
+              <p className="mt-1 break-all font-mono text-xs text-card-foreground">
+                {address}
+              </p>
+            </>
+          )}
         </div>
 
         <Link
