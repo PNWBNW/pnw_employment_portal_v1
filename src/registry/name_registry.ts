@@ -168,7 +168,7 @@ export async function queryNameOwner(nameHash: Field): Promise<Address | null> {
   const programId = PROGRAMS.layer1.pnw_name_registry;
 
   try {
-    const url = `${endpoint}/program/${programId}/mapping/name_owner/${nameHash}`;
+    const url = `${endpoint}/program/${programId}/mapping/name_owner/${nameHash}field`;
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(10_000),
