@@ -13,7 +13,7 @@ import {
 } from "@/src/registry/profile_types";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { PROGRAMS } from "@/src/config/programs";
-import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
+import { domainHash, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { tlvEncode } from "@/src/lib/pnw-adapter/canonical_encoder";
 import { US_STATE_CODES, COUNTRY_CODES } from "@/components/worker-onboarding/geo_codes";
 
@@ -55,6 +55,13 @@ export function CreateEmployerProfileStep() {
     return null;
   }
 
+  /**
+   * Convert a Uint8Array to Aleo [u8; 32] input format: "[ 1u8, 2u8, ... ]"
+   */
+  function bytesToAleoU8Array(bytes: Uint8Array): string {
+    return "[ " + Array.from(bytes).map(b => `${b}u8`).join(", ") + " ]";
+  }
+
   function computeProfileAnchor(): string {
     const encoder = new TextEncoder();
     const tsBytes = new Uint8Array(4);
@@ -69,7 +76,8 @@ export function CreateEmployerProfileStep() {
       { tag: 0x02, value: encoder.encode(address ?? "") },
       { tag: 0x03, value: tsBytes },
     ]);
-    return toHex(domainHash(DOMAIN_TAGS.DOC, data));
+    const hashBytes = domainHash(DOMAIN_TAGS.DOC, data);
+    return bytesToAleoU8Array(hashBytes);
   }
 
   function buildInput(): EmployerProfileInput {
