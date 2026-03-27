@@ -100,14 +100,22 @@ const OBJ_NAME = 0x5001;
  * or register_employer_name — the actual hash input to the program.
  */
 /**
+ * BLS12-377 scalar field modulus — the maximum value for an Aleo `field` element.
+ * Any value must be reduced mod this before use as a field input.
+ */
+const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+
+/**
  * Convert a 32-byte hash to a decimal field element string.
- * Aleo field inputs must be decimal integers, not hex.
+ * Aleo field inputs must be decimal integers, reduced mod the BLS12-377 scalar field.
  */
 function bytesToFieldDecimal(bytes: Uint8Array): string {
   let value = 0n;
   for (const byte of bytes) {
     value = (value << 8n) | BigInt(byte);
   }
+  // Reduce mod field modulus to ensure valid field element
+  value = value % FIELD_MODULUS;
   return value.toString(10);
 }
 
