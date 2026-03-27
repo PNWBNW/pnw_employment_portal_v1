@@ -146,6 +146,7 @@ export function useTransactionExecutor(): TransactionExecutor {
             function: params.function,
             inputs: params.inputs,
             fee: params.fee,
+            privateFee: false,
           });
           console.log("[PNW-TX] Wallet returned:", result);
           if (!result) throw new PermanentError("Wallet returned no result");
