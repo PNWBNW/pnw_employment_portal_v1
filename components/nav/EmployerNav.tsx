@@ -75,7 +75,9 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
         {activeBusiness ? (
           <div className="mt-2">
             <p className="text-sm font-semibold text-foreground">
-              {activeBusiness.name}.pnw
+              {/^[a-z0-9_]{3,16}$/.test(activeBusiness.name)
+                ? `${activeBusiness.name}.pnw`
+                : activeBusiness.name}
             </p>
             <p className="text-xs text-muted-foreground">
               {INDUSTRY_SUFFIXES[activeBusiness.suffixCode]?.label ?? "Business"}
@@ -102,7 +104,7 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
             {businesses.map((biz, i) => (
               biz.profileAnchored && (
                 <option key={biz.nameHash} value={i}>
-                  {biz.name}.pnw
+                  {/^[a-z0-9_]{3,16}$/.test(biz.name) ? `${biz.name}.pnw` : biz.name}
                 </option>
               )
             ))}
