@@ -61,7 +61,7 @@ export async function scanUSDCxBalance(
   // and attempt to parse Token record amounts.
 
   try {
-    const url = `${endpoint}/program/${programId}/mapping/account/${address}`;
+    const url = `${endpoint}/program/${programId}/mapping/balances/${address}`;
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(15_000),
