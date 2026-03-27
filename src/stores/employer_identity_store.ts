@@ -62,11 +62,11 @@ const STORAGE_KEY = "pnw_employer_identity";
 function persistToSession(data: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
-    const existing = sessionStorage.getItem(STORAGE_KEY);
+    const existing = localStorage.getItem(STORAGE_KEY);
     const prev = existing ? JSON.parse(existing) : {};
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...data }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...data }));
   } catch {
-    // sessionStorage unavailable
+    // localStorage unavailable
   }
 }
 
@@ -77,7 +77,7 @@ function restoreFromSession(): {
 } {
   if (typeof window === "undefined") return { businesses: [], activeBusinessIndex: null, step: "checking" };
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { businesses: [], activeBusinessIndex: null, step: "checking" };
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed === "object" && parsed !== null) {
@@ -197,7 +197,7 @@ export const useEmployerIdentityStore = create<EmployerIdentityState & EmployerI
           queryError: null,
         });
         if (typeof window !== "undefined") {
-          sessionStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_KEY);
         }
       },
     };
