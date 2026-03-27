@@ -150,6 +150,14 @@ export default function DashboardPage() {
           >
             Credentials
           </Link>
+          <button
+            onClick={() => {
+              useEmployerIdentityStore.getState().setStep("register_name");
+            }}
+            className="rounded-md border border-input px-4 py-2 text-sm hover:bg-accent"
+          >
+            + Add Business
+          </button>
         </div>
       </div>
 
