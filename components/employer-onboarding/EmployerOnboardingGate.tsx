@@ -16,19 +16,21 @@ type Props = {
 /**
  * EmployerOnboardingGate — wraps the entire employer portal.
  *
- * Logic:
- * 1. If session has a completed business (name + profile) → show portal
- * 2. If session has a name but no profile → show profile step
- * 3. If no session data → query on-chain name count:
- *    - count > 0 but no session → show portal (user completed before)
- *    - count = 0 → show name registration step
+ * Rules:
+ * 1. If session has at least one completed business (name + profile) → dashboard
+ * 2. If session has a name but no completed profile → profile creation step
+ * 3. If no session data, check on-chain:
+ *    - name count > 0 → profile creation step (name exists, need profile)
+ *    - name count = 0 → name registration funnel
+ *
+ * From the dashboard, users can add new businesses or complete pending ones
+ * via the "+ Add Business" button.
  */
 export function EmployerOnboardingGate({ children }: Props) {
   const { address } = useAleoSession();
   const {
     step,
     businesses,
-    activeBusiness,
     setStep,
     setQueryError,
   } = useEmployerIdentityStore();
@@ -36,14 +38,14 @@ export function EmployerOnboardingGate({ children }: Props) {
   const checkOnboardingStatus = useCallback(async () => {
     if (!address) return;
 
-    // 1. If we have a completed business in session, go straight to portal
+    // 1. If we have any completed business in session → dashboard
     const hasCompleted = businesses.some(b => b.profileAnchored);
     if (hasCompleted) {
       setStep("complete");
       return;
     }
 
-    // 2. If we have a business with no profile, go to profile step
+    // 2. If we have a business in session but no profile → profile step
     const hasUnfinished = businesses.some(b => !b.profileAnchored);
     if (hasUnfinished) {
       setStep("create_profile");
@@ -57,14 +59,14 @@ export function EmployerOnboardingGate({ children }: Props) {
       const count = await queryEmployerNameCount(address);
 
       if (count > 0) {
-        // User has names on-chain but not in session
-        // They may have registered via terminal or previous session
-        // Let them through to the portal — they can add business details later
-        setStep("complete");
+        // Name exists on-chain but no session data
+        // Profile may or may not exist — send to profile step
+        // (if profile already exists on-chain, the tx will just anchor again)
+        setStep("create_profile");
         return;
       }
 
-      // No names at all — start registration
+      // No names at all — registration funnel
       setStep("register_name");
     } catch {
       setQueryError("Failed to check on-chain identity. Check your network connection.");
