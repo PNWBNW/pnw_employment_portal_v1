@@ -108,7 +108,9 @@ export default function DashboardPage() {
             <>
               <p className="text-sm text-muted-foreground">Business Identity</p>
               <p className="mt-1 text-lg font-bold text-card-foreground">
-                {activeBusiness.name}.pnw
+                {/^[a-z0-9_]{3,16}$/.test(activeBusiness.name)
+                  ? `${activeBusiness.name}.pnw`
+                  : activeBusiness.name}
               </p>
               <p className="text-xs text-muted-foreground">
                 {INDUSTRY_SUFFIXES[activeBusiness.suffixCode]?.label ?? "Business"}
