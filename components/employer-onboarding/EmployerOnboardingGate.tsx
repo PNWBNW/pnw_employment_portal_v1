@@ -59,11 +59,12 @@ export function EmployerOnboardingGate({ children }: Props) {
       const count = await queryEmployerNameCount(address);
 
       if (count > 0) {
-        // Name exists on-chain but no session data
-        // We don't have the name hash or suffix in session, so we can't
-        // go directly to profile creation. Send to name step — it will
-        // detect the existing name and let the user proceed.
-        setStep("register_name");
+        // Name exists on-chain but no local data
+        // We can't determine profile status without the anchor hash,
+        // but the user has gone through registration before.
+        // Send to dashboard — they can use "+ Add Business" to
+        // register new names or complete pending profiles.
+        setStep("complete");
         return;
       }
 
