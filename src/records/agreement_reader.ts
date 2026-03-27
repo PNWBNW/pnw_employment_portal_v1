@@ -48,7 +48,7 @@ export async function readAgreementRecords(
   address: Address,
 ): Promise<WorkerRecord[]> {
   const endpoint = ENV.ALEO_ENDPOINT;
-  const programId = PROGRAMS.layer1.employer_agreement_v2;
+  const programId = PROGRAMS.layer1.employer_agreement;
 
   try {
     // Query the public agreements mapping for this employer
@@ -185,7 +185,7 @@ export async function checkAgreementStatus(
   agreementId: Bytes32,
 ): Promise<AgreementStatus | null> {
   const endpoint = ENV.ALEO_ENDPOINT;
-  const programId = PROGRAMS.layer1.employer_agreement_v2;
+  const programId = PROGRAMS.layer1.employer_agreement;
 
   try {
     const url = `${endpoint}/program/${programId}/mapping/agreement_status/${agreementId}`;

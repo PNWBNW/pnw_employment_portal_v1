@@ -224,13 +224,28 @@ export async function queryNameKind(nameHash: Field): Promise<U8 | null> {
 
 /**
  * Check if a wallet address has registered employer .pnw names.
- * Queries the employer_primary_name_of mapping.
+ * Queries employer_name_count mapping — if count > 0, employer has names.
+ * Registry v2 has no employer_primary_name_of reverse lookup.
  *
- * @returns The employer's primary name_hash (field) if registered, null if not.
+ * @returns A placeholder field value if employer has names, null if not.
  */
 export async function queryEmployerName(address: Address): Promise<Field | null> {
+  const count = await queryEmployerNameCount(address);
+  if (count > 0) {
+    // Employer has at least one name — return a non-null sentinel
+    // The actual name hash is not stored in a reverse lookup in v2
+    return "registered";
+  }
+  return null;
+}
+
+/**
+ * Legacy: query employer_primary_name_of (v1 registry only).
+ * Kept for backward compatibility with v1 names.
+ */
+export async function queryEmployerNameV1(address: Address): Promise<Field | null> {
   const endpoint = ENV.ALEO_ENDPOINT;
-  const programId = PROGRAMS.layer1.pnw_name_registry;
+  const programId = "pnw_name_registry.aleo"; // v1 only
 
   try {
     const url = `${endpoint}/program/${programId}/mapping/employer_primary_name_of/${address}`;
@@ -350,7 +365,7 @@ export function buildRegisterWorkerNameCommand(
   feeAmount: bigint,
 ): string {
   return (
-    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registry} register_worker_name ` +
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registrar} register_worker_name ` +
     `${nameHash}field ${feeAmount}u128`
   );
 }
@@ -358,8 +373,8 @@ export function buildRegisterWorkerNameCommand(
 /**
  * Build the snarkos command preview for registering an employer name.
  *
- * Precondition: caller must have transferred (EMPLOYER_PRICES[count-1] + fee_amount)
- * USDCx to the DAO treasury. Caller must also be verified via employer_license_registry.
+ * The registrar handles USDCx payment via transfer_public_as_signer
+ * and license verification, then stores the name in registry_v2.
  */
 export function buildRegisterEmployerNameCommand(
   nameHash: Field,
@@ -368,7 +383,7 @@ export function buildRegisterEmployerNameCommand(
   feeAmount: bigint,
 ): string {
   return (
-    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registry} register_employer_name ` +
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registrar} register_employer_name ` +
     `${nameHash}field ${suffixCode}u8 ${count}u8 ${feeAmount}u128`
   );
 }
