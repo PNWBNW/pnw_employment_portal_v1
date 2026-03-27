@@ -129,7 +129,7 @@ export function CreateEmployerProfileStep() {
 
     // Ensure name hash is within field modulus (safety check for stale session data)
     const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
-    const rawHash = BigInt(input.employer_name_hash);
+    const rawHash = BigInt(input.employer_name_hash.replace(/field$/, "").trim());
     const safeHash = (rawHash % FIELD_MODULUS).toString(10);
 
     const result = await execute(
