@@ -60,9 +60,10 @@ export function EmployerOnboardingGate({ children }: Props) {
 
       if (count > 0) {
         // Name exists on-chain but no session data
-        // Profile may or may not exist — send to profile step
-        // (if profile already exists on-chain, the tx will just anchor again)
-        setStep("create_profile");
+        // We don't have the name hash or suffix in session, so we can't
+        // go directly to profile creation. Send to name step — it will
+        // detect the existing name and let the user proceed.
+        setStep("register_name");
         return;
       }
 
