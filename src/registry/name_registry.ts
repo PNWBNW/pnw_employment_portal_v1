@@ -231,20 +231,34 @@ export async function queryNameKind(nameHash: Field): Promise<U8 | null> {
 // ----------------------------------------------------------------
 
 /**
- * Check if a wallet address has registered employer .pnw names.
- * Queries employer_name_count mapping — if count > 0, employer has names.
- * Registry v2 has no employer_primary_name_of reverse lookup.
+ * Query the employer's primary .pnw name hash.
+ * Uses the employer_primary_name_of mapping (added in registry_v2 upgrade).
  *
- * @returns A placeholder field value if employer has names, null if not.
+ * @returns The primary name_hash (field) if set, null if not.
  */
 export async function queryEmployerName(address: Address): Promise<Field | null> {
-  const count = await queryEmployerNameCount(address);
-  if (count > 0) {
-    // Employer has at least one name — return a non-null sentinel
-    // The actual name hash is not stored in a reverse lookup in v2
-    return "registered";
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/employer_primary_name_of/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/\.(private|public)$/, "").trim();
+      if (cleaned === "0field" || cleaned === "0") return null;
+      return cleaned;
+    }
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /**
