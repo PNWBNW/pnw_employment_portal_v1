@@ -68,6 +68,36 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* Setup banner — shown when no active business profile */}
+      {!activeBusiness && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-400">
+                Business Profile Required
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                You have .pnw names registered on-chain, but no active business profile in this session.
+                Set up your business identity to unlock payroll, agreements, and credentials.
+              </p>
+              <button
+                onClick={() => {
+                  useEmployerIdentityStore.getState().setStep("register_name");
+                }}
+                className="mt-3 rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400"
+              >
+                Set Up Business Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
@@ -133,12 +163,18 @@ export default function DashboardPage() {
           Quick Actions
         </h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link
-            href="/payroll/new"
-            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
-          >
-            Run Payroll
-          </Link>
+          {activeBusiness ? (
+            <Link
+              href="/payroll/new"
+              className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+            >
+              Run Payroll
+            </Link>
+          ) : (
+            <span className="rounded-md bg-primary/30 px-4 py-2 text-sm text-primary-foreground/50 cursor-not-allowed" title="Complete business profile first">
+              Run Payroll
+            </span>
+          )}
           <Link
             href="/workers"
             className="rounded-md border border-input px-4 py-2 text-sm hover:bg-accent"
