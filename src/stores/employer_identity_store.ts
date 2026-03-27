@@ -98,10 +98,19 @@ function restoreFromSession(): {
         };
       }
 
+      const businesses = Array.isArray(obj.businesses) ? obj.businesses as RegisteredBusiness[] : [];
+      const hasCompleted = businesses.some(b => b.profileAnchored);
+
+      // If no completed businesses, always re-check on startup
+      // (prevents being stuck in funnel from a stale step)
+      const step = hasCompleted
+        ? ((typeof obj.step === "string" ? obj.step : "complete") as EmployerOnboardingStep)
+        : "checking";
+
       return {
-        businesses: Array.isArray(obj.businesses) ? obj.businesses as RegisteredBusiness[] : [],
+        businesses,
         activeBusinessIndex: typeof obj.activeBusinessIndex === "number" ? obj.activeBusinessIndex : null,
-        step: typeof obj.step === "string" ? obj.step as EmployerOnboardingStep : "checking",
+        step,
       };
     }
   } catch {
