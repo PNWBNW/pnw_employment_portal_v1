@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { Field, U8 } from "@/src/lib/pnw-adapter/aleo_types";
 
 // ---------------------------------------------------------------------------
-// Employer Identity Store — tracks .pnw names, profiles, and active business
+// Employer Identity Store — one .pnw name per wallet, one profile
 // ---------------------------------------------------------------------------
 
 export type EmployerOnboardingStep =
@@ -13,54 +13,34 @@ export type EmployerOnboardingStep =
   | "create_profile"  // name registered, needs to create profile
   | "complete";       // fully onboarded
 
-/** A registered .pnw business identity with a completed profile */
-export type RegisteredBusiness = {
-  nameHash: Field;
-  name: string;
-  suffixCode: U8;
-  profileAnchored: boolean;
-};
-
 type EmployerIdentityState = {
   step: EmployerOnboardingStep;
-  /** All registered businesses for this wallet */
-  businesses: RegisteredBusiness[];
-  /** Index of the currently active business (null = none selected) */
-  activeBusinessIndex: number | null;
+  /** Connected wallet address (for stale data detection) */
+  walletAddress: string | null;
+  /** Employer's .pnw name hash */
+  employerNameHash: Field | null;
+  /** The plaintext .pnw name (e.g. "acme_wa") */
+  chosenName: string | null;
+  /** Industry suffix code */
+  suffixCode: U8 | null;
+  /** Whether the profile has been anchored on-chain */
+  profileAnchored: boolean;
   /** Error from last on-chain query */
   queryError: string | null;
-
-  // --- Convenience getters (derived) ---
-  /** The currently active business, or null */
-  readonly activeBusiness: RegisteredBusiness | null;
-  /** The active .pnw name hash */
-  readonly employerNameHash: Field | null;
-  /** The active plaintext name */
-  readonly chosenName: string | null;
-  /** The active suffix code */
-  readonly suffixCode: U8 | null;
-  /** Whether the active business has a profile */
-  readonly profileAnchored: boolean;
 };
 
 type EmployerIdentityActions = {
   setStep: (step: EmployerOnboardingStep) => void;
-  /** Register a new business name (adds to businesses list) */
-  addBusiness: (hash: Field, name: string, suffix: U8) => void;
-  /** Mark the active business profile as anchored */
-  setProfileAnchored: (anchored: boolean) => void;
-  /** Switch which business is active */
-  setActiveBusiness: (index: number) => void;
-  /** Legacy: set a single employer name hash (for backward compat) */
+  setWalletAddress: (address: string) => void;
   setEmployerNameHash: (hash: Field, name?: string, suffix?: U8) => void;
+  setProfileAnchored: (anchored: boolean) => void;
   setQueryError: (error: string | null) => void;
   reset: () => void;
 };
 
 const STORAGE_KEY = "pnw_employer_identity";
 
-/** Store the wallet address alongside identity data so we can detect wallet switches */
-function persistToStorage(data: Record<string, unknown>): void {
+function persist(data: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
     const existing = localStorage.getItem(STORAGE_KEY);
@@ -71,130 +51,68 @@ function persistToStorage(data: Record<string, unknown>): void {
   }
 }
 
-function restoreFromSession(): {
-  businesses: RegisteredBusiness[];
-  activeBusinessIndex: number | null;
-  step: EmployerOnboardingStep;
-} {
-  if (typeof window === "undefined") return { businesses: [], activeBusinessIndex: null, step: "checking" };
+function restore(): Partial<EmployerIdentityState> {
+  if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { businesses: [], activeBusinessIndex: null, step: "checking" };
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null) {
-      const obj = parsed as Record<string, unknown>;
+    if (!raw) return {};
+    const obj = JSON.parse(raw) as Record<string, unknown>;
 
-      // Migrate from old single-name format
-      if (obj.employerNameHash && !obj.businesses) {
-        const migrated: RegisteredBusiness = {
-          nameHash: obj.employerNameHash as string,
-          name: (obj.chosenName as string) ?? "",
-          suffixCode: (obj.suffixCode as number) ?? 1,
-          profileAnchored: (obj.profileAnchored as boolean) ?? false,
-        };
-        return {
-          businesses: [migrated],
-          activeBusinessIndex: 0,
-          step: (obj.step as EmployerOnboardingStep) ?? "complete",
-        };
-      }
+    const profileAnchored = typeof obj.profileAnchored === "boolean" ? obj.profileAnchored : false;
 
-      const businesses = Array.isArray(obj.businesses) ? obj.businesses as RegisteredBusiness[] : [];
-      const hasCompleted = businesses.some(b => b.profileAnchored);
-
-      // If no completed businesses, always re-check on startup
-      // (prevents being stuck in funnel from a stale step)
-      const step = hasCompleted
-        ? ((typeof obj.step === "string" ? obj.step : "complete") as EmployerOnboardingStep)
-        : "checking";
-
-      return {
-        businesses,
-        activeBusinessIndex: typeof obj.activeBusinessIndex === "number" ? obj.activeBusinessIndex : null,
-        step,
-      };
-    }
+    return {
+      walletAddress: typeof obj.walletAddress === "string" ? obj.walletAddress : null,
+      employerNameHash: typeof obj.employerNameHash === "string" ? obj.employerNameHash : null,
+      chosenName: typeof obj.chosenName === "string" ? obj.chosenName : null,
+      suffixCode: typeof obj.suffixCode === "number" ? obj.suffixCode : null,
+      profileAnchored,
+      // Only restore step as complete if profile is anchored
+      step: profileAnchored ? "complete" : "checking",
+    };
   } catch {
-    // ignore
+    return {};
   }
-  return { businesses: [], activeBusinessIndex: null, step: "checking" };
-}
-
-function getActive(businesses: RegisteredBusiness[], index: number | null): RegisteredBusiness | null {
-  if (index === null || index < 0 || index >= businesses.length) return null;
-  return businesses[index] ?? null;
 }
 
 export const useEmployerIdentityStore = create<EmployerIdentityState & EmployerIdentityActions>(
-  (set, get) => {
-    const restored = restoreFromSession();
+  (set) => {
+    const restored = restore();
 
     return {
-      step: restored.step,
-      businesses: restored.businesses,
-      activeBusinessIndex: restored.activeBusinessIndex,
+      step: restored.step ?? "checking",
+      walletAddress: restored.walletAddress ?? null,
+      employerNameHash: restored.employerNameHash ?? null,
+      chosenName: restored.chosenName ?? null,
+      suffixCode: restored.suffixCode ?? null,
+      profileAnchored: restored.profileAnchored ?? false,
       queryError: null,
-
-      // Derived getters
-      get activeBusiness() {
-        const s = get();
-        return getActive(s.businesses, s.activeBusinessIndex);
-      },
-      get employerNameHash() {
-        return get().activeBusiness?.nameHash ?? null;
-      },
-      get chosenName() {
-        return get().activeBusiness?.name ?? null;
-      },
-      get suffixCode() {
-        return get().activeBusiness?.suffixCode ?? null;
-      },
-      get profileAnchored() {
-        return get().activeBusiness?.profileAnchored ?? false;
-      },
 
       setStep: (step) => {
         set({ step });
-        persistToStorage({ step });
+        persist({ step });
       },
 
-      addBusiness: (hash, name, suffix) => {
-        const { businesses } = get();
-        // Don't add duplicates
-        if (businesses.some(b => b.nameHash === hash)) return;
-        const newBiz: RegisteredBusiness = {
-          nameHash: hash,
-          name,
-          suffixCode: suffix,
-          profileAnchored: false,
-        };
-        const updated = [...businesses, newBiz];
-        const newIndex = updated.length - 1;
-        set({ businesses: updated, activeBusinessIndex: newIndex });
-        persistToStorage({ businesses: updated, activeBusinessIndex: newIndex });
+      setWalletAddress: (address) => {
+        set({ walletAddress: address });
+        persist({ walletAddress: address });
+      },
+
+      setEmployerNameHash: (hash, name, suffix) => {
+        set({
+          employerNameHash: hash,
+          chosenName: name ?? null,
+          suffixCode: suffix ?? null,
+        });
+        persist({
+          employerNameHash: hash,
+          chosenName: name ?? null,
+          suffixCode: suffix ?? null,
+        });
       },
 
       setProfileAnchored: (anchored) => {
-        const { businesses, activeBusinessIndex } = get();
-        if (activeBusinessIndex === null) return;
-        const updated = [...businesses];
-        const biz = updated[activeBusinessIndex];
-        if (biz) {
-          updated[activeBusinessIndex] = { ...biz, profileAnchored: anchored };
-          set({ businesses: updated });
-          persistToStorage({ businesses: updated });
-        }
-      },
-
-      setActiveBusiness: (index) => {
-        set({ activeBusinessIndex: index });
-        persistToStorage({ activeBusinessIndex: index });
-      },
-
-      // Legacy compatibility
-      setEmployerNameHash: (hash, name, suffix) => {
-        const { addBusiness } = get();
-        addBusiness(hash, name ?? "", suffix ?? 1);
+        set({ profileAnchored: anchored });
+        persist({ profileAnchored: anchored });
       },
 
       setQueryError: (error) => set({ queryError: error }),
@@ -202,8 +120,11 @@ export const useEmployerIdentityStore = create<EmployerIdentityState & EmployerI
       reset: () => {
         set({
           step: "checking",
-          businesses: [],
-          activeBusinessIndex: null,
+          walletAddress: null,
+          employerNameHash: null,
+          chosenName: null,
+          suffixCode: null,
+          profileAnchored: false,
           queryError: null,
         });
         if (typeof window !== "undefined") {

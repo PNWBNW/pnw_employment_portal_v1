@@ -16,8 +16,7 @@ import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 
 export default function DashboardPage() {
   const { address, viewKey } = useAleoSession();
-  const { businesses, activeBusinessIndex } = useEmployerIdentityStore();
-  const activeBusiness = activeBusinessIndex !== null ? businesses[activeBusinessIndex] ?? null : null;
+  const { chosenName, suffixCode, profileAnchored } = useEmployerIdentityStore();
   const { workers, setWorkers, setLoading: setWorkersLoading } =
     useWorkerStore();
   const { history } = usePayrollRunStore();
@@ -71,8 +70,8 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Setup banner — shown when no active business profile */}
-      {!activeBusiness && (
+      {/* Setup banner — shown when no profile in this session */}
+      {!profileAnchored && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
@@ -85,8 +84,7 @@ export default function DashboardPage() {
                 Business Profile Required
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                You have .pnw names registered on-chain, but no active business profile in this session.
-                Set up your business identity to unlock payroll, agreements, and credentials.
+                Complete your .pnw business profile to unlock payroll, agreements, and credentials.
               </p>
               <button
                 onClick={() => {
@@ -104,16 +102,14 @@ export default function DashboardPage() {
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
-          {activeBusiness ? (
+          {chosenName && profileAnchored ? (
             <>
               <p className="text-sm text-muted-foreground">Business Identity</p>
               <p className="mt-1 text-lg font-bold text-card-foreground">
-                {/^[a-z0-9_]{3,16}$/.test(activeBusiness.name)
-                  ? `${activeBusiness.name}.pnw`
-                  : activeBusiness.name}
+                {chosenName}.pnw
               </p>
               <p className="text-xs text-muted-foreground">
-                {INDUSTRY_SUFFIXES[activeBusiness.suffixCode]?.label ?? "Business"}
+                {suffixCode ? INDUSTRY_SUFFIXES[suffixCode]?.label ?? "Business" : "Business"}
               </p>
               <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
                 {address}
@@ -168,7 +164,7 @@ export default function DashboardPage() {
           Quick Actions
         </h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          {activeBusiness ? (
+          {profileAnchored ? (
             <Link
               href="/payroll/new"
               className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
@@ -192,14 +188,6 @@ export default function DashboardPage() {
           >
             Credentials
           </Link>
-          <button
-            onClick={() => {
-              useEmployerIdentityStore.getState().setStep("register_name");
-            }}
-            className="rounded-md border border-input px-4 py-2 text-sm hover:bg-accent"
-          >
-            + Add Business
-          </button>
         </div>
       </div>
 
