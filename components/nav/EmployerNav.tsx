@@ -15,7 +15,6 @@ const NAV_ITEMS = [
   { href: "/audit", label: "Audit", icon: "file-search" },
 ] as const;
 
-// Simple SVG icons to avoid external dependency for nav
 function NavIcon({ name }: { name: string }) {
   const iconMap: Record<string, string> = {
     grid: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
@@ -43,27 +42,16 @@ function NavIcon({ name }: { name: string }) {
 }
 
 interface EmployerNavProps {
-  /** Whether the mobile drawer is open */
   mobileOpen?: boolean;
-  /** Called when the mobile drawer should close */
   onMobileClose?: () => void;
 }
 
 export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
   const pathname = usePathname();
   const { address } = useAleoSession();
-  const {
-    businesses,
-    activeBusinessIndex,
-    setActiveBusiness,
-  } = useEmployerIdentityStore();
+  const { chosenName, suffixCode, profileAnchored } = useEmployerIdentityStore();
 
-  // Compute active business directly (Zustand getters aren't reactive)
-  const activeBusiness = activeBusinessIndex !== null ? businesses[activeBusinessIndex] ?? null : null;
-
-  // Only show businesses with completed profiles
-  const completedBusinesses = businesses.filter(b => b.profileAnchored);
-  const hasMultiple = completedBusinesses.length > 1;
+  const industryLabel = suffixCode ? INDUSTRY_SUFFIXES[suffixCode]?.label : null;
 
   const navContent = (
     <nav className="flex h-full w-56 flex-col border-r border-border bg-card">
@@ -72,16 +60,16 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
         <span className="text-sm font-bold tracking-tight text-primary">
           PNW Portal
         </span>
-        {activeBusiness ? (
+        {chosenName && profileAnchored ? (
           <div className="mt-2">
             <p className="text-sm font-semibold text-foreground">
-              {/^[a-z0-9_]{3,16}$/.test(activeBusiness.name)
-                ? `${activeBusiness.name}.pnw`
-                : activeBusiness.name}
+              {chosenName}.pnw
             </p>
-            <p className="text-xs text-muted-foreground">
-              {INDUSTRY_SUFFIXES[activeBusiness.suffixCode]?.label ?? "Business"}
-            </p>
+            {industryLabel && (
+              <p className="text-xs text-muted-foreground">
+                {industryLabel}
+              </p>
+            )}
           </div>
         ) : (
           <p className="mt-1 text-xs text-muted-foreground truncate">
@@ -89,28 +77,6 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
           </p>
         )}
       </div>
-
-      {/* Business switcher (only if multiple completed businesses) */}
-      {hasMultiple && (
-        <div className="border-b border-border px-3 py-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            Active Business
-          </label>
-          <select
-            value={activeBusinessIndex ?? 0}
-            onChange={(e) => setActiveBusiness(Number(e.target.value))}
-            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {businesses.map((biz, i) => (
-              biz.profileAnchored && (
-                <option key={biz.nameHash} value={i}>
-                  {/^[a-z0-9_]{3,16}$/.test(biz.name) ? `${biz.name}.pnw` : biz.name}
-                </option>
-              )
-            ))}
-          </select>
-        </div>
-      )}
 
       <div className="flex-1 space-y-1 p-2">
         {NAV_ITEMS.map((item) => {
@@ -149,21 +115,11 @@ export function EmployerNav({ mobileOpen, onMobileClose }: EmployerNavProps) {
 
   return (
     <>
-      {/* Desktop sidebar — always visible at md+ */}
       <div className="hidden md:flex">{navContent}</div>
-
-      {/* Mobile overlay drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          {/* Backdrop — closes menu on tap */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={onMobileClose}
-          />
-          {/* Drawer panel */}
-          <div className="relative z-10">
-            {navContent}
-          </div>
+          <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} />
+          <div className="relative z-10">{navContent}</div>
         </div>
       )}
     </>

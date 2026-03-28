@@ -26,8 +26,7 @@ type AvailabilityState =
 
 export function RegisterEmployerNameStep() {
   const { address } = useAleoSession();
-  const { addBusiness, setStep, queryError, businesses } = useEmployerIdentityStore();
-  const hasCompletedBusiness = businesses.some(b => b.profileAnchored);
+  const { setEmployerNameHash, setStep, queryError } = useEmployerIdentityStore();
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
 
   const [name, setName] = useState("");
@@ -35,20 +34,14 @@ export function RegisterEmployerNameStep() {
   const [availability, setAvailability] = useState<AvailabilityState>({ status: "idle" });
   const [showCommand, setShowCommand] = useState(false);
   const [commandPreview, setCommandPreview] = useState("");
-  const [nameCount, setNameCount] = useState(0);
   const [isVerified, setIsVerified] = useState<boolean | null>(null);
 
   // Validation: alphanumeric + underscores, 3-16 chars
   const nameRegex = /^[a-z0-9_]{3,16}$/;
   const isValidFormat = nameRegex.test(name);
 
-  // Tiered pricing based on how many names the wallet already has
-  const priceIndex = Math.min(nameCount, 2); // 0, 1, or 2
-  const basePrice = EMPLOYER_PRICES[priceIndex]!;
-  const feeCost = Number(DEFAULT_NAMING_FEE) / Number(USDCX_SCALE);
-  const baseCost = Number(basePrice) / Number(USDCX_SCALE);
-  const totalCost = baseCost + feeCost;
-  const costDisplay = `${totalCost} USDCx`;
+  // Flat pricing: 1 USDCx per name
+  const costDisplay = "1 USDCx";
   const suffix = INDUSTRY_SUFFIXES[suffixCode];
 
   async function handleCheckAvailability() {
@@ -60,18 +53,6 @@ export function RegisterEmployerNameStep() {
       // Check verification status
       const verified = await queryEmployerVerified(address);
       setIsVerified(verified);
-
-      // Check existing name count for pricing
-      const count = await queryEmployerNameCount(address);
-      setNameCount(count);
-
-      if (count >= 3) {
-        setAvailability({
-          status: "error",
-          message: "Maximum 3 employer names per wallet. Sell an existing name to register a new one.",
-        });
-        return;
-      }
 
       const hash = computeNameHash(name);
       const owner = await queryNameOwner(hash);
@@ -94,8 +75,7 @@ export function RegisterEmployerNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-    const count = nameCount; // program expects current count (0, 1, or 2), not count+1
-    const registerCmd = buildRegisterEmployerNameCommand(hash, suffixCode, count, DEFAULT_NAMING_FEE);
+    const registerCmd = `snarkos developer execute pnw_name_registrar_v4.aleo register_employer_name ${hash}field ${suffixCode}u8`;
 
     setCommandPreview(registerCmd);
     setShowCommand(true);
@@ -105,13 +85,10 @@ export function RegisterEmployerNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-    const count = nameCount; // program expects current count (0, 1, or 2), not count+1
 
     const inputs = [
       `${hash}field`,
       `${suffixCode}u8`,
-      `${count}u8`,
-      `${DEFAULT_NAMING_FEE}u128`,
     ];
 
     console.log("[PNW] register_employer_name inputs:", JSON.stringify(inputs, null, 2));
@@ -126,15 +103,14 @@ export function RegisterEmployerNameStep() {
     );
 
     if (result.status === "confirmed") {
-      addBusiness(hash, name, suffixCode);
+      setEmployerNameHash(hash, name, suffixCode);
       setStep("create_profile");
     }
-    // "rejected" and "unknown" errors are surfaced via txError from the hook
   }
 
   function handleConfirmRegistration() {
     if (availability.status !== "available") return;
-    addBusiness(availability.nameHash, name, suffixCode);
+    setEmployerNameHash(availability.nameHash, name, suffixCode);
     setStep("create_profile");
   }
 
@@ -162,17 +138,15 @@ export function RegisterEmployerNameStep() {
       {/* Info cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-medium text-foreground">Up to 3 Names</p>
+          <p className="text-xs font-medium text-foreground">One Name Per Wallet</p>
           <p className="text-xs text-muted-foreground">
-            Employers can register up to 3 .pnw names per wallet.
+            Each wallet gets one .pnw identity — either worker or employer.
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-medium text-foreground">Tiered Pricing</p>
+          <p className="text-xs font-medium text-foreground">Flat Pricing</p>
           <p className="text-xs text-muted-foreground">
-            {totalCost > 0
-              ? "1st: 10 USDCx, 2nd: 100 USDCx, 3rd: 300 USDCx"
-              : "Free on testnet (mainnet: 10 / 100 / 300 USDCx)"}
+            {costDisplay} (testnet)
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
@@ -294,7 +268,7 @@ export function RegisterEmployerNameStep() {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Industry: {suffix?.label} ({suffix?.code}) | Name #{nameCount + 1} of 3
+              Industry: {suffix?.label} ({suffix?.code})
             </p>
             <p className="text-xs text-muted-foreground font-mono break-all">
               Name hash: {availability.nameHash}
@@ -323,7 +297,7 @@ export function RegisterEmployerNameStep() {
           onClick={handleRegister}
           className="w-full rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          Register {name}.pnw{totalCost > 0 ? ` for ${costDisplay}` : ""}
+          Register {name}.pnw for {costDisplay}
         </button>
       )}
 
@@ -341,10 +315,7 @@ export function RegisterEmployerNameStep() {
 
           <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
             <p className="text-xs text-blue-300">
-              {totalCost > 0
-                ? `This transaction costs ${costDisplay}. You must have sufficient USDCx balance. `
-                : "No USDCx fee on testnet. "}
-              Aleo network execution fees are paid separately.
+              This transaction costs {costDisplay}. Aleo network execution fees are paid separately.
             </p>
           </div>
 
@@ -383,15 +354,6 @@ export function RegisterEmployerNameStep() {
         </div>
       )}
 
-      {/* Back to dashboard (only if user already has a completed business) */}
-      {hasCompletedBusiness && (
-        <button
-          onClick={() => setStep("complete")}
-          className="w-full rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
-        >
-          Back to Dashboard
-        </button>
-      )}
 
       {/* Connected wallet info */}
       <div className="rounded-md bg-muted/30 p-3 text-center">

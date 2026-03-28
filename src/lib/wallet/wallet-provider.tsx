@@ -153,7 +153,7 @@ export function AleoWalletProviderWrapper({
         "test_usdcx_stablecoin.aleo",
         "test_usdcx_freezelist.aleo",
         "pnw_name_registry_v2.aleo",
-        "pnw_name_registrar_v3.aleo",
+        "pnw_name_registrar_v4.aleo",
         "employer_license_registry.aleo",
         "employer_profiles_v2.aleo",
         "pnw_worker_profiles_v2.aleo",
