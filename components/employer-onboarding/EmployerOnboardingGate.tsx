@@ -95,15 +95,31 @@ export function EmployerOnboardingGate({ children }: Props) {
   const checkOnboardingStatus = useCallback(async () => {
     if (!address) return;
 
+    // 0. Check if stored data belongs to a different wallet — if so, clear it
+    const ADDR_KEY = "pnw_employer_address";
+    const storedAddr = typeof window !== "undefined" ? localStorage.getItem(ADDR_KEY) : null;
+    if (storedAddr && storedAddr !== address) {
+      // Different wallet — clear stale data
+      console.log("[PNW] Wallet changed, clearing stored identity");
+      useEmployerIdentityStore.getState().reset();
+    }
+    // Store current wallet address
+    if (typeof window !== "undefined") {
+      localStorage.setItem(ADDR_KEY, address);
+    }
+
+    // Re-read after potential reset
+    const currentBusinesses = useEmployerIdentityStore.getState().businesses;
+
     // 1. localStorage has completed businesses → dashboard
-    const hasCompleted = businesses.some(b => b.profileAnchored);
+    const hasCompleted = currentBusinesses.some(b => b.profileAnchored);
     if (hasCompleted) {
       setStep("complete");
       return;
     }
 
     // 2. localStorage has unfinished business → profile step
-    const hasUnfinished = businesses.some(b => !b.profileAnchored);
+    const hasUnfinished = currentBusinesses.some(b => !b.profileAnchored);
     if (hasUnfinished) {
       setStep("create_profile");
       return;

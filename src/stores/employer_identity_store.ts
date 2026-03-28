@@ -59,7 +59,8 @@ type EmployerIdentityActions = {
 
 const STORAGE_KEY = "pnw_employer_identity";
 
-function persistToSession(data: Record<string, unknown>): void {
+/** Store the wallet address alongside identity data so we can detect wallet switches */
+function persistToStorage(data: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
     const existing = localStorage.getItem(STORAGE_KEY);
@@ -154,7 +155,7 @@ export const useEmployerIdentityStore = create<EmployerIdentityState & EmployerI
 
       setStep: (step) => {
         set({ step });
-        persistToSession({ step });
+        persistToStorage({ step });
       },
 
       addBusiness: (hash, name, suffix) => {
@@ -170,7 +171,7 @@ export const useEmployerIdentityStore = create<EmployerIdentityState & EmployerI
         const updated = [...businesses, newBiz];
         const newIndex = updated.length - 1;
         set({ businesses: updated, activeBusinessIndex: newIndex });
-        persistToSession({ businesses: updated, activeBusinessIndex: newIndex });
+        persistToStorage({ businesses: updated, activeBusinessIndex: newIndex });
       },
 
       setProfileAnchored: (anchored) => {
@@ -181,13 +182,13 @@ export const useEmployerIdentityStore = create<EmployerIdentityState & EmployerI
         if (biz) {
           updated[activeBusinessIndex] = { ...biz, profileAnchored: anchored };
           set({ businesses: updated });
-          persistToSession({ businesses: updated });
+          persistToStorage({ businesses: updated });
         }
       },
 
       setActiveBusiness: (index) => {
         set({ activeBusinessIndex: index });
-        persistToSession({ activeBusinessIndex: index });
+        persistToStorage({ activeBusinessIndex: index });
       },
 
       // Legacy compatibility
