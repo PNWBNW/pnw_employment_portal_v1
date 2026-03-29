@@ -5,7 +5,7 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import {
   useWorkerIdentityStore,
 } from "@/src/stores/worker_identity_store";
-import { queryWorkerName } from "@/src/registry/name_registry";
+import { queryWorkerName, queryEmployerNameCount } from "@/src/registry/name_registry";
 import { RegisterNameStep } from "./RegisterNameStep";
 import { CreateProfileStep } from "./CreateProfileStep";
 
@@ -26,6 +26,7 @@ export function OnboardingGate({ children }: Props) {
     step,
     workerNameHash,
     profileAnchored,
+    queryError,
     setStep,
     setWorkerNameHash,
     setQueryError,
@@ -65,10 +66,18 @@ export function OnboardingGate({ children }: Props) {
     setQueryError(null);
 
     try {
+      // Check if wallet already has an EMPLOYER name — can't have both
+      const employerCount = await queryEmployerNameCount(address);
+      if (employerCount > 0) {
+        setQueryError("EMPLOYER_NAME_EXISTS");
+        setStep("register_name"); // will show blocked message
+        return;
+      }
+
       const nameHash = await queryWorkerName(address);
 
       if (nameHash) {
-        // Has name on-chain — go to dashboard (may have profile)
+        // Has worker name on-chain — go to dashboard
         setStep("complete");
         return;
       }
@@ -95,6 +104,33 @@ export function OnboardingGate({ children }: Props) {
         <p className="text-sm text-muted-foreground">
           Checking your .pnw identity...
         </p>
+      </div>
+    );
+  }
+
+  // Blocked: wallet already has an employer .pnw name
+  if (step === "register_name" && queryError === "EMPLOYER_NAME_EXISTS") {
+    return (
+      <div className="mx-auto w-full max-w-lg py-24 space-y-6">
+        <div className="text-center space-y-2">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-semibold text-foreground">
+            Wallet Already Registered
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            This wallet already has an <strong>employer</strong> .pnw name registered.
+            Each wallet can only have one .pnw identity — either worker or employer, not both.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            To register as a worker, please use a different wallet.
+          </p>
+        </div>
       </div>
     );
   }
