@@ -2,10 +2,12 @@
 
 import { useEffect, useCallback, type ReactNode } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import {
   useEmployerIdentityStore,
 } from "@/src/stores/employer_identity_store";
-import { queryEmployerNameCount, queryWorkerName } from "@/src/registry/name_registry";
+import { queryEmployerNameCount, queryWorkerName, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { PROGRAMS } from "@/src/config/programs";
 import { RegisterEmployerNameStep } from "./RegisterEmployerNameStep";
 import { CreateEmployerProfileStep } from "./CreateEmployerProfileStep";
 
@@ -22,6 +24,7 @@ type Props = {
  */
 export function EmployerOnboardingGate({ children }: Props) {
   const { address } = useAleoSession();
+  const { requestRecords } = useWallet();
   const {
     step,
     walletAddress,
@@ -76,7 +79,44 @@ export function EmployerOnboardingGate({ children }: Props) {
       const count = await queryEmployerNameCount(address);
 
       if (count > 0) {
-        // Has an employer name on-chain — go to dashboard
+        // Has an employer name on-chain — try to recover profile from wallet
+        if (requestRecords) {
+          try {
+            const records = await requestRecords(PROGRAMS.layer1.employer_profiles, true);
+            if (Array.isArray(records) && records.length > 0) {
+              const rec = records[0] as Record<string, unknown>;
+              const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
+              const hashMatch = plaintext.match(/employer_name_hash:\s*(\d+)field/);
+              const suffixMatch = plaintext.match(/suffix_code:\s*(\d+)u8/);
+              const legalMatch = plaintext.match(/legal_name_u128:\s*(\d+)u128/);
+
+              if (hashMatch?.[1]) {
+                const suffixCode = parseInt(suffixMatch?.[1] ?? "1");
+                let displayName = INDUSTRY_SUFFIXES[suffixCode]?.code?.toLowerCase() ?? "business";
+                if (legalMatch?.[1]) {
+                  try {
+                    let val = BigInt(legalMatch[1]);
+                    const bytes: number[] = [];
+                    while (val > 0n) { bytes.unshift(Number(val & 0xffn)); val >>= 8n; }
+                    const decoded = new TextDecoder().decode(new Uint8Array(bytes)).trim();
+                    if (decoded) displayName = decoded;
+                  } catch { /* keep suffix name */ }
+                }
+
+                const store = useEmployerIdentityStore.getState();
+                store.setEmployerNameHash(hashMatch[1], displayName, suffixCode);
+                store.setProfileAnchored(true);
+                store.setWalletAddress(address);
+                setStep("complete");
+                return;
+              }
+            }
+          } catch (err) {
+            console.warn("[PNW] Failed to recover profile from wallet:", err);
+          }
+        }
+
+        // Couldn't recover profile — go to dashboard anyway
         setStep("complete");
         return;
       }
