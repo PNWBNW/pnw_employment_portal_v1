@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWorkerStore, type WorkerRecord } from "@/src/stores/worker_store";
 import { readAgreementRecords } from "@/src/records/agreement_reader";
+import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+
+type SentOffer = {
+  agreement_id: string;
+  worker_pnw_name: string;
+  worker_address: string;
+  industry_code: number;
+  pay_frequency: number;
+  terms_text: string;
+  tx_id: string;
+  created_at: number;
+};
 
 function truncate(str: string, len = 12): string {
   if (str.length <= len) return str;
@@ -30,6 +42,7 @@ function StatusBadge({ status }: { status: WorkerRecord["status"] }) {
 export default function WorkersPage() {
   const { viewKey, address } = useAleoSession();
   const { workers, isLoading, setWorkers, setLoading } = useWorkerStore();
+  const [sentOffers, setSentOffers] = useState<SentOffer[]>([]);
 
   const loadWorkers = useCallback(async () => {
     if (!viewKey || !address) return;
@@ -46,7 +59,17 @@ export default function WorkersPage() {
 
   useEffect(() => {
     void loadWorkers();
-  }, [loadWorkers]);
+
+    // Load sent offers from localStorage
+    if (address) {
+      try {
+        const raw = localStorage.getItem(`pnw_sent_offers_${address}`);
+        if (raw) setSentOffers(JSON.parse(raw) as SentOffer[]);
+      } catch {
+        // ignore
+      }
+    }
+  }, [loadWorkers, address]);
 
   const activeCount = workers.filter((w) => w.status === "active").length;
 
@@ -147,6 +170,46 @@ export default function WorkersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Sent Offers */}
+      {sentOffers.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-foreground">Sent Offers</h2>
+          <div className="rounded-lg border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Worker</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Industry</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sent</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sentOffers.map((offer) => (
+                  <tr key={offer.agreement_id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-foreground">{offer.worker_pnw_name}.pnw</p>
+                      <p className="font-mono text-xs text-muted-foreground">{offer.worker_address.slice(0, 12)}...</p>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {INDUSTRY_SUFFIXES[offer.industry_code]?.label ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(offer.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                        Pending
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
