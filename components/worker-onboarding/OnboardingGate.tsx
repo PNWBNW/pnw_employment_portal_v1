@@ -4,7 +4,6 @@ import { useEffect, useCallback, type ReactNode } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import {
   useWorkerIdentityStore,
-  type OnboardingStep,
 } from "@/src/stores/worker_identity_store";
 import { queryWorkerName } from "@/src/registry/name_registry";
 import { RegisterNameStep } from "./RegisterNameStep";
@@ -15,70 +14,80 @@ type Props = {
 };
 
 /**
- * OnboardingGate — wraps the entire worker portal.
+ * Worker OnboardingGate — one name per wallet, simple flow.
  *
- * Checks on-chain state to determine if the connected wallet has:
- *   1. A registered .pnw worker name
- *   2. An anchored worker profile
- *
- * If either is missing, the gate blocks portal access and shows the
- * appropriate registration step instead.
+ * 1. If localStorage has completed profile for THIS wallet → portal
+ * 2. If localStorage has name but no profile → profile step
+ * 3. If no localStorage, check on-chain worker_primary_name_of → portal or funnel
  */
 export function OnboardingGate({ children }: Props) {
   const { address } = useAleoSession();
   const {
     step,
     workerNameHash,
+    profileAnchored,
     setStep,
     setWorkerNameHash,
     setQueryError,
+    reset,
   } = useWorkerIdentityStore();
 
   const checkOnboardingStatus = useCallback(async () => {
     if (!address) return;
 
-    setStep("checking");
-    setQueryError(null);
-
-    try {
-      // Step 1: Check if wallet has a .pnw worker name
-      const nameHash = await queryWorkerName(address);
-
-      if (!nameHash) {
-        setStep("register_name");
-        return;
-      }
-
-      // Name exists — save it
-      setWorkerNameHash(nameHash);
-
-      // For now, skip profile anchor check (profile creation is step 2)
-      // In the future, we'd query worker_profiles.aleo/profile_anchor_height
-      // to verify the profile is anchored. For MVP we trust the session state.
-      setStep("create_profile");
-    } catch {
-      setQueryError("Failed to check on-chain identity. Check your network connection.");
-      setStep("register_name");
+    // Detect wallet switch — check stored address
+    const ADDR_KEY = "pnw_worker_address";
+    const storedAddr = typeof window !== "undefined" ? localStorage.getItem(ADDR_KEY) : null;
+    if (storedAddr && storedAddr !== address) {
+      console.log("[PNW] Worker wallet changed, clearing stored identity");
+      reset();
     }
-  }, [address, setStep, setWorkerNameHash, setQueryError]);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(ADDR_KEY, address);
+    }
 
-  useEffect(() => {
-    // If we already know onboarding is complete from session, skip the check
-    if (step === "complete") return;
+    // Re-read state after potential reset
+    const state = useWorkerIdentityStore.getState();
 
-    // If we have a name hash cached from session, go to profile step
-    if (workerNameHash && step === "checking") {
+    // 1. localStorage has completed profile → portal
+    if (state.profileAnchored && state.workerNameHash) {
+      setStep("complete");
+      return;
+    }
+
+    // 2. localStorage has name but no profile → profile step
+    if (state.workerNameHash && !state.profileAnchored) {
       setStep("create_profile");
       return;
     }
 
-    // Otherwise, query on-chain
+    // 3. No localStorage — check on-chain
+    setQueryError(null);
+
+    try {
+      const nameHash = await queryWorkerName(address);
+
+      if (nameHash) {
+        // Has name on-chain — go to dashboard (may have profile)
+        setStep("complete");
+        return;
+      }
+
+      // No name — registration funnel
+      setStep("register_name");
+    } catch {
+      setQueryError("Failed to check on-chain identity.");
+      setStep("register_name");
+    }
+  }, [address, setStep, setWorkerNameHash, setQueryError, reset]);
+
+  useEffect(() => {
+    if (step === "complete") return;
     if (address && step === "checking") {
       checkOnboardingStatus();
     }
-  }, [address, step, workerNameHash, checkOnboardingStatus, setStep]);
+  }, [address, step, checkOnboardingStatus]);
 
-  // Loading state
   if (step === "checking") {
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-4">
@@ -90,16 +99,13 @@ export function OnboardingGate({ children }: Props) {
     );
   }
 
-  // Step 1: Register .pnw name
   if (step === "register_name") {
     return <RegisterNameStep />;
   }
 
-  // Step 2: Create worker profile
   if (step === "create_profile") {
     return <CreateProfileStep />;
   }
 
-  // Onboarding complete — render the actual portal
   return <>{children}</>;
 }
