@@ -81,7 +81,7 @@ export function RegisterNameStep() {
     const result = await execute(
       PROGRAMS.layer1.pnw_name_registrar,
       "register_worker_name",
-      [`${hash}field`, `${DEFAULT_NAMING_FEE}u128`],
+      [`${hash}field`],
     );
 
     if (result.status === "confirmed") {
