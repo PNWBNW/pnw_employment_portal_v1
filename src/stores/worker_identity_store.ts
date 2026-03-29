@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { Field } from "@/src/lib/pnw-adapter/aleo_types";
 
 // ---------------------------------------------------------------------------
-// Worker Identity Store — tracks .pnw name and profile status for the session
+// Worker Identity Store — one .pnw name per wallet, one profile
 // ---------------------------------------------------------------------------
 
 export type OnboardingStep =
@@ -15,18 +15,16 @@ export type OnboardingStep =
 
 type WorkerIdentityState = {
   step: OnboardingStep;
-  /** Worker's .pnw name hash (field) once registered */
+  walletAddress: string | null;
   workerNameHash: Field | null;
-  /** The plaintext name chosen during registration (session only) */
   chosenName: string | null;
-  /** Whether the profile has been anchored on-chain */
   profileAnchored: boolean;
-  /** Error from last on-chain query */
   queryError: string | null;
 };
 
 type WorkerIdentityActions = {
   setStep: (step: OnboardingStep) => void;
+  setWalletAddress: (address: string) => void;
   setWorkerNameHash: (hash: Field, name?: string) => void;
   setProfileAnchored: (anchored: boolean) => void;
   setQueryError: (error: string | null) => void;
@@ -35,50 +33,45 @@ type WorkerIdentityActions = {
 
 const STORAGE_KEY = "pnw_worker_identity";
 
-function persistToSession(state: Partial<WorkerIdentityState>): void {
+function persist(data: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
     const existing = localStorage.getItem(STORAGE_KEY);
     const prev = existing ? JSON.parse(existing) : {};
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...state }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...data }));
   } catch {
     // localStorage unavailable
   }
 }
 
-function restoreFromSession(): Partial<WorkerIdentityState> {
+function restore(): Partial<WorkerIdentityState> {
   if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null) {
-      const obj = parsed as Record<string, unknown>;
-      const profileAnchored = typeof obj.profileAnchored === "boolean" ? obj.profileAnchored : false;
-      // If profile not completed, always re-check on startup
-      const step = profileAnchored
-        ? ((typeof obj.step === "string" ? obj.step : "complete") as OnboardingStep)
-        : "checking";
+    const obj = JSON.parse(raw) as Record<string, unknown>;
 
-      return {
-        workerNameHash: typeof obj.workerNameHash === "string" ? obj.workerNameHash : null,
-        chosenName: typeof obj.chosenName === "string" ? obj.chosenName : null,
-        profileAnchored,
-        step,
-      };
-    }
+    const profileAnchored = typeof obj.profileAnchored === "boolean" ? obj.profileAnchored : false;
+
+    return {
+      walletAddress: typeof obj.walletAddress === "string" ? obj.walletAddress : null,
+      workerNameHash: typeof obj.workerNameHash === "string" ? obj.workerNameHash : null,
+      chosenName: typeof obj.chosenName === "string" ? obj.chosenName : null,
+      profileAnchored,
+      step: profileAnchored ? "complete" : "checking",
+    };
   } catch {
-    // ignore
+    return {};
   }
-  return {};
 }
 
 export const useWorkerIdentityStore = create<WorkerIdentityState & WorkerIdentityActions>(
   (set) => {
-    const restored = restoreFromSession();
+    const restored = restore();
 
     return {
       step: restored.step ?? "checking",
+      walletAddress: restored.walletAddress ?? null,
       workerNameHash: restored.workerNameHash ?? null,
       chosenName: restored.chosenName ?? null,
       profileAnchored: restored.profileAnchored ?? false,
@@ -86,17 +79,22 @@ export const useWorkerIdentityStore = create<WorkerIdentityState & WorkerIdentit
 
       setStep: (step) => {
         set({ step });
-        persistToSession({ step });
+        persist({ step });
+      },
+
+      setWalletAddress: (address) => {
+        set({ walletAddress: address });
+        persist({ walletAddress: address });
       },
 
       setWorkerNameHash: (hash, name) => {
         set({ workerNameHash: hash, chosenName: name ?? null });
-        persistToSession({ workerNameHash: hash, chosenName: name ?? null });
+        persist({ workerNameHash: hash, chosenName: name ?? null });
       },
 
       setProfileAnchored: (anchored) => {
         set({ profileAnchored: anchored });
-        persistToSession({ profileAnchored: anchored });
+        persist({ profileAnchored: anchored });
       },
 
       setQueryError: (error) => set({ queryError: error }),
@@ -104,6 +102,7 @@ export const useWorkerIdentityStore = create<WorkerIdentityState & WorkerIdentit
       reset: () => {
         set({
           step: "checking",
+          walletAddress: null,
           workerNameHash: null,
           chosenName: null,
           profileAnchored: false,
