@@ -1,18 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import { computeAgreementValues } from "@/src/handshake/engine";
-import { computeNameHash, queryNameOwner, queryWorkerName, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { computeNameHash, queryNameOwner, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { ENV } from "@/src/config/env";
 import { fromHex } from "@/src/lib/pnw-adapter/hash";
 import { PROGRAMS, VERSIONS } from "@/src/config/programs";
 import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import type { Field } from "@/src/lib/pnw-adapter/aleo_types";
 
 const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+
+/** Aleo produces ~1 block every 3 seconds */
+const BLOCKS_PER_SECOND = 1 / 3;
+const BLOCKS_PER_DAY = Math.floor(BLOCKS_PER_SECOND * 86400); // ~28800
+
+/** Convert a Date to an approximate block height relative to current height */
+function dateToBlockHeight(date: Date, currentHeight: number, currentTime: Date): number {
+  const diffSeconds = (date.getTime() - currentTime.getTime()) / 1000;
+  return Math.max(currentHeight, currentHeight + Math.floor(diffSeconds * BLOCKS_PER_SECOND));
+}
+
+/** Convert a block height to approximate date relative to current height */
+function blockHeightToDate(height: number, currentHeight: number, currentTime: Date): Date {
+  const diffBlocks = height - currentHeight;
+  const diffSeconds = diffBlocks * 3; // 3 seconds per block
+  return new Date(currentTime.getTime() + diffSeconds * 1000);
+}
+
+/** Format a date as YYYY-MM-DD for input[type=date] */
+function formatDateInput(date: Date): string {
+  return date.toISOString().split("T")[0] ?? "";
+}
 
 function bytesToAleoU8Array(hex: string): string {
   const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
@@ -55,9 +78,35 @@ export default function OnboardWorkerPage() {
   const [reviewEpoch, setReviewEpoch] = useState(1);
   const [termsText, setTermsText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
 
   // Computed values for review
   const [computed, setComputed] = useState<ReturnType<typeof computeAgreementValues> | null>(null);
+
+  // Fetch current block height on load
+  useEffect(() => {
+    async function fetchBlockHeight() {
+      try {
+        const resp = await fetch(`${ENV.ALEO_ENDPOINT}/block/height/latest`, {
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (resp.ok) {
+          const height = await resp.json();
+          if (typeof height === "number") {
+            setCurrentBlockHeight(height);
+            // Auto-set start epoch to current block if not yet set
+            if (startEpoch <= 1) {
+              setStartEpoch(height);
+              setReviewEpoch(height);
+            }
+          }
+        }
+      } catch {
+        // Silently fail — user can enter manually
+      }
+    }
+    void fetchBlockHeight();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Look up worker by .pnw name
   async function handleLookupWorker() {
@@ -91,6 +140,10 @@ export default function OnboardWorkerPage() {
     }
     if (startEpoch <= 0) {
       setError("Start epoch must be greater than 0.");
+      return;
+    }
+    if (currentBlockHeight && startEpoch < currentBlockHeight) {
+      setError(`Start epoch must be at or after current block height (${currentBlockHeight}).`);
       return;
     }
     if (endEpoch !== 0 && endEpoch <= startEpoch) {
@@ -289,22 +342,59 @@ export default function OnboardWorkerPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            {currentBlockHeight && (
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="text-xs text-muted-foreground">
+                  Current block height: <span className="font-mono text-foreground">{currentBlockHeight.toLocaleString()}</span>
+                  <span className="ml-2">(~1 block every 3 seconds)</span>
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Start Epoch</label>
-                <input type="number" value={startEpoch} onChange={(e) => setStartEpoch(Number(e.target.value))}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <label className="text-xs font-medium text-muted-foreground">Start Date</label>
+                <input
+                  type="date"
+                  value={formatDateInput(currentBlockHeight
+                    ? blockHeightToDate(startEpoch, currentBlockHeight, new Date())
+                    : new Date())}
+                  min={formatDateInput(new Date())}
+                  onChange={(e) => {
+                    if (currentBlockHeight) {
+                      const date = new Date(e.target.value);
+                      const height = dateToBlockHeight(date, currentBlockHeight, new Date());
+                      setStartEpoch(height);
+                      if (reviewEpoch < height) setReviewEpoch(height);
+                    }
+                  }}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-xs text-muted-foreground">Block: {startEpoch.toLocaleString()}</p>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">End Epoch</label>
-                <input type="number" value={endEpoch} onChange={(e) => setEndEpoch(Number(e.target.value))}
-                  placeholder="0 = open"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Review Epoch</label>
-                <input type="number" value={reviewEpoch} onChange={(e) => setReviewEpoch(Number(e.target.value))}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <label className="text-xs font-medium text-muted-foreground">End Date <span className="text-muted-foreground/60">(optional)</span></label>
+                <input
+                  type="date"
+                  value={endEpoch > 0 && currentBlockHeight
+                    ? formatDateInput(blockHeightToDate(endEpoch, currentBlockHeight, new Date()))
+                    : ""}
+                  min={formatDateInput(currentBlockHeight
+                    ? blockHeightToDate(startEpoch, currentBlockHeight, new Date())
+                    : new Date())}
+                  onChange={(e) => {
+                    if (currentBlockHeight && e.target.value) {
+                      const date = new Date(e.target.value);
+                      setEndEpoch(dateToBlockHeight(date, currentBlockHeight, new Date()));
+                    } else {
+                      setEndEpoch(0);
+                    }
+                  }}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {endEpoch > 0 ? `Block: ${endEpoch.toLocaleString()}` : "Open-ended"}
+                </p>
               </div>
             </div>
 
