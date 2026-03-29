@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { OnboardingGate } from "@/components/worker-onboarding/OnboardingGate";
 import { useWorkerIdentityStore } from "@/src/stores/worker_identity_store";
 import { cn } from "@/src/lib/utils";
@@ -22,10 +23,21 @@ const WORKER_NAV = [
  * 3. Only renders the full portal when onboarding is complete.
  */
 export default function WorkerLayout({ children }: { children: ReactNode }) {
-  const { isConnected, address } = useAleoSession();
+  const { isConnected, address, disconnect } = useAleoSession();
+  const { disconnect: walletDisconnect } = useWallet();
   const router = useRouter();
   const pathname = usePathname();
   const step = useWorkerIdentityStore((s) => s.step);
+
+  const handleDisconnect = async () => {
+    try {
+      await walletDisconnect();
+    } catch {
+      // Wallet adapter may throw if already disconnected
+    }
+    disconnect();
+    router.push("/");
+  };
 
   useEffect(() => {
     if (!isConnected) {
@@ -48,11 +60,19 @@ export default function WorkerLayout({ children }: { children: ReactNode }) {
             </h1>
             <span className="text-xs text-muted-foreground">Setup</span>
           </div>
-          {address && (
-            <span className="font-mono text-xs text-muted-foreground">
-              {address.slice(0, 12)}...{address.slice(-6)}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {address && (
+              <span className="font-mono text-xs text-muted-foreground">
+                {address.slice(0, 12)}...{address.slice(-6)}
+              </span>
+            )}
+            <button
+              onClick={handleDisconnect}
+              className="rounded-md border border-input px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              Disconnect
+            </button>
+          </div>
         </header>
         <main className="flex-1 px-6">
           <OnboardingGate>{children}</OnboardingGate>
@@ -78,6 +98,12 @@ export default function WorkerLayout({ children }: { children: ReactNode }) {
               {address.slice(0, 12)}...{address.slice(-6)}
             </span>
           )}
+          <button
+            onClick={handleDisconnect}
+            className="rounded-md border border-input px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            Disconnect
+          </button>
           <nav className="flex gap-2">
             {WORKER_NAV.map((item) => {
               const isActive = pathname.startsWith(item.href);
