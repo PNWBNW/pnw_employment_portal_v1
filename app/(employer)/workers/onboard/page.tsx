@@ -3,47 +3,180 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
-import { WorkerVerification } from "@/components/onboarding/WorkerVerification";
-import { OfferForm } from "@/components/onboarding/OfferForm";
-import { OfferQRDisplay } from "@/components/onboarding/OfferQRDisplay";
-import { AcceptanceReceiver } from "@/components/onboarding/AcceptanceReceiver";
-import type { OfferIntent, ComputedAgreementValues } from "@/src/handshake/types";
-import type { AcceptanceSignal } from "@/src/handshake/types";
+import { computeAgreementValues } from "@/src/handshake/engine";
+import { computeNameHash, queryNameOwner, queryWorkerName, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { fromHex } from "@/src/lib/pnw-adapter/hash";
+import { PROGRAMS, VERSIONS } from "@/src/config/programs";
+import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import type { Field } from "@/src/lib/pnw-adapter/aleo_types";
 
-type OnboardStep =
-  | "verify"   // Step 1: enter + verify worker address
-  | "offer"    // Step 2: fill offer details
-  | "dispatch" // Step 3: show QR/link
-  | "confirm"  // Step 4: receive acceptance + show command preview
-  | "done";    // Step 5: agreement ready for on-chain broadcast
+const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+
+function bytesToAleoU8Array(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes.push(parseInt(clean.slice(i, i + 2), 16));
+  }
+  return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
+}
+
+function fieldFromHash(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  let value = 0n;
+  for (let i = 0; i < clean.length; i += 2) {
+    value = (value << 8n) | BigInt(parseInt(clean.slice(i, i + 2), 16));
+  }
+  return (value % FIELD_MODULUS).toString(10);
+}
+
+type Step = "form" | "review" | "broadcasting" | "done";
 
 export default function OnboardWorkerPage() {
   const { address: employerAddress } = useAleoSession();
+  const { employerNameHash, chosenName, suffixCode } = useEmployerIdentityStore();
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
-  const [step, setStep] = useState<OnboardStep>("verify");
+
+  const [step, setStep] = useState<Step>("form");
   const [broadcastTxId, setBroadcastTxId] = useState<string | null>(null);
 
-  // Data passed between steps
-  const [workerAddress, setWorkerAddress] = useState("");
-  const [workerNameHash, setWorkerNameHash] = useState<Field>("");
-  const [offerIntent, setOfferIntent] = useState<OfferIntent | null>(null);
-  const [computed, setComputed] = useState<ComputedAgreementValues | null>(null);
-  const [acceptance, setAcceptance] = useState<AcceptanceSignal | null>(null);
+  // Form state
+  const [workerPnwName, setWorkerPnwName] = useState("");
+  const [workerAddress, setWorkerAddress] = useState<string | null>(null);
+  const [workerNameHash, setWorkerNameHash] = useState<Field | null>(null);
+  const [workerLookupStatus, setWorkerLookupStatus] = useState<"idle" | "checking" | "found" | "not_found">("idle");
 
-  const stepLabels: Record<OnboardStep, string> = {
-    verify: "1. Verify Worker",
-    offer: "2. Create Offer",
-    dispatch: "3. Send Offer",
-    confirm: "4. Confirm Acceptance",
-    done: "5. Complete",
-  };
+  const [industryCode, setIndustryCode] = useState(suffixCode ?? 1);
+  const [payFrequency, setPayFrequency] = useState(2); // weekly
+  const [startEpoch, setStartEpoch] = useState(1);
+  const [endEpoch, setEndEpoch] = useState(0); // 0 = open-ended
+  const [reviewEpoch, setReviewEpoch] = useState(1);
+  const [termsText, setTermsText] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const steps: OnboardStep[] = ["verify", "offer", "dispatch", "confirm"];
+  // Computed values for review
+  const [computed, setComputed] = useState<ReturnType<typeof computeAgreementValues> | null>(null);
+
+  // Look up worker by .pnw name
+  async function handleLookupWorker() {
+    if (!workerPnwName.trim()) return;
+    setWorkerLookupStatus("checking");
+
+    try {
+      const hash = computeNameHash(workerPnwName.trim().toLowerCase());
+      const owner = await queryNameOwner(hash);
+
+      if (owner) {
+        setWorkerAddress(owner);
+        setWorkerNameHash(hash);
+        setWorkerLookupStatus("found");
+      } else {
+        setWorkerAddress(null);
+        setWorkerNameHash(null);
+        setWorkerLookupStatus("not_found");
+      }
+    } catch {
+      setWorkerLookupStatus("not_found");
+    }
+  }
+
+  function handleReview() {
+    if (!employerAddress || !workerAddress || !workerNameHash || !employerNameHash) return;
+
+    if (!termsText.trim()) {
+      setError("Agreement terms are required.");
+      return;
+    }
+    if (startEpoch <= 0) {
+      setError("Start epoch must be greater than 0.");
+      return;
+    }
+    if (endEpoch !== 0 && endEpoch <= startEpoch) {
+      setError("End epoch must be after start epoch (or 0 for open-ended).");
+      return;
+    }
+
+    setError(null);
+
+    const offerTime = Math.floor(Date.now() / 1000);
+    const vals = computeAgreementValues(
+      employerAddress,
+      workerAddress,
+      termsText.trim(),
+      offerTime,
+      VERSIONS.schema_v,
+      VERSIONS.policy_v,
+    );
+
+    setComputed(vals);
+    setStep("review");
+  }
+
+  async function handleBroadcast() {
+    if (!computed || !employerAddress || !workerAddress || !workerNameHash || !employerNameHash) return;
+
+    const empHash = fieldFromHash(employerNameHash.replace(/field$/, ""));
+    const wrkHash = fieldFromHash(workerNameHash.replace(/field$/, ""));
+
+    const inputs = [
+      bytesToAleoU8Array(computed.agreement_id),
+      bytesToAleoU8Array(computed.parties_key),
+      `${empHash}field`,
+      `${wrkHash}field`,
+      workerAddress,
+      `${industryCode}u8`,
+      `${payFrequency}u8`,
+      `${startEpoch}u32`,
+      `${endEpoch}u32`,
+      `${reviewEpoch}u32`,
+      `1u16`,
+      `${VERSIONS.schema_v}u16`,
+      `${VERSIONS.policy_v}u16`,
+      bytesToAleoU8Array(computed.terms_doc_hash),
+      bytesToAleoU8Array(computed.terms_root),
+      bytesToAleoU8Array(computed.offer_time_hash),
+    ];
+
+    console.log("[PNW] create_job_offer inputs:", inputs);
+
+    setStep("broadcasting");
+
+    const result = await execute(
+      PROGRAMS.layer1.employer_agreement,
+      "create_job_offer",
+      inputs,
+    );
+
+    if (result.status === "confirmed") {
+      setBroadcastTxId(result.txId);
+
+      // Save to localStorage for the sent offers list
+      const OFFERS_KEY = `pnw_sent_offers_${employerAddress}`;
+      try {
+        const existing = JSON.parse(localStorage.getItem(OFFERS_KEY) ?? "[]");
+        existing.push({
+          agreement_id: computed.agreement_id,
+          worker_pnw_name: workerPnwName,
+          worker_address: workerAddress,
+          industry_code: industryCode,
+          pay_frequency: payFrequency,
+          terms_text: termsText,
+          tx_id: result.txId,
+          created_at: Date.now(),
+        });
+        localStorage.setItem(OFFERS_KEY, JSON.stringify(existing));
+      } catch {
+        // localStorage write failed
+      }
+
+      setStep("done");
+    }
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-lg space-y-6">
       {/* Header */}
       <div>
         <Link
@@ -53,112 +186,197 @@ export default function OnboardWorkerPage() {
           &larr; Back to Workers
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-foreground">
-          Onboard Worker
+          Send Job Offer
         </h1>
         <p className="text-sm text-muted-foreground">
-          Create a job offer via the off-chain handshake protocol
+          Create an employment agreement offer. The worker will see it in their portal.
         </p>
       </div>
 
       {/* Step indicator */}
       <div className="flex gap-1">
-        {steps.map((s) => (
+        {["Offer Details", "Review & Send"].map((label, i) => (
           <div
-            key={s}
+            key={label}
             className={`flex-1 rounded-sm px-2 py-1 text-center text-xs font-medium ${
-              s === step
+              (step === "form" && i === 0) || (step !== "form" && i === 1)
                 ? "bg-primary text-primary-foreground"
-                : steps.indexOf(s) < steps.indexOf(step)
-                  ? "bg-primary/20 text-primary"
-                  : "bg-muted text-muted-foreground"
+                : "bg-muted text-muted-foreground"
             }`}
           >
-            {stepLabels[s]}
+            {label}
           </div>
         ))}
       </div>
 
-      {/* Step content */}
-      {step === "verify" && (
-        <WorkerVerification
-          onVerified={(addr, nameHash) => {
-            setWorkerAddress(addr);
-            setWorkerNameHash(nameHash);
-            setStep("offer");
-          }}
-        />
-      )}
-
-      {step === "offer" && employerAddress && (
-        <OfferForm
-          employerAddress={employerAddress}
-          workerAddress={workerAddress}
-          workerNameHash={workerNameHash}
-          onOfferCreated={(intent, comp) => {
-            setOfferIntent(intent);
-            setComputed(comp);
-            setStep("dispatch");
-          }}
-          onBack={() => setStep("verify")}
-        />
-      )}
-
-      {step === "dispatch" && offerIntent && (
-        <OfferQRDisplay
-          offer={offerIntent}
-          onProceed={() => setStep("confirm")}
-          onBack={() => setStep("offer")}
-        />
-      )}
-
-      {step === "confirm" && offerIntent && computed && (
-        <AcceptanceReceiver
-          offer={offerIntent}
-          computed={computed}
-          onAccepted={(signal) => {
-            setAcceptance(signal);
-            setStep("done");
-          }}
-          onBack={() => setStep("dispatch")}
-        />
-      )}
-
-      {step === "done" && offerIntent && computed && acceptance && (
+      {/* Step 1: Offer Form */}
+      {step === "form" && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-6">
-            <h3 className="text-sm font-semibold text-green-400">
-              Handshake Complete
+          {/* Worker lookup */}
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Worker
             </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Both parties have agreed. The agreement is ready for on-chain broadcast.
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Worker .pnw Name</label>
+                <div className="flex items-center rounded-md border border-border bg-background focus-within:ring-1 focus-within:ring-primary">
+                  <input
+                    type="text"
+                    value={workerPnwName}
+                    onChange={(e) => {
+                      setWorkerPnwName(e.target.value.toLowerCase());
+                      setWorkerLookupStatus("idle");
+                    }}
+                    placeholder="worker_name"
+                    className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  />
+                  <span className="pr-3 text-sm text-muted-foreground">.pnw</span>
+                </div>
+              </div>
+              <button
+                onClick={handleLookupWorker}
+                disabled={!workerPnwName.trim() || workerLookupStatus === "checking"}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {workerLookupStatus === "checking" ? "..." : "Find"}
+              </button>
+            </div>
+
+            {workerLookupStatus === "found" && workerAddress && (
+              <div className="rounded-md border border-green-500/30 bg-green-500/5 p-2">
+                <p className="text-xs text-green-400">
+                  Found: <span className="font-mono">{workerAddress.slice(0, 16)}...{workerAddress.slice(-8)}</span>
+                </p>
+              </div>
+            )}
+
+            {workerLookupStatus === "not_found" && (
+              <p className="text-xs text-red-400">Worker not found. Make sure they have a registered .pnw name.</p>
+            )}
+          </div>
+
+          {/* Offer details */}
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Offer Details
+            </h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Industry</label>
+                <select
+                  value={industryCode}
+                  onChange={(e) => setIndustryCode(Number(e.target.value))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {Object.entries(INDUSTRY_SUFFIXES).map(([code, { label }]) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Pay Frequency</label>
+                <select
+                  value={payFrequency}
+                  onChange={(e) => setPayFrequency(Number(e.target.value))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {Object.entries(PAY_FREQUENCY_LABELS).map(([code, label]) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Start Epoch</label>
+                <input type="number" value={startEpoch} onChange={(e) => setStartEpoch(Number(e.target.value))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">End Epoch</label>
+                <input type="number" value={endEpoch} onChange={(e) => setEndEpoch(Number(e.target.value))}
+                  placeholder="0 = open"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Review Epoch</label>
+                <input type="number" value={reviewEpoch} onChange={(e) => setReviewEpoch(Number(e.target.value))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Agreement Terms</label>
+              <textarea
+                value={termsText}
+                onChange={(e) => setTermsText(e.target.value)}
+                placeholder="Describe the employment terms, compensation, responsibilities..."
+                rows={4}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                Terms are hashed on-chain — the plaintext is never stored publicly.
+              </p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3">
+              <p className="text-xs text-red-400">{error}</p>
+            </div>
+          )}
+
+          <button
+            onClick={handleReview}
+            disabled={workerLookupStatus !== "found" || !termsText.trim()}
+            className="w-full rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            Review Offer
+          </button>
+        </div>
+      )}
+
+      {/* Step 2: Review & Broadcast */}
+      {(step === "review" || step === "broadcasting") && computed && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Offer Summary
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">From</span>
+                <span className="text-foreground font-medium">{chosenName}.pnw</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">To</span>
+                <span className="text-foreground font-medium">{workerPnwName}.pnw</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Industry</span>
+                <span className="text-foreground">{INDUSTRY_SUFFIXES[industryCode]?.label}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Pay Frequency</span>
+                <span className="text-foreground">{PAY_FREQUENCY_LABELS[payFrequency as keyof typeof PAY_FREQUENCY_LABELS]}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Epochs</span>
+                <span className="text-foreground">{startEpoch} → {endEpoch || "open-ended"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
+            <p className="text-xs text-blue-300">
+              This will broadcast a job offer to the Aleo network. The worker will see it
+              as a pending offer in their portal. Only hashed terms are stored on-chain.
             </p>
           </div>
 
-          {/* Command preview */}
-          <div className="rounded-lg border border-border bg-card p-4">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              On-Chain Command Preview
-            </h4>
-            <pre className="overflow-x-auto rounded bg-black/50 p-3 text-xs text-green-400 font-mono whitespace-pre-wrap break-all">
-              {`snarkos developer execute pnw_router_v2.aleo create_job_offer \\
-  "${computed.agreement_id}" \\
-  "${computed.parties_key}" \\
-  ${offerIntent.employer_name_hash}field \\
-  ${offerIntent.worker_name_hash}field \\
-  ${offerIntent.worker_address} \\
-  ${offerIntent.industry_code}u8 \\
-  ${offerIntent.pay_frequency_code}u8 \\
-  ${offerIntent.start_epoch}u32 \\
-  ${offerIntent.end_epoch}u32 \\
-  ${offerIntent.review_epoch}u32 \\
-  1u16 ${offerIntent.schema_v}u16 ${offerIntent.policy_v}u16 \\
-  "${computed.terms_doc_hash}" \\
-  "${computed.terms_root}" \\
-  "${computed.offer_time_hash}"`}
-            </pre>
-          </div>
-
-          {/* Transaction status */}
           {isExecuting && (
             <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-3">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -174,57 +392,50 @@ export default function OnboardWorkerPage() {
             </div>
           )}
 
-          {broadcastTxId && (
-            <div className="rounded-md border border-green-500/20 bg-green-500/5 p-3">
-              <p className="text-xs text-green-400">
-                Transaction confirmed: <span className="font-mono">{broadcastTxId.slice(0, 20)}...</span>
-              </p>
-            </div>
-          )}
-
           <div className="flex gap-2">
-            {!broadcastTxId && (
+            {!isExecuting && step === "review" && (
               <button
-                onClick={async () => {
-                  const result = await execute(
-                    "pnw_router_v2.aleo",
-                    "create_job_offer",
-                    [
-                      computed.agreement_id,
-                      computed.parties_key,
-                      `${offerIntent.employer_name_hash}field`,
-                      `${offerIntent.worker_name_hash}field`,
-                      offerIntent.worker_address,
-                      `${offerIntent.industry_code}u8`,
-                      `${offerIntent.pay_frequency_code}u8`,
-                      `${offerIntent.start_epoch}u32`,
-                      `${offerIntent.end_epoch}u32`,
-                      `${offerIntent.review_epoch}u32`,
-                      `1u16`,
-                      `${offerIntent.schema_v}u16`,
-                      `${offerIntent.policy_v}u16`,
-                      computed.terms_doc_hash,
-                      computed.terms_root,
-                      computed.offer_time_hash,
-                    ],
-                  );
-                  if (result.status === "confirmed") {
-                    setBroadcastTxId(result.txId);
-                  }
-                }}
-                disabled={isExecuting}
-                className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                onClick={() => setStep("form")}
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
               >
-                {isExecuting ? "Broadcasting..." : "Broadcast to Chain"}
+                Edit
               </button>
             )}
-            <Link
-              href="/workers"
-              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
+            <button
+              onClick={handleBroadcast}
+              disabled={isExecuting}
+              className="flex-1 rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              Back to Workers
-            </Link>
+              {isExecuting ? "Broadcasting..." : "Send Offer to Chain"}
+            </button>
           </div>
+        </div>
+      )}
+
+      {/* Done */}
+      {step === "done" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-6 text-center">
+            <h3 className="text-lg font-semibold text-green-400">
+              Offer Sent!
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your job offer to <strong>{workerPnwName}.pnw</strong> has been broadcast to the Aleo network.
+              They will see it as a pending offer in their Worker Portal.
+            </p>
+            {broadcastTxId && (
+              <p className="mt-2 font-mono text-xs text-muted-foreground">
+                TX: {broadcastTxId.slice(0, 24)}...
+              </p>
+            )}
+          </div>
+
+          <Link
+            href="/workers"
+            className="block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Back to Workers
+          </Link>
         </div>
       )}
     </div>
