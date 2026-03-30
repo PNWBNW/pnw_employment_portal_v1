@@ -170,8 +170,9 @@ export default function OnboardWorkerPage() {
   async function handleBroadcast() {
     if (!computed || !employerAddress || !workerAddress || !workerNameHash || !employerNameHash) return;
 
-    const empHash = fieldFromHash(employerNameHash.replace(/field$/, ""));
-    const wrkHash = fieldFromHash(workerNameHash.replace(/field$/, ""));
+    // Name hashes are already decimal field values from computeNameHash/store
+    const empHash = employerNameHash.replace(/field$/, "").trim();
+    const wrkHash = workerNameHash.replace(/field$/, "").trim();
 
     const inputs = [
       bytesToAleoU8Array(computed.agreement_id),
