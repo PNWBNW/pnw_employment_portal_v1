@@ -10,6 +10,8 @@ import { computeNameHash, queryNameOwner, queryWorkerName, queryNamePlaintext, I
 import { ENV } from "@/src/config/env";
 import { fromHex } from "@/src/lib/pnw-adapter/hash";
 import { PROGRAMS, VERSIONS } from "@/src/config/programs";
+import { encryptTerms } from "@/src/lib/terms-vault/encrypt";
+import { uploadEncryptedTerms } from "@/src/lib/terms-vault/ipfs";
 import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import type { Field } from "@/src/lib/pnw-adapter/aleo_types";
 
@@ -63,6 +65,7 @@ export default function OnboardWorkerPage() {
   const { execute, status: txStatus, isExecuting, error: txError } = useTransactionExecutor();
 
   const [step, setStep] = useState<Step>("form");
+  const [termsUploadStatus, setTermsUploadStatus] = useState<"idle" | "encrypting" | "uploading" | "done" | "error">("idle");
   const [broadcastTxId, setBroadcastTxId] = useState<string | null>(null);
 
   // Form state
@@ -209,6 +212,35 @@ export default function OnboardWorkerPage() {
   async function handleBroadcast() {
     if (!computed || !employerAddress || !workerAddress || !workerNameHash || !employerNameHash) return;
 
+    // Step 1: Encrypt and upload terms to IPFS
+    setTermsUploadStatus("encrypting");
+    try {
+      const encrypted = await encryptTerms(
+        termsText,
+        computed.agreement_id,
+        employerAddress,
+        workerAddress,
+      );
+      setTermsUploadStatus("uploading");
+      const cid = await uploadEncryptedTerms(encrypted, computed.agreement_id);
+      console.log("[PNW] Terms uploaded to IPFS:", cid);
+      setTermsUploadStatus("done");
+
+      // Save CID locally for employer's reference
+      const TERMS_KEY = `pnw_terms_cids_${employerAddress}`;
+      try {
+        const existing = JSON.parse(localStorage.getItem(TERMS_KEY) ?? "{}");
+        existing[computed.agreement_id] = cid;
+        localStorage.setItem(TERMS_KEY, JSON.stringify(existing));
+      } catch { /* ignore */ }
+    } catch (err) {
+      console.error("[PNW] Terms upload failed:", err);
+      setTermsUploadStatus("error");
+      setError("Failed to encrypt and upload agreement terms. Please try again.");
+      return;
+    }
+
+    // Step 2: Broadcast the on-chain transaction
     // Name hashes are already decimal field values from computeNameHash/store
     const empHash = employerNameHash.replace(/field$/, "").trim();
     const wrkHash = workerNameHash.replace(/field$/, "").trim();

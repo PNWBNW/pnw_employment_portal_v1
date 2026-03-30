@@ -5,10 +5,12 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import { PROGRAMS } from "@/src/config/programs";
-import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { INDUSTRY_SUFFIXES, queryNamePlaintext } from "@/src/registry/name_registry";
 import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import { domainHash, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { tlvEncode } from "@/src/lib/pnw-adapter/canonical_encoder";
+import { decryptTerms } from "@/src/lib/terms-vault/encrypt";
+import { fetchEncryptedTerms } from "@/src/lib/terms-vault/ipfs";
 
 type PendingOffer = {
   agreement_id: string;
@@ -79,6 +81,9 @@ export default function WorkerOffersPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState<PendingOffer | null>(null);
   const [acceptTxId, setAcceptTxId] = useState<string | null>(null);
+  const [decryptedTerms, setDecryptedTerms] = useState<string | null>(null);
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [employerName, setEmployerName] = useState<string | null>(null);
 
   const scanForOffers = useCallback(async () => {
     if (!requestRecords) return;
@@ -203,6 +208,38 @@ export default function WorkerOffersPage() {
 
               {selectedOffer?.agreement_id === offer.agreement_id ? (
                 <div className="space-y-3">
+                  {/* Employer identity */}
+                  {employerName && (
+                    <div className="rounded-md bg-muted/30 p-2">
+                      <p className="text-xs text-muted-foreground">
+                        From: <span className="text-foreground font-medium">{employerName}.pnw</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Agreement terms (when available) */}
+                  {decryptedTerms ? (
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                        Agreement Terms
+                      </p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">
+                        {decryptedTerms}
+                      </p>
+                    </div>
+                  ) : termsLoading ? (
+                    <div className="rounded-md border border-border bg-background p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Loading agreement terms...</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                      <p className="text-xs text-amber-300">
+                        Agreement terms will be viewable once the terms vault is connected.
+                        The terms are encrypted and stored on IPFS — only you can read them.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
                     <p className="text-xs text-blue-300">
                       By accepting, you enter into a private employment agreement on the Aleo blockchain.
@@ -244,7 +281,22 @@ export default function WorkerOffersPage() {
                 </div>
               ) : (
                 <button
-                  onClick={() => setSelectedOffer(offer)}
+                  onClick={async () => {
+                    setSelectedOffer(offer);
+                    setDecryptedTerms(null);
+                    setEmployerName(null);
+
+                    // Resolve employer .pnw name
+                    if (offer.employer_name_hash) {
+                      const name = await queryNamePlaintext(offer.employer_name_hash);
+                      if (name) setEmployerName(name);
+                    }
+
+                    // Try to fetch and decrypt terms from IPFS
+                    // The CID is derived from the terms_doc_hash
+                    // For now, we check if terms are available
+                    // TODO: store CID mapping on-chain or derive from agreement context
+                  }}
                   className="rounded-md border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-primary-foreground"
                 >
                   Review & Accept
