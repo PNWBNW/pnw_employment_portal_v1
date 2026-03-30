@@ -6,7 +6,7 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import { computeAgreementValues } from "@/src/handshake/engine";
-import { computeNameHash, queryNameOwner, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { computeNameHash, queryNameOwner, queryWorkerName, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { ENV } from "@/src/config/env";
 import { fromHex } from "@/src/lib/pnw-adapter/hash";
 import { PROGRAMS, VERSIONS } from "@/src/config/programs";
@@ -66,7 +66,9 @@ export default function OnboardWorkerPage() {
   const [broadcastTxId, setBroadcastTxId] = useState<string | null>(null);
 
   // Form state
+  const [lookupMode, setLookupMode] = useState<"name" | "address">("name");
   const [workerPnwName, setWorkerPnwName] = useState("");
+  const [workerAddressInput, setWorkerAddressInput] = useState("");
   const [workerAddress, setWorkerAddress] = useState<string | null>(null);
   const [workerNameHash, setWorkerNameHash] = useState<Field | null>(null);
   const [workerLookupStatus, setWorkerLookupStatus] = useState<"idle" | "checking" | "found" | "not_found">("idle");
@@ -109,7 +111,7 @@ export default function OnboardWorkerPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Look up worker by .pnw name
-  async function handleLookupWorker() {
+  async function handleLookupByName() {
     if (!workerPnwName.trim()) return;
     setWorkerLookupStatus("checking");
 
@@ -128,6 +130,37 @@ export default function OnboardWorkerPage() {
       }
     } catch {
       setWorkerLookupStatus("not_found");
+    }
+  }
+
+  // Look up worker by Aleo address — find their .pnw name
+  async function handleLookupByAddress() {
+    if (!workerAddressInput.trim() || !workerAddressInput.startsWith("aleo1")) return;
+    setWorkerLookupStatus("checking");
+
+    try {
+      const nameHash = await queryWorkerName(workerAddressInput.trim());
+
+      if (nameHash) {
+        setWorkerAddress(workerAddressInput.trim());
+        setWorkerNameHash(nameHash.replace(/field$/, ""));
+        setWorkerPnwName(""); // We don't know the plaintext name from on-chain
+        setWorkerLookupStatus("found");
+      } else {
+        setWorkerAddress(null);
+        setWorkerNameHash(null);
+        setWorkerLookupStatus("not_found");
+      }
+    } catch {
+      setWorkerLookupStatus("not_found");
+    }
+  }
+
+  function handleLookupWorker() {
+    if (lookupMode === "name") {
+      handleLookupByName();
+    } else {
+      handleLookupByAddress();
     }
   }
 
@@ -268,29 +301,68 @@ export default function OnboardWorkerPage() {
         <div className="space-y-4">
           {/* Worker lookup */}
           <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Worker
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Find Worker
+              </h3>
+              <div className="flex rounded-md border border-border text-xs">
+                <button
+                  onClick={() => { setLookupMode("name"); setWorkerLookupStatus("idle"); }}
+                  className={`px-3 py-1 rounded-l-md ${lookupMode === "name" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  .pnw Name
+                </button>
+                <button
+                  onClick={() => { setLookupMode("address"); setWorkerLookupStatus("idle"); }}
+                  className={`px-3 py-1 rounded-r-md ${lookupMode === "address" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  Wallet Address
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Worker .pnw Name</label>
-                <div className="flex items-center rounded-md border border-border bg-background focus-within:ring-1 focus-within:ring-primary">
-                  <input
-                    type="text"
-                    value={workerPnwName}
-                    onChange={(e) => {
-                      setWorkerPnwName(e.target.value.toLowerCase());
-                      setWorkerLookupStatus("idle");
-                    }}
-                    placeholder="worker_name"
-                    className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                  <span className="pr-3 text-sm text-muted-foreground">.pnw</span>
-                </div>
+                {lookupMode === "name" ? (
+                  <>
+                    <label className="text-xs font-medium text-muted-foreground">Worker .pnw Name</label>
+                    <div className="flex items-center rounded-md border border-border bg-background focus-within:ring-1 focus-within:ring-primary">
+                      <input
+                        type="text"
+                        value={workerPnwName}
+                        onChange={(e) => {
+                          setWorkerPnwName(e.target.value.toLowerCase());
+                          setWorkerLookupStatus("idle");
+                        }}
+                        placeholder="worker_name"
+                        className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      />
+                      <span className="pr-3 text-sm text-muted-foreground">.pnw</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="text-xs font-medium text-muted-foreground">Aleo Wallet Address</label>
+                    <input
+                      type="text"
+                      value={workerAddressInput}
+                      onChange={(e) => {
+                        setWorkerAddressInput(e.target.value);
+                        setWorkerLookupStatus("idle");
+                      }}
+                      placeholder="aleo1..."
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </>
+                )}
               </div>
               <button
                 onClick={handleLookupWorker}
-                disabled={!workerPnwName.trim() || workerLookupStatus === "checking"}
+                disabled={
+                  (lookupMode === "name" && !workerPnwName.trim()) ||
+                  (lookupMode === "address" && !workerAddressInput.trim()) ||
+                  workerLookupStatus === "checking"
+                }
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {workerLookupStatus === "checking" ? "..." : "Find"}
@@ -298,9 +370,17 @@ export default function OnboardWorkerPage() {
             </div>
 
             {workerLookupStatus === "found" && workerAddress && (
-              <div className="rounded-md border border-green-500/30 bg-green-500/5 p-2">
+              <div className="rounded-md border border-green-500/30 bg-green-500/5 p-2 space-y-1">
+                {workerPnwName && (
+                  <p className="text-sm font-medium text-green-400">{workerPnwName}.pnw</p>
+                )}
+                {lookupMode === "address" && workerNameHash && (
+                  <p className="text-xs text-green-400">
+                    .pnw identity found (hash: <span className="font-mono">{workerNameHash.slice(0, 12)}...</span>)
+                  </p>
+                )}
                 <p className="text-xs text-green-400">
-                  Found: <span className="font-mono">{workerAddress.slice(0, 16)}...{workerAddress.slice(-8)}</span>
+                  Address: <span className="font-mono">{workerAddress.slice(0, 16)}...{workerAddress.slice(-8)}</span>
                 </p>
               </div>
             )}
