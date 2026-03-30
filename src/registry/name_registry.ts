@@ -119,6 +119,51 @@ function bytesToFieldDecimal(bytes: Uint8Array): string {
   return value.toString(10);
 }
 
+/**
+ * Decode a u128 value back to a plaintext name string (big-endian).
+ */
+export function decodeNameFromU128(value: string): string {
+  const clean = value.replace(/u128(\.private|\.public)?$/, "").trim();
+  if (!clean || clean === "0") return "";
+  try {
+    let val = BigInt(clean);
+    const bytes: number[] = [];
+    while (val > 0n) {
+      bytes.unshift(Number(val & 0xffn));
+      val >>= 8n;
+    }
+    return new TextDecoder().decode(new Uint8Array(bytes)).trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Query the plaintext .pnw name for a given name hash.
+ * Uses the registrar's name_plaintext mapping (v5+).
+ */
+export async function queryNamePlaintext(nameHash: Field): Promise<string | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+
+  try {
+    const url = `${endpoint}/program/${PROGRAMS.layer1.pnw_name_registrar}/mapping/name_plaintext/${nameHash}field`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      return decodeNameFromU128(data);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function computeNameHash(name: string): Field {
   const data = tlvEncode(OBJ_NAME, [
     { tag: 0x01, value: new TextEncoder().encode(name) },
