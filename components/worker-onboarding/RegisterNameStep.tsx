@@ -78,10 +78,18 @@ export function RegisterNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
+
+    // Encode name as u128 (big-endian, up to 16 chars) for reverse resolver
+    const nameBytes = new TextEncoder().encode(name.slice(0, 16));
+    let nameU128 = 0n;
+    for (const b of nameBytes) {
+      nameU128 = (nameU128 << 8n) | BigInt(b);
+    }
+
     const result = await execute(
       PROGRAMS.layer1.pnw_name_registrar,
       "register_worker_name",
-      [`${hash}field`],
+      [`${hash}field`, `${nameU128}u128`],
     );
 
     if (result.status === "confirmed") {

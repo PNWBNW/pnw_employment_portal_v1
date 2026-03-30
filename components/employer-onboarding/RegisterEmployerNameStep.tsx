@@ -86,8 +86,16 @@ export function RegisterEmployerNameStep() {
 
     const hash = availability.nameHash;
 
+    // Encode name as u128 (big-endian, up to 16 chars) for reverse resolver
+    const nameBytes = new TextEncoder().encode(name.slice(0, 16));
+    let nameU128 = 0n;
+    for (const b of nameBytes) {
+      nameU128 = (nameU128 << 8n) | BigInt(b);
+    }
+
     const inputs = [
       `${hash}field`,
+      `${nameU128}u128`,
       `${suffixCode}u8`,
     ];
 

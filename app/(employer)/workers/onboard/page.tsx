@@ -6,7 +6,7 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
 import { computeAgreementValues } from "@/src/handshake/engine";
-import { computeNameHash, queryNameOwner, queryWorkerName, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { computeNameHash, queryNameOwner, queryWorkerName, queryNamePlaintext, INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { ENV } from "@/src/config/env";
 import { fromHex } from "@/src/lib/pnw-adapter/hash";
 import { PROGRAMS, VERSIONS } from "@/src/config/programs";
@@ -133,7 +133,7 @@ export default function OnboardWorkerPage() {
     }
   }
 
-  // Look up worker by Aleo address — find their .pnw name
+  // Look up worker by Aleo address — find their .pnw name via reverse resolver
   async function handleLookupByAddress() {
     if (!workerAddressInput.trim() || !workerAddressInput.startsWith("aleo1")) return;
     setWorkerLookupStatus("checking");
@@ -142,13 +142,19 @@ export default function OnboardWorkerPage() {
       const nameHash = await queryWorkerName(workerAddressInput.trim());
 
       if (nameHash) {
+        const cleanHash = nameHash.replace(/field$/, "").trim();
         setWorkerAddress(workerAddressInput.trim());
-        setWorkerNameHash(nameHash.replace(/field$/, ""));
-        setWorkerPnwName(""); // We don't know the plaintext name from on-chain
+        setWorkerNameHash(cleanHash);
+
+        // Reverse resolve: hash → plaintext name
+        const plaintext = await queryNamePlaintext(cleanHash);
+        setWorkerPnwName(plaintext ?? "");
+
         setWorkerLookupStatus("found");
       } else {
         setWorkerAddress(null);
         setWorkerNameHash(null);
+        setWorkerPnwName("");
         setWorkerLookupStatus("not_found");
       }
     } catch {
