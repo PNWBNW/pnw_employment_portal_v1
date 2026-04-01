@@ -35,6 +35,26 @@ export async function uploadEncryptedTerms(
 }
 
 /**
+ * Look up the IPFS CID for an agreement's encrypted terms.
+ * Uses our server-side API which queries Pinata by metadata.
+ */
+export async function lookupTermsCid(agreementId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `/api/terms/lookup?agreementId=${encodeURIComponent(agreementId)}`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { cid?: string };
+    return data.cid ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch encrypted terms from IPFS by CID.
  * Returns the raw encrypted bytes.
  */
