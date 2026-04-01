@@ -80,6 +80,8 @@ export function EmployerOnboardingGate({ children }: Props) {
 
       if (count > 0) {
         // Has an employer name on-chain — try to recover profile from wallet
+        // Wait briefly for wallet to fully connect after switch
+        await new Promise(r => setTimeout(r, 1500));
         if (requestRecords) {
           try {
             const records = await requestRecords(PROGRAMS.layer1.employer_profiles, true);
