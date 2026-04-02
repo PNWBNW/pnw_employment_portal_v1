@@ -24,9 +24,11 @@ async function deriveKey(
   employerAddress: string,
   workerAddress: string,
 ): Promise<CryptoKey> {
+  // Normalize agreement ID — strip 0x prefix for consistent key derivation
+  const cleanId = agreementId.startsWith("0x") ? agreementId.slice(2) : agreementId;
   const encoder = new TextEncoder();
   const material = encoder.encode(
-    `PNW::TERMS::${agreementId}::${employerAddress}::${workerAddress}`,
+    `PNW::TERMS::${cleanId}::${employerAddress}::${workerAddress}`,
   );
 
   // Import the material as a raw key for HKDF
