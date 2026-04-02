@@ -10,7 +10,7 @@ import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import { domainHash, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { tlvEncode } from "@/src/lib/pnw-adapter/canonical_encoder";
 import { decryptTerms } from "@/src/lib/terms-vault/encrypt";
-import { fetchEncryptedTerms } from "@/src/lib/terms-vault/ipfs";
+import { lookupTermsCid, fetchEncryptedTerms } from "@/src/lib/terms-vault/ipfs";
 
 type PendingOffer = {
   agreement_id: string;
@@ -285,6 +285,7 @@ export default function WorkerOffersPage() {
                     setSelectedOffer(offer);
                     setDecryptedTerms(null);
                     setEmployerName(null);
+                    setTermsLoading(true);
 
                     // Resolve employer .pnw name
                     if (offer.employer_name_hash) {
@@ -292,10 +293,24 @@ export default function WorkerOffersPage() {
                       if (name) setEmployerName(name);
                     }
 
-                    // Try to fetch and decrypt terms from IPFS
-                    // The CID is derived from the terms_doc_hash
-                    // For now, we check if terms are available
-                    // TODO: store CID mapping on-chain or derive from agreement context
+                    // Fetch and decrypt terms from IPFS
+                    try {
+                      const cid = await lookupTermsCid(offer.agreement_id);
+                      if (cid && address && offer.employer_address) {
+                        const encrypted = await fetchEncryptedTerms(cid);
+                        const terms = await decryptTerms(
+                          encrypted,
+                          offer.agreement_id,
+                          offer.employer_address,
+                          address,
+                        );
+                        setDecryptedTerms(terms);
+                      }
+                    } catch (err) {
+                      console.warn("[PNW] Failed to fetch/decrypt terms:", err);
+                    } finally {
+                      setTermsLoading(false);
+                    }
                   }}
                   className="rounded-md border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-primary-foreground"
                 >
