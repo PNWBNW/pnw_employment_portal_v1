@@ -23,6 +23,7 @@ type PendingOffer = {
   review_epoch: number;
   employer_address: string;
   recordCiphertext: string;
+  recordPlaintext: string;
 };
 
 function parsePendingAgreement(record: Record<string, unknown>): PendingOffer | null {
@@ -66,6 +67,7 @@ function parsePendingAgreement(record: Record<string, unknown>): PendingOffer | 
       review_epoch: parseInt(reviewMatch?.[1] ?? "0"),
       employer_address: empAddrMatch[1] ?? "",
       recordCiphertext: typeof record.recordCiphertext === "string" ? record.recordCiphertext : "",
+      recordPlaintext: typeof record.recordPlaintext === "string" ? record.recordPlaintext : "",
     };
   } catch {
     return null;
@@ -129,12 +131,12 @@ export default function WorkerOffersPage() {
     const hashBytes = domainHash(DOMAIN_TAGS.DOC, data);
     const acceptTimeHash = "[ " + Array.from(hashBytes).map(b => `${b}u8`).join(", ") + " ]";
 
-    console.log("[PNW] Accepting offer, record ciphertext:", offer.recordCiphertext.slice(0, 60) + "...");
+    console.log("[PNW] Accepting offer with record plaintext:", offer.recordPlaintext.slice(0, 80) + "...");
 
     const result = await execute(
       PROGRAMS.layer1.employer_agreement,
       "accept_job_offer",
-      [offer.recordCiphertext, acceptTimeHash],
+      [offer.recordPlaintext, acceptTimeHash],
     );
 
     if (result.status === "confirmed") {
