@@ -99,6 +99,34 @@ commitment primitives. This portal consumes them. It never owns on-chain logic.
 **Rule:** Layer 3 plans. Layer 1 settles. Layer 2 anchors. The portal never owns
 on-chain state.
 
+### Data Flow — Employment Agreement (Working as of 2026-04-01)
+
+```
+1. Employer enters worker .pnw name → resolves address via name_owner mapping
+2. Employer fills offer details (industry, pay frequency, dates, terms)
+3. Terms encrypted (AES-256-GCM, key from agreement context)
+   → Uploaded to Pinata IPFS via /api/terms/upload (server-side, hides JWT)
+   → CID returned and logged
+4. Employer broadcasts create_job_offer → employer_agreement_v3.aleo
+   → PendingAgreement record minted, owned by worker_address
+5. Worker opens portal → requestRecords("employer_agreement_v3.aleo")
+   → Scans wallet for PendingAgreement records → displays pending offers
+6. Worker clicks Review → lookupTermsCid(agreement_id) → fetchEncryptedTerms(cid)
+   → decryptTerms(encrypted, agreement_id, employer, worker) → plaintext displayed
+7. Worker clicks Accept → accept_job_offer(recordPlaintext, accept_time_hash)
+   → PendingAgreement consumed, FinalAgreement minted to DAO
+   → agreement_status mapping set to ACTIVE (1)
+```
+
+**Terms Vault Architecture:**
+- Encryption: AES-256-GCM via Web Crypto API (zero dependencies)
+- Key derivation: HKDF from `PNW::TERMS::{agreement_id}::{employer}::{worker}`
+- Storage: Pinata IPFS (encrypted blob, CID is content hash)
+- Upload: `/api/terms/upload` (Next.js API route, server-side Pinata JWT)
+- Lookup: `/api/terms/lookup?agreementId=...` (queries Pinata pin list by metadata)
+- Fetch: client-side via `https://gateway.pinata.cloud/ipfs/{cid}`
+- Only employer and worker can derive the decryption key
+
 ### Data Flow — Full Payroll Run
 
 ```
