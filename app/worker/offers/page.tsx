@@ -295,16 +295,24 @@ export default function WorkerOffersPage() {
 
                     // Fetch and decrypt terms from IPFS
                     try {
+                      console.log("[PNW] Looking up terms for agreement:", offer.agreement_id);
                       const cid = await lookupTermsCid(offer.agreement_id);
+                      console.log("[PNW] Terms CID lookup result:", cid);
+
                       if (cid && address && offer.employer_address) {
+                        console.log("[PNW] Fetching encrypted terms from IPFS...");
                         const encrypted = await fetchEncryptedTerms(cid);
+                        console.log("[PNW] Decrypting terms...");
                         const terms = await decryptTerms(
                           encrypted,
                           offer.agreement_id,
                           offer.employer_address,
                           address,
                         );
+                        console.log("[PNW] Terms decrypted successfully");
                         setDecryptedTerms(terms);
+                      } else {
+                        console.log("[PNW] Terms not available:", { cid, address, employer: offer.employer_address });
                       }
                     } catch (err) {
                       console.warn("[PNW] Failed to fetch/decrypt terms:", err);

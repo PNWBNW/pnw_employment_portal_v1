@@ -15,10 +15,12 @@ export async function uploadEncryptedTerms(
   encrypted: Uint8Array,
   agreementId: string,
 ): Promise<string> {
+  // Normalize: strip 0x prefix for consistent lookup
+  const cleanId = agreementId.startsWith("0x") ? agreementId.slice(2) : agreementId;
   const blob = new Blob([encrypted.buffer as ArrayBuffer], { type: "application/octet-stream" });
   const formData = new FormData();
-  formData.append("file", blob, `terms_${agreementId.slice(0, 16)}.enc`);
-  formData.append("agreementId", agreementId);
+  formData.append("file", blob, `terms_${cleanId.slice(0, 16)}.enc`);
+  formData.append("agreementId", cleanId);
 
   const response = await fetch("/api/terms/upload", {
     method: "POST",
@@ -39,9 +41,11 @@ export async function uploadEncryptedTerms(
  * Uses our server-side API which queries Pinata by metadata.
  */
 export async function lookupTermsCid(agreementId: string): Promise<string | null> {
+  // Normalize: strip 0x prefix for consistent lookup
+  const cleanId = agreementId.startsWith("0x") ? agreementId.slice(2) : agreementId;
   try {
     const response = await fetch(
-      `/api/terms/lookup?agreementId=${encodeURIComponent(agreementId)}`,
+      `/api/terms/lookup?agreementId=${encodeURIComponent(cleanId)}`,
       { signal: AbortSignal.timeout(15_000) },
     );
 
