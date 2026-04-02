@@ -6,6 +6,8 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWorkerStore, type WorkerRecord } from "@/src/stores/worker_store";
 import { readAgreementRecords } from "@/src/records/agreement_reader";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
+import { ENV } from "@/src/config/env";
+import { PROGRAMS } from "@/src/config/programs";
 
 type SentOffer = {
   agreement_id: string;
@@ -16,7 +18,39 @@ type SentOffer = {
   terms_text: string;
   tx_id: string;
   created_at: number;
+  onChainStatus?: string; // "pending" | "active" | "paused" | "terminated" | "unknown"
 };
+
+const STATUS_MAP: Record<string, string> = {
+  "0u8": "pending",
+  "1u8": "active",
+  "2u8": "paused",
+  "3u8": "terminated",
+  "4u8": "superseded",
+};
+
+function bytesToAleoU8Array(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes.push(parseInt(clean.slice(i, i + 2), 16));
+  }
+  return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
+}
+
+async function queryAgreementStatus(agreementIdHex: string): Promise<string> {
+  try {
+    const key = bytesToAleoU8Array(agreementIdHex);
+    const url = `${ENV.ALEO_ENDPOINT}/program/${PROGRAMS.layer1.employer_agreement}/mapping/agreement_status/${encodeURIComponent(key)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!resp.ok) return "unknown";
+    const data = await resp.text();
+    const clean = data.replace(/"/g, "").trim();
+    return STATUS_MAP[clean] ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 function truncate(str: string, len = 12): string {
   if (str.length <= len) return str;
@@ -60,11 +94,22 @@ export default function WorkersPage() {
   useEffect(() => {
     void loadWorkers();
 
-    // Load sent offers from localStorage
+    // Load sent offers from localStorage and check on-chain status
     if (address) {
       try {
         const raw = localStorage.getItem(`pnw_sent_offers_${address}`);
-        if (raw) setSentOffers(JSON.parse(raw) as SentOffer[]);
+        if (raw) {
+          const offers = JSON.parse(raw) as SentOffer[];
+          setSentOffers(offers);
+
+          // Query on-chain status for each offer
+          Promise.all(
+            offers.map(async (offer) => {
+              const status = await queryAgreementStatus(offer.agreement_id);
+              return { ...offer, onChainStatus: status };
+            })
+          ).then(updated => setSentOffers(updated));
+        }
       } catch {
         // ignore
       }
@@ -201,8 +246,20 @@ export default function WorkersPage() {
                       {new Date(offer.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                        Pending
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        offer.onChainStatus === "active"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                          : offer.onChainStatus === "pending"
+                            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : offer.onChainStatus === "terminated"
+                              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                              : "bg-muted text-muted-foreground"
+                      }`}>
+                        {offer.onChainStatus === "active" ? "Active" :
+                         offer.onChainStatus === "pending" ? "Pending" :
+                         offer.onChainStatus === "terminated" ? "Terminated" :
+                         offer.onChainStatus === "paused" ? "Paused" :
+                         "Checking..."}
                       </span>
                     </td>
                   </tr>
