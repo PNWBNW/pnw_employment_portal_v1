@@ -75,7 +75,7 @@ export function RegisterEmployerNameStep() {
     if (availability.status !== "available") return;
 
     const hash = availability.nameHash;
-    const registerCmd = `snarkos developer execute pnw_name_registrar_v4.aleo register_employer_name ${hash}field ${suffixCode}u8`;
+    const registerCmd = `snarkos developer execute pnw_name_registrar_v5.aleo register_employer_name ${hash}field ${suffixCode}u8`;
 
     setCommandPreview(registerCmd);
     setShowCommand(true);
