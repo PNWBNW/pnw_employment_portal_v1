@@ -8,6 +8,7 @@ import { toHex } from "@/src/lib/pnw-adapter/hash";
 import { useOfferStore } from "@/src/stores/offer_store";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useTransactionExecutor } from "@/src/lib/wallet/useTransactionExecutor";
+import { PROGRAMS } from "@/src/config/programs";
 import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import type { AcceptanceSignal } from "@/src/handshake/types";
@@ -204,7 +205,7 @@ function ReviewContent() {
                 // The wallet adapter handles record selection
                 const acceptTimeHash = computed.offer_time_hash; // reuse as placeholder
                 const result = await execute(
-                  "employer_agreement_v2.aleo",
+                  PROGRAMS.layer1.employer_agreement,
                   "accept_job_offer",
                   [
                     // PendingAgreement record is auto-selected by wallet
