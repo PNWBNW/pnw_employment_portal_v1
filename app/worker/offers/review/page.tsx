@@ -199,28 +199,18 @@ function ReviewContent() {
           )}
 
           {!onChainTxId && (
-            <button
-              onClick={async () => {
-                // accept_job_offer requires the PendingAgreement record + accept_time_hash
-                // The wallet adapter handles record selection
-                const acceptTimeHash = computed.offer_time_hash; // reuse as placeholder
-                const result = await execute(
-                  PROGRAMS.layer1.employer_agreement,
-                  "accept_job_offer",
-                  [
-                    // PendingAgreement record is auto-selected by wallet
-                    acceptTimeHash,
-                  ],
-                );
-                if (result.status === "confirmed") {
-                  setOnChainTxId(result.txId);
-                }
-              }}
-              disabled={isExecuting}
-              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
-            >
-              {isExecuting ? "Broadcasting..." : "Accept On-Chain"}
-            </button>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                To accept this offer on-chain, go to your offers page where
+                the wallet can locate your PendingAgreement record.
+              </p>
+              <a
+                href="/worker/offers"
+                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 inline-block"
+              >
+                Go to Offers Page
+              </a>
+            </div>
           )}
         </div>
       </div>
