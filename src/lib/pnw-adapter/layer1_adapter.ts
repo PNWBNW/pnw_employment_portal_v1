@@ -47,13 +47,17 @@ export const LAYER1_TRANSITIONS: Record<Layer1Transition, { program: string; tra
   resume_agreement: { program: "employer_agreement_v4.aleo", transition: "resume_agreement" },
   execute_payroll: { program: "payroll_core_v2.aleo", transition: "execute_payroll" },
   execute_payroll_batch_2: { program: "payroll_core_v2.aleo", transition: "execute_payroll_batch_2" },
-  // Credential-enabled variants (settlement coordinator upgrades chunks to these)
+  // NOT YET DEPLOYED — credential/roster optimization transitions.
+  // Settlement coordinator upgrades to these when credentials are acquired.
+  // If the on-chain transition doesn't exist, the coordinator falls back to
+  // the base execute_payroll / execute_payroll_batch_2 path automatically.
+  // These will be deployed in a future payroll_core version.
   execute_payroll_with_creds: { program: "payroll_core_v2.aleo", transition: "execute_payroll_with_creds" },
   execute_payroll_batch_2_with_creds: { program: "payroll_core_v2.aleo", transition: "execute_payroll_batch_2_with_creds" },
   execute_payroll_with_roster: { program: "payroll_core_v2.aleo", transition: "execute_payroll_with_roster" },
   execute_payroll_batch_2_with_roster: { program: "payroll_core_v2.aleo", transition: "execute_payroll_batch_2_with_roster" },
-  // Acquire freeze-list credentials (one Merkle proof → reusable Credentials record)
+  // NOT YET DEPLOYED — freeze-list credential acquisition
   get_credentials: { program: "test_usdcx_stablecoin.aleo", transition: "get_credentials" },
-  // Acquire roster credentials (anchor roster_root on-chain)
+  // NOT YET DEPLOYED — roster credential acquisition
   get_roster_credentials: { program: "payroll_core_v2.aleo", transition: "get_roster_credentials" },
 };
