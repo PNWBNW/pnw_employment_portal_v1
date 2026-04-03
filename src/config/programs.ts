@@ -8,16 +8,16 @@
 export const PROGRAMS = {
   network: "testnet",
   layer1: {
-    payroll_core: "payroll_core.aleo",
+    payroll_core: "payroll_core_v2.aleo",
     paystub_receipts: "paystub_receipts.aleo",
     payroll_audit_log: "payroll_audit_log.aleo",
-    employer_agreement: "employer_agreement_v3.aleo",
+    employer_agreement: "employer_agreement_v4.aleo",
     employer_license_registry: "employer_license_registry.aleo",
     employer_profiles: "employer_profiles_v2.aleo",
     worker_profiles: "pnw_worker_profiles_v2.aleo",
     pnw_name_registry: "pnw_name_registry_v2.aleo",
     pnw_name_registrar: "pnw_name_registrar_v5.aleo",
-    pnw_router: "pnw_router_v3.aleo",
+    pnw_router: "pnw_router_v4.aleo",
   },
   layer2: {
     payroll_nfts: "payroll_nfts.aleo",
