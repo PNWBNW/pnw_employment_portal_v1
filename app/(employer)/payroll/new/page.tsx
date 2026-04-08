@@ -67,16 +67,18 @@ export default function NewPayrollPage() {
   const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
   const viewKey = useSessionStore((s) => s.viewKey);
-  const { requestRecords, executeTransaction } = useWallet();
+  const { requestRecords, executeTransaction, transactionStatus: walletTransactionStatus } = useWallet();
   const setManifest = usePayrollRunStore((s) => s.setManifest);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
   const updateStatus = usePayrollRunStore((s) => s.updateStatus);
   const router = useRouter();
   const settlingRef = useRef(false);
+  const workersLoadedRef = useRef(false);
 
-  // Load workers from on-chain agreement records if the store is empty
+  // Load workers from on-chain agreement records (once per mount)
   useEffect(() => {
-    if (workers.length > 0 || !address) return;
+    if (workersLoadedRef.current || workers.length > 0 || !address) return;
+    workersLoadedRef.current = true;
     (async () => {
       let records = requestRecords
         ? await scanAgreementRecords(requestRecords, address)
@@ -527,6 +529,7 @@ export default function NewPayrollPage() {
               },
               callbacks,
               walletExecute,
+              walletTransactionStatus: walletTransactionStatus ?? undefined,
               viewKey: viewKey ?? undefined,
             });
           }}
