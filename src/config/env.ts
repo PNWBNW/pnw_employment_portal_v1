@@ -8,7 +8,7 @@ export const ENV = {
   /** Aleo REST API endpoint */
   ALEO_ENDPOINT:
     process.env.NEXT_PUBLIC_ALEO_ENDPOINT ??
-    "https://api.explorer.provable.com/v1/testnet",
+    "https://api.explorer.provable.com/v2/testnet",
 
   /** Network identifier */
   NETWORK: (process.env.NEXT_PUBLIC_NETWORK ?? "testnet") as

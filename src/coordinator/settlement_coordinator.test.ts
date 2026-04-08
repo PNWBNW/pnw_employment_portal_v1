@@ -80,7 +80,7 @@ function makeContext(rowCount: number) {
     manifest,
     chunks,
     adapterConfig: {
-      endpoint: "https://api.explorer.provable.com/v1/testnet",
+      endpoint: "https://api.explorer.provable.com/v2/testnet",
       network: "testnet",
       privateKey: "APrivateKey1test",
     },

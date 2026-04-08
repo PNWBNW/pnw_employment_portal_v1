@@ -57,7 +57,7 @@ function makeSettledManifest(rowCount: number): PayrollRunManifest {
 }
 
 const ADAPTER_CONFIG = {
-  endpoint: "https://api.explorer.provable.com/v1/testnet",
+  endpoint: "https://api.explorer.provable.com/v2/testnet",
   network: "testnet",
   privateKey: "APrivateKey1test",
 };
