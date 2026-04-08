@@ -27,6 +27,7 @@ import {
 } from "@/src/coordinator/settlement_coordinator";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
+import { readAgreementRecords } from "@/src/records/agreement_reader";
 import {
   SessionKeyProvider,
   encryptDraft,
@@ -61,6 +62,7 @@ export default function NewPayrollPage() {
   const [isSettling, setIsSettling] = useState(false);
   const [settlementStatus, setSettlementStatus] = useState<string | null>(null);
   const workers = useWorkerStore((s) => s.workers);
+  const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
   const viewKey = useSessionStore((s) => s.viewKey);
   const setManifest = usePayrollRunStore((s) => s.setManifest);
@@ -68,6 +70,15 @@ export default function NewPayrollPage() {
   const updateStatus = usePayrollRunStore((s) => s.updateStatus);
   const router = useRouter();
   const settlingRef = useRef(false);
+
+  // Load workers from on-chain agreements if the store is empty
+  // (handles direct navigation to /payroll/new without visiting dashboard first)
+  useEffect(() => {
+    if (workers.length > 0 || !viewKey || !address) return;
+    readAgreementRecords(viewKey, address)
+      .then((records) => { if (records.length > 0) setWorkers(records); })
+      .catch(() => {});
+  }, [viewKey, address, workers.length, setWorkers]);
 
   // Restore draft from sessionStorage on mount (fast, same-tab recovery)
   useEffect(() => {
