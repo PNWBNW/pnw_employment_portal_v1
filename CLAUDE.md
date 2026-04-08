@@ -364,7 +364,7 @@ src/persistence/__tests__/key_provider.test.ts
 ## Canonical Endpoint
 
 ```
-NEXT_PUBLIC_ALEO_ENDPOINT=https://api.explorer.provable.com/v1/testnet
+NEXT_PUBLIC_ALEO_ENDPOINT=https://api.explorer.provable.com/v2/testnet
 ```
 
 ---
