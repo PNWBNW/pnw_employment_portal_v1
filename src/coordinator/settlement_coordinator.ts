@@ -540,6 +540,8 @@ async function executeChunkViaWallet(
     }
 
     const tokenRecordInput = selectedRecord.recordPlaintext as string;
+    console.log("[PNW-PAYROLL] Selected USDCx record:", tokenRecordInput.slice(0, 80) + "...");
+    console.log("[PNW-PAYROLL] Total needed:", totalNeeded.toString(), "minor units");
 
     // Build inputs matching on-chain function signature:
     // execute_payroll(employer_usdcx, employer_addr, employer_name_hash, w, merkle_proofs)
@@ -555,19 +557,24 @@ async function executeChunkViaWallet(
       inputs.push(serializeWorkerPayArgsAsStruct(workerArgs[1]!));
     }
 
-    // Merkle proofs — placeholder for base transfer_private path
-    // The on-chain function takes [MerkleProof; 2] but for testnet
-    // with skip_credentials, the proofs aren't checked
-    // TODO: implement proper Merkle proof generation for mainnet
-    inputs.push("[ { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 }, { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 } ]");
+    // Merkle proofs: [test_usdcx_stablecoin.aleo/MerkleProof; 2]
+    // MerkleProof = { siblings: [field; 16], leaf_index: u32 }
+    // transfer_private requires valid Merkle proofs that the sender
+    // is not on the freeze list. For testnet, generate zero proofs.
+    const zeroProof = "{ siblings: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u32 }";
+    inputs.push(`[ ${zeroProof}, ${zeroProof} ]`);
 
     if (transitionName.includes("batch_2")) {
-      inputs.push("[ { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 }, { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 } ]");
+      inputs.push(`[ ${zeroProof}, ${zeroProof} ]`);
     }
   } else {
     // Non-payroll transitions or no requestRecords — use flat serialization
     inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
   }
+
+  console.log("[PNW-PAYROLL] Executing via wallet:", transition.program, transition.transition);
+  console.log("[PNW-PAYROLL] Input count:", inputs.length);
+  console.log("[PNW-PAYROLL] Inputs preview:", inputs.map((i, idx) => `[${idx}] ${String(i).slice(0, 60)}...`));
 
   const walletTxId = await executeAleoTransaction(
     walletExecute,
