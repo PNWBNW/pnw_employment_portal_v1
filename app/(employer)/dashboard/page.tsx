@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWorkerStore } from "@/src/stores/worker_store";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
-import { readAgreementRecords } from "@/src/records/agreement_reader";
+import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
 import {
   scanUSDCxBalance,
   formatUSDCxShort,
@@ -16,6 +17,7 @@ import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 
 export default function DashboardPage() {
   const { address, viewKey } = useAleoSession();
+  const { requestRecords } = useWallet();
   const { chosenName, suffixCode, profileAnchored } = useEmployerIdentityStore();
   const { workers, setWorkers, setLoading: setWorkersLoading } =
     useWorkerStore();
@@ -35,18 +37,21 @@ export default function DashboardPage() {
       const usdcxBalance = await scanUSDCxBalance("", address);
       setBalance(usdcxBalance);
 
-      // Load workers only if view key available (private record scan)
-      if (viewKey) {
-        const workerRecords = await readAgreementRecords(viewKey, address);
-        setWorkers(workerRecords);
+      // Load workers: try wallet record scan first, fall back to localStorage
+      let workerRecords = requestRecords
+        ? await scanAgreementRecords(requestRecords, address)
+        : [];
+      if (workerRecords.length === 0 && viewKey) {
+        workerRecords = await readAgreementRecords(viewKey, address);
       }
+      setWorkers(workerRecords);
     } catch (err) {
       console.warn("Dashboard data load failed:", err);
     } finally {
       setIsScanning(false);
       setWorkersLoading(false);
     }
-  }, [viewKey, address, setWorkers, setWorkersLoading]);
+  }, [viewKey, address, requestRecords, setWorkers, setWorkersLoading]);
 
   useEffect(() => {
     void loadData();

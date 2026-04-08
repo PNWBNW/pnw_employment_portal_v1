@@ -2,9 +2,10 @@
 
 import { useEffect, useCallback, useState } from "react";
 import Link from "next/link";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWorkerStore, type WorkerRecord } from "@/src/stores/worker_store";
-import { readAgreementRecords } from "@/src/records/agreement_reader";
+import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { ENV } from "@/src/config/env";
 import { PROGRAMS } from "@/src/config/programs";
@@ -75,21 +76,28 @@ function StatusBadge({ status }: { status: WorkerRecord["status"] }) {
 
 export default function WorkersPage() {
   const { viewKey, address } = useAleoSession();
+  const { requestRecords } = useWallet();
   const { workers, isLoading, setWorkers, setLoading } = useWorkerStore();
   const [sentOffers, setSentOffers] = useState<SentOffer[]>([]);
 
   const loadWorkers = useCallback(async () => {
-    if (!viewKey || !address) return;
+    if (!address) return;
     setLoading(true);
     try {
-      const records = await readAgreementRecords(viewKey, address);
+      // Try wallet record scan first, fall back to localStorage
+      let records = requestRecords
+        ? await scanAgreementRecords(requestRecords, address)
+        : [];
+      if (records.length === 0 && viewKey) {
+        records = await readAgreementRecords(viewKey, address);
+      }
       setWorkers(records);
     } catch (err) {
       console.warn("Failed to load workers:", err);
     } finally {
       setLoading(false);
     }
-  }, [viewKey, address, setWorkers, setLoading]);
+  }, [viewKey, address, requestRecords, setWorkers, setLoading]);
 
   useEffect(() => {
     void loadWorkers();

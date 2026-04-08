@@ -1,17 +1,14 @@
 /**
  * Agreement Record Reader
  *
- * Surfaces the active worker list by combining:
- *   1. Sent offers stored in localStorage (keyed by wallet address)
- *   2. On-chain agreement_status mapping on employer_agreement_v4.aleo
+ * Surfaces the active worker list by scanning on-chain agreement records
+ * owned by the employer's wallet.
  *
- * Only offers with status "active" (accepted by worker) are returned
- * as WorkerRecords for the workers table.
+ * Primary path: wallet adapter's requestRecords() → parse FinalAgreement
+ * and PendingAgreement records → return WorkerRecords.
  *
- * Note: employer_agreement_v4 stores agreements as private records,
- * not in a public mapping. The only public state is agreement_status
- * (keyed by agreement_id). We cross-reference localStorage sent offers
- * with on-chain status to determine which agreements are active.
+ * Fallback path: localStorage sent offers → cross-reference with on-chain
+ * agreement_status mapping. Used when wallet doesn't support requestRecords.
  */
 
 import { ENV } from "@/src/config/env";
@@ -22,7 +19,7 @@ import type { WorkerRecord } from "@/src/stores/worker_store";
 /** Agreement status from on-chain state */
 export type AgreementStatus = "active" | "paused" | "terminated";
 
-/** Sent offer shape from localStorage (matches workers/page.tsx SentOffer) */
+/** Sent offer shape from localStorage */
 type StoredOffer = {
   agreement_id: string;
   worker_pnw_name: string;
@@ -51,33 +48,127 @@ function bytesToAleoU8Array(hex: string): string {
 }
 
 /**
- * Fetch employer's active workers by cross-referencing localStorage
- * sent offers with on-chain agreement_status mapping.
+ * Parse a FinalAgreement or PendingAgreement record plaintext into a WorkerRecord.
+ * Returns null if the record doesn't match or is spent.
+ */
+function parseAgreementRecord(
+  record: Record<string, unknown>,
+  employerAddress: Address,
+): WorkerRecord | null {
+  try {
+    const plaintext = typeof record.recordPlaintext === "string" ? record.recordPlaintext : null;
+    const recordName = typeof record.recordName === "string" ? record.recordName : null;
+    const spent = typeof record.spent === "boolean" ? record.spent : false;
+
+    if (!plaintext) return null;
+    if (spent) return null;
+
+    // Accept both FinalAgreement (accepted) and PendingAgreement (sent, awaiting acceptance)
+    const isFinal = recordName === "FinalAgreement";
+    const isPending = recordName === "PendingAgreement";
+    if (!isFinal && !isPending) return null;
+
+    // Parse fields from the record plaintext
+    const workerAddrMatch = plaintext.match(/worker_address:\s*(aleo1[a-z0-9]+)/);
+    const empAddrMatch = plaintext.match(/employer_address:\s*(aleo1[a-z0-9]+)/);
+    const wrkHashMatch = plaintext.match(/worker_name_hash:\s*(\d+)field/);
+
+    // For employer-owned records, verify this is their agreement
+    if (empAddrMatch?.[1] && empAddrMatch[1] !== employerAddress) return null;
+
+    // Must have a worker address
+    if (!workerAddrMatch?.[1]) return null;
+
+    // Parse agreement_id bytes → hex string
+    const aidSection = plaintext.match(/agreement_id:\s*\[([\s\S]*?)\]/);
+    let agreementId = "";
+    if (aidSection?.[1]) {
+      const byteMatches = aidSection[1].match(/(\d+)u8/g);
+      if (byteMatches) {
+        agreementId = byteMatches.map(m => parseInt(m).toString(16).padStart(2, "0")).join("");
+      }
+    }
+    if (!agreementId) return null;
+
+    // Determine status: FinalAgreement = active, PendingAgreement = active (pending acceptance)
+    const status: AgreementStatus = "active";
+
+    return {
+      worker_addr: workerAddrMatch[1],
+      worker_name_hash: wrkHashMatch?.[1] ?? "",
+      agreement_id: agreementId,
+      status,
+      display_name: undefined, // Will be resolved by reverse name lookup
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Scan wallet for agreement records using the wallet adapter.
+ * This is the primary method — reads actual on-chain records owned by the employer.
  *
- * @param _viewKey - Employer's view key (reserved for future record decoding)
+ * @param requestRecords - Wallet adapter's requestRecords function
+ * @param employerAddress - Employer's Aleo address
+ * @returns Array of worker records from on-chain agreement records
+ */
+export async function scanAgreementRecords(
+  requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>,
+  employerAddress: Address,
+): Promise<WorkerRecord[]> {
+  try {
+    console.log("[PNW] Scanning wallet for agreement records...");
+    const records = await requestRecords(PROGRAMS.layer1.employer_agreement, true);
+    console.log("[PNW] Agreement records from wallet:", records?.length ?? 0);
+
+    if (!Array.isArray(records)) return [];
+
+    const workers: WorkerRecord[] = [];
+    const seenAgreements = new Set<string>();
+
+    for (const rec of records) {
+      const worker = parseAgreementRecord(rec as Record<string, unknown>, employerAddress);
+      if (worker && !seenAgreements.has(worker.agreement_id)) {
+        seenAgreements.add(worker.agreement_id);
+        workers.push(worker);
+      }
+    }
+
+    console.log("[PNW] Parsed worker records:", workers.length);
+    return workers;
+  } catch (error) {
+    console.warn("[PNW] Wallet record scan failed:", error);
+    return [];
+  }
+}
+
+/**
+ * Fallback: read from localStorage sent offers + on-chain status.
+ * Used when wallet doesn't support requestRecords.
+ *
+ * @param _viewKey - Employer's view key (reserved for future use)
  * @param address - Employer's Aleo address
- * @returns Array of worker records with active agreements
+ * @returns Array of worker records from localStorage offers
  */
 export async function readAgreementRecords(
   _viewKey: string,
   address: Address,
 ): Promise<WorkerRecord[]> {
   try {
-    // Read sent offers from localStorage
     const raw = localStorage.getItem(`pnw_sent_offers_${address}`);
     if (!raw) return [];
 
     const offers: StoredOffer[] = JSON.parse(raw);
     if (!Array.isArray(offers) || offers.length === 0) return [];
 
-    // Query on-chain status for each offer
     const workers: WorkerRecord[] = [];
     for (const offer of offers) {
       const status = await queryAgreementStatusInternal(offer.agreement_id);
       if (status) {
         workers.push({
           worker_addr: offer.worker_address,
-          worker_name_hash: "0x0",
+          worker_name_hash: "",
           agreement_id: offer.agreement_id,
           status,
           display_name: offer.worker_pnw_name ? `${offer.worker_pnw_name}.pnw` : undefined,
@@ -121,7 +212,6 @@ async function queryAgreementStatusInternal(
 
 /**
  * Refresh a single agreement's status from chain.
- * Public API for components that need individual status checks.
  */
 export async function checkAgreementStatus(
   agreementId: Bytes32,

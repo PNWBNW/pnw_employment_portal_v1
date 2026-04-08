@@ -27,7 +27,8 @@ import {
 } from "@/src/coordinator/settlement_coordinator";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
-import { readAgreementRecords } from "@/src/records/agreement_reader";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
 import {
   SessionKeyProvider,
   encryptDraft,
@@ -65,20 +66,26 @@ export default function NewPayrollPage() {
   const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
   const viewKey = useSessionStore((s) => s.viewKey);
+  const { requestRecords } = useWallet();
   const setManifest = usePayrollRunStore((s) => s.setManifest);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
   const updateStatus = usePayrollRunStore((s) => s.updateStatus);
   const router = useRouter();
   const settlingRef = useRef(false);
 
-  // Load workers from on-chain agreements if the store is empty
-  // (handles direct navigation to /payroll/new without visiting dashboard first)
+  // Load workers from on-chain agreement records if the store is empty
   useEffect(() => {
-    if (workers.length > 0 || !viewKey || !address) return;
-    readAgreementRecords(viewKey, address)
-      .then((records) => { if (records.length > 0) setWorkers(records); })
-      .catch(() => {});
-  }, [viewKey, address, workers.length, setWorkers]);
+    if (workers.length > 0 || !address) return;
+    (async () => {
+      let records = requestRecords
+        ? await scanAgreementRecords(requestRecords, address)
+        : [];
+      if (records.length === 0 && viewKey) {
+        records = await readAgreementRecords(viewKey, address);
+      }
+      if (records.length > 0) setWorkers(records);
+    })().catch(() => {});
+  }, [viewKey, address, requestRecords, workers.length, setWorkers]);
 
   // Restore draft from sessionStorage on mount (fast, same-tab recovery)
   useEffect(() => {
