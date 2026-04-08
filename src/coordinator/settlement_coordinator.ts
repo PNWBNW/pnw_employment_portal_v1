@@ -545,10 +545,15 @@ async function executeChunkViaWallet(
 
     // Build inputs matching on-chain function signature:
     // execute_payroll(employer_usdcx, employer_addr, employer_name_hash, w, merkle_proofs)
+    // employer_name_hash may be stored as hex — convert to decimal field
+    const empNameHash = manifest.employer_name_hash.startsWith("0x")
+      ? hexToDecimalField(manifest.employer_name_hash)
+      : `${manifest.employer_name_hash}field`;
+
     inputs = [
       tokenRecordInput,
       manifest.employer_addr,
-      `${manifest.employer_name_hash}field`,
+      empNameHash,
       serializeWorkerPayArgsAsStruct(workerArgs[0]!),
     ];
 
@@ -697,21 +702,42 @@ function buildWorkerPayArgs(
   };
 }
 
+const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+
+/** Convert a hex string (with or without 0x prefix) to a decimal field string. */
+function hexToDecimalField(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (!clean || clean === "0") return "0field";
+  let value = 0n;
+  for (let i = 0; i < clean.length; i += 2) {
+    value = (value << 8n) | BigInt(parseInt(clean.slice(i, i + 2), 16));
+  }
+  return `${(value % FIELD_MODULUS).toString(10)}field`;
+}
+
+/** Convert a hex string to a [u8; 32] Aleo array literal. */
+function hexToU8Array(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes.push(parseInt(clean.slice(i, i + 2), 16));
+  }
+  // Pad to 32 bytes if needed
+  while (bytes.length < 32) bytes.push(0);
+  return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
+}
+
 /**
  * Serialize a single WorkerPayArgs as an Aleo struct literal.
  * Used when passing the struct as a single input to the wallet adapter.
  */
 function serializeWorkerPayArgsAsStruct(arg: BatchPayrollWorker): string {
-  function hexToU8Array(hex: string): string {
-    const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-    const bytes: number[] = [];
-    for (let i = 0; i < clean.length; i += 2) {
-      bytes.push(parseInt(clean.slice(i, i + 2), 16));
-    }
-    return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
-  }
+  // worker_name_hash is a field — may be stored as hex or decimal
+  const nameHash = arg.worker_name_hash.startsWith("0x")
+    ? hexToDecimalField(arg.worker_name_hash)
+    : `${arg.worker_name_hash}field`;
 
-  return `{ worker_addr: ${arg.worker_addr}, worker_name_hash: ${arg.worker_name_hash}field, agreement_id: ${hexToU8Array(arg.agreement_id)}, epoch_id: ${arg.epoch_id}u32, gross_amount: ${arg.gross_amount}u128, net_amount: ${arg.net_amount}u128, tax_withheld: ${arg.tax_withheld}u128, fee_amount: ${arg.fee_amount}u128, receipt_anchor: ${hexToU8Array(arg.receipt_anchor)}, receipt_pair_hash: ${hexToU8Array(arg.receipt_pair_hash)}, payroll_inputs_hash: ${hexToU8Array(arg.payroll_inputs_hash)}, utc_time_hash: ${hexToU8Array(arg.utc_time_hash)}, audit_event_hash: ${hexToU8Array(arg.audit_event_hash)}, batch_id: ${hexToU8Array(arg.batch_id)}, row_hash: ${hexToU8Array(arg.row_hash)} }`;
+  return `{ worker_addr: ${arg.worker_addr}, worker_name_hash: ${nameHash}, agreement_id: ${hexToU8Array(arg.agreement_id)}, epoch_id: ${arg.epoch_id}u32, gross_amount: ${arg.gross_amount}u128, net_amount: ${arg.net_amount}u128, tax_withheld: ${arg.tax_withheld}u128, fee_amount: ${arg.fee_amount}u128, receipt_anchor: ${hexToU8Array(arg.receipt_anchor)}, receipt_pair_hash: ${hexToU8Array(arg.receipt_pair_hash)}, payroll_inputs_hash: ${hexToU8Array(arg.payroll_inputs_hash)}, utc_time_hash: ${hexToU8Array(arg.utc_time_hash)}, audit_event_hash: ${hexToU8Array(arg.audit_event_hash)}, batch_id: ${hexToU8Array(arg.batch_id)}, row_hash: ${hexToU8Array(arg.row_hash)} }`;
 }
 
 /**
