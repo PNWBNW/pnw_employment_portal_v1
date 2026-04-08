@@ -124,6 +124,8 @@ export type SettlementContext = {
   rosterCredentials?: RosterCredentialsRecord;
   /** Employer's view key (needed for roster tree building) */
   viewKey?: string;
+  /** Skip Sealance credentials acquisition (testnet — use base transfer path) */
+  skipCredentials?: boolean;
 };
 
 /**
@@ -146,7 +148,7 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
   // ---- Step 1: Acquire credentials (if wallet is available) ----
   let credentials = ctx.credentials ?? null;
 
-  if (!credentials && ctx.walletExecute) {
+  if (!credentials && ctx.walletExecute && !ctx.skipCredentials) {
     callbacks.onRunStatusChange("proving"); // reuse "proving" for credentials phase
     callbacks.onCredentialsUpdate?.({
       status: "unchecked",
@@ -181,7 +183,7 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
   // ---- Step 1b: Acquire roster credentials (if wallet + viewKey available) ----
   let rosterCredentials = ctx.rosterCredentials ?? null;
 
-  if (!rosterCredentials && ctx.walletExecute && credentials) {
+  if (!rosterCredentials && ctx.walletExecute && credentials && !ctx.skipCredentials) {
     const manifestAgreementIds = manifest.rows.map((r) => r.agreement_id);
 
     callbacks.onRosterUpdate?.({
