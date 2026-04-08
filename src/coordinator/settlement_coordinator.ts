@@ -38,11 +38,7 @@ import type {
 import type { BatchPayrollWorker } from "../lib/pnw-adapter/layer1_router";
 import { LAYER1_TRANSITIONS } from "../lib/pnw-adapter/layer1_adapter";
 import { PROGRAMS } from "../config/programs";
-import {
-  fetchFreezeListTree,
-  buildExclusionProof,
-  formatProofAsInputs,
-} from "../lib/pnw-adapter/freeze_list_resolver";
+import { SealanceMerkleTree } from "@provablehq/sdk";
 import type { ExecutionResult, AdapterConfig } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { executeTransition } from "../lib/pnw-adapter/aleo_cli_adapter";
 import type { WalletExecuteFn } from "../lib/wallet/wallet-executor";
@@ -571,19 +567,32 @@ async function executeChunkViaWallet(
     }
 
     // Merkle proofs: [test_usdcx_stablecoin.aleo/MerkleProof; 2]
-    // Build real exclusion proofs from the on-chain freeze list tree
-    console.log("[PNW-PAYROLL] Fetching freeze list tree...");
-    const freezeTree = await fetchFreezeListTree();
-    console.log("[PNW-PAYROLL] Freeze list tree:", { root: freezeTree.root, leaves: freezeTree.leaves.length, depth: freezeTree.depth });
+    // Uses Provable SDK's SealanceMerkleTree with Poseidon4 hashing
+    // to generate valid exclusion proofs matching on-chain verification.
+    console.log("[PNW-PAYROLL] Generating Sealance Merkle exclusion proofs...");
+    const sealance = new SealanceMerkleTree();
 
-    const exclusionProof = buildExclusionProof(manifest.employer_addr, freezeTree);
-    const proofInputs = formatProofAsInputs(exclusionProof);
-    // formatProofAsInputs returns [proofLow, proofHigh] — combine into array literal
-    // Pad sibling paths to exactly 16 fields (on-chain MerkleProof has [field; 16])
-    inputs.push(formatMerkleProofArray(exclusionProof));
+    // Fetch frozen addresses from on-chain freeze list
+    const frozenAddresses = await fetchFreezeListAddresses(ctx.adapterConfig.endpoint);
+    console.log("[PNW-PAYROLL] Frozen addresses:", frozenAddresses.length);
+
+    // Generate leaves (sorted, padded to power-of-2)
+    // Depth 15 matches the on-chain tree structure
+    const TREE_DEPTH = 15;
+    const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
+    const tree = sealance.buildTree(leaves);
+
+    // Get exclusion proof for the employer address
+    const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
+    const proofLeft = sealance.getSiblingPath(tree, leftIdx, TREE_DEPTH);
+    const proofRight = sealance.getSiblingPath(tree, rightIdx, TREE_DEPTH);
+    const formattedProof = sealance.formatMerkleProof([proofLeft, proofRight]);
+    console.log("[PNW-PAYROLL] Merkle proof generated, root check should pass");
+
+    inputs.push(formattedProof);
 
     if (transitionName.includes("batch_2")) {
-      inputs.push(formatMerkleProofArray(exclusionProof));
+      inputs.push(formattedProof);
     }
   } else {
     // Non-payroll transitions or no requestRecords — use flat serialization
@@ -737,7 +746,41 @@ function buildWorkerPayArgs(
   };
 }
 
-const MERKLE_TREE_DEPTH = 16; // On-chain MerkleProof has siblings: [field; 16]
+/**
+ * Fetch frozen addresses from the on-chain freeze list program.
+ * Returns an empty array if the freeze list has no entries.
+ */
+async function fetchFreezeListAddresses(endpoint: string): Promise<string[]> {
+  const freezelistProgram = PROGRAMS.external.usdcx_freezelist;
+
+  try {
+    // Fetch leaf count
+    const countResp = await fetch(
+      `${endpoint}/program/${freezelistProgram}/mapping/freeze_list_count/1u8`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!countResp.ok) return [];
+    const countRaw = await countResp.text();
+    const count = parseInt(countRaw.replace(/"/g, "").replace(/u\d+$/, ""), 10);
+    if (!count || isNaN(count) || count === 0) return [];
+
+    // Fetch each frozen address
+    const addresses: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const resp = await fetch(
+        `${endpoint}/program/${freezelistProgram}/mapping/freeze_list/${i}u32`,
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) },
+      );
+      if (resp.ok) {
+        const addr = (await resp.text()).replace(/"/g, "").trim();
+        if (addr && addr.startsWith("aleo1")) addresses.push(addr);
+      }
+    }
+    return addresses;
+  } catch {
+    return [];
+  }
+}
 
 const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
 
@@ -764,23 +807,6 @@ function hexToU8Array(hex: string): string {
   return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
 }
 
-/**
- * Format a FreezeListProof as an Aleo [MerkleProof; 2] array literal.
- * Pads sibling paths to exactly MERKLE_TREE_DEPTH (16) fields.
- */
-function formatMerkleProofArray(proof: import("../lib/pnw-adapter/sealance_types").FreezeListProof): string {
-  function formatSingle(p: import("../lib/pnw-adapter/sealance_types").MerkleSiblingPath): string {
-    // Pad path to 16 siblings
-    const padded = [...p.path];
-    while (padded.length < MERKLE_TREE_DEPTH) {
-      padded.push("0field");
-    }
-    const siblings = padded.slice(0, MERKLE_TREE_DEPTH).join(", ");
-    return `{ siblings: [ ${siblings} ], leaf_index: ${p.leaf_index}u32 }`;
-  }
-
-  return `[ ${formatSingle(proof.proof_low)}, ${formatSingle(proof.proof_high)} ]`;
-}
 
 /**
  * Serialize a single WorkerPayArgs as an Aleo struct literal.
