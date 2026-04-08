@@ -530,6 +530,7 @@ export default function NewPayrollPage() {
               callbacks,
               walletExecute,
               walletTransactionStatus: walletTransactionStatus ?? undefined,
+              requestRecords: requestRecords ?? undefined,
               viewKey: viewKey ?? undefined,
               skipCredentials: true, // testnet: skip Sealance credentials, use base transfer path
             });

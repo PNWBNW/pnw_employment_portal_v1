@@ -37,6 +37,7 @@ import type {
 } from "../manifest/types";
 import type { BatchPayrollWorker } from "../lib/pnw-adapter/layer1_router";
 import { LAYER1_TRANSITIONS } from "../lib/pnw-adapter/layer1_adapter";
+import { PROGRAMS } from "../config/programs";
 import type { ExecutionResult, AdapterConfig } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { executeTransition } from "../lib/pnw-adapter/aleo_cli_adapter";
 import type { WalletExecuteFn } from "../lib/wallet/wallet-executor";
@@ -126,6 +127,8 @@ export type SettlementContext = {
   viewKey?: string;
   /** Skip Sealance credentials acquisition (testnet — use base transfer path) */
   skipCredentials?: boolean;
+  /** Wallet requestRecords function — needed to fetch USDCx Token records */
+  requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>;
 };
 
 /**
@@ -442,7 +445,7 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus)
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords)
         : await executeChunk(manifest, current, ctx.adapterConfig, credentials, rosterCredentials ?? null);
 
       current.status = "settled";
@@ -484,6 +487,7 @@ async function executeChunkViaWallet(
   credentials: CredentialsRecord | null,
   rosterCredentials: RosterCredentialsRecord | null,
   walletTransactionStatus?: WalletStatusFn,
+  requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -493,7 +497,77 @@ async function executeChunkViaWallet(
 
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
-  const inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
+
+  // For payroll transitions, we need to build full inputs:
+  // execute_payroll(employer_usdcx: Token, employer_addr, employer_name_hash, w: WorkerPayArgs, merkle_proofs)
+  const isPayrollTransition = transitionName.startsWith("execute_payroll");
+
+  let inputs: string[];
+
+  if (isPayrollTransition && requestRecords) {
+    // Fetch USDCx Token records from wallet
+    const usdcxProgram = PROGRAMS.external.usdcx;
+    const records = await requestRecords(usdcxProgram, true);
+    const tokenRecords = (records as Array<Record<string, unknown>>).filter(
+      (r) => r.recordName === "Token" && !r.spent && typeof r.recordPlaintext === "string",
+    );
+
+    if (tokenRecords.length === 0) {
+      throw new Error("No unspent USDCx Token records found in wallet. Fund the employer wallet with USDCx first.");
+    }
+
+    // Find a record with sufficient balance for all workers in this chunk
+    const totalNeeded = workerArgs.reduce((sum, w) => sum + BigInt(w.net_amount), 0n);
+    let selectedRecord: Record<string, unknown> | null = null;
+
+    for (const rec of tokenRecords) {
+      const plaintext = rec.recordPlaintext as string;
+      const amountMatch = plaintext.match(/amount:\s*(\d+)u128/);
+      if (amountMatch?.[1]) {
+        const amount = BigInt(amountMatch[1]);
+        if (amount >= totalNeeded) {
+          selectedRecord = rec;
+          break;
+        }
+      }
+    }
+
+    if (!selectedRecord) {
+      throw new Error(
+        `No USDCx Token record with sufficient balance. Need ${totalNeeded} minor units. ` +
+        `Found ${tokenRecords.length} record(s) but none large enough.`,
+      );
+    }
+
+    const tokenRecordInput = selectedRecord.recordPlaintext as string;
+
+    // Build inputs matching on-chain function signature:
+    // execute_payroll(employer_usdcx, employer_addr, employer_name_hash, w, merkle_proofs)
+    inputs = [
+      tokenRecordInput,
+      manifest.employer_addr,
+      `${manifest.employer_name_hash}field`,
+      serializeWorkerPayArgsAsStruct(workerArgs[0]!),
+    ];
+
+    // For batch_2, add second worker
+    if (transitionName.includes("batch_2") && workerArgs.length > 1) {
+      inputs.push(serializeWorkerPayArgsAsStruct(workerArgs[1]!));
+    }
+
+    // Merkle proofs — placeholder for base transfer_private path
+    // The on-chain function takes [MerkleProof; 2] but for testnet
+    // with skip_credentials, the proofs aren't checked
+    // TODO: implement proper Merkle proof generation for mainnet
+    inputs.push("[ { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 }, { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 } ]");
+
+    if (transitionName.includes("batch_2")) {
+      inputs.push("[ { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 }, { path: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u64 } ]");
+    }
+  } else {
+    // Non-payroll transitions or no requestRecords — use flat serialization
+    inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
+  }
 
   const walletTxId = await executeAleoTransaction(
     walletExecute,
@@ -617,7 +691,24 @@ function buildWorkerPayArgs(
 }
 
 /**
- * Serialize WorkerPayArgs into Aleo input strings.
+ * Serialize a single WorkerPayArgs as an Aleo struct literal.
+ * Used when passing the struct as a single input to the wallet adapter.
+ */
+function serializeWorkerPayArgsAsStruct(arg: BatchPayrollWorker): string {
+  function hexToU8Array(hex: string): string {
+    const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+    const bytes: number[] = [];
+    for (let i = 0; i < clean.length; i += 2) {
+      bytes.push(parseInt(clean.slice(i, i + 2), 16));
+    }
+    return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
+  }
+
+  return `{ worker_addr: ${arg.worker_addr}, worker_name_hash: ${arg.worker_name_hash}field, agreement_id: ${hexToU8Array(arg.agreement_id)}, epoch_id: ${arg.epoch_id}u32, gross_amount: ${arg.gross_amount}u128, net_amount: ${arg.net_amount}u128, tax_withheld: ${arg.tax_withheld}u128, fee_amount: ${arg.fee_amount}u128, receipt_anchor: ${hexToU8Array(arg.receipt_anchor)}, receipt_pair_hash: ${hexToU8Array(arg.receipt_pair_hash)}, payroll_inputs_hash: ${hexToU8Array(arg.payroll_inputs_hash)}, utc_time_hash: ${hexToU8Array(arg.utc_time_hash)}, audit_event_hash: ${hexToU8Array(arg.audit_event_hash)}, batch_id: ${hexToU8Array(arg.batch_id)}, row_hash: ${hexToU8Array(arg.row_hash)} }`;
+}
+
+/**
+ * Serialize WorkerPayArgs into Aleo input strings (flat, for CLI adapter).
  *
  * Credential stacking order (for _with_roster transitions):
  * 1. Worker pay args (per-worker fields)
