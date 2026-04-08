@@ -532,7 +532,11 @@ export default function NewPayrollPage() {
             };
 
             // Fire and forget — the coordinator handles its own lifecycle
-            console.log("[PNW-PAYROLL] Starting executeSettlement...");
+            console.log("[PNW-PAYROLL] Starting executeSettlement...", {
+              hasWalletExecute: !!walletExecute,
+              hasWalletTransactionStatus: !!walletTransactionStatus,
+              hasRequestRecords: !!requestRecords,
+            });
             executeSettlement({
               manifest: compiledManifest,
               chunks: compiledChunks,
