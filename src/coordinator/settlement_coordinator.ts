@@ -102,6 +102,13 @@ export type CoordinatorCallbacks = {
 // Public API
 // ----------------------------------------------------------------
 
+/** Wallet-native transaction status polling function */
+export type WalletStatusFn = (txId: string) => Promise<{
+  status: string;
+  transactionId?: string;
+  error?: string;
+}>;
+
 export type SettlementContext = {
   manifest: PayrollRunManifest;
   chunks: ChunkPlan[];
@@ -109,6 +116,8 @@ export type SettlementContext = {
   callbacks: CoordinatorCallbacks;
   /** Optional wallet executor for E10 wallet-based settlement */
   walletExecute?: WalletExecuteFn;
+  /** Optional wallet-native status polling (for wallet-internal tx IDs) */
+  walletTransactionStatus?: WalletStatusFn;
   /** Pre-acquired freeze-list credentials (skip acquisition step) */
   credentials?: CredentialsRecord;
   /** Pre-acquired roster credentials (skip acquisition step) */
@@ -431,7 +440,7 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null)
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus)
         : await executeChunk(manifest, current, ctx.adapterConfig, credentials, rosterCredentials ?? null);
 
       current.status = "settled";
@@ -472,6 +481,7 @@ async function executeChunkViaWallet(
   walletExecute: WalletExecuteFn,
   credentials: CredentialsRecord | null,
   rosterCredentials: RosterCredentialsRecord | null,
+  walletTransactionStatus?: WalletStatusFn,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -483,7 +493,7 @@ async function executeChunkViaWallet(
   const transition = LAYER1_TRANSITIONS[transitionName];
   const inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
 
-  const txId = await executeAleoTransaction(
+  const walletTxId = await executeAleoTransaction(
     walletExecute,
     transition.program,
     transition.transition,
@@ -491,21 +501,56 @@ async function executeChunkViaWallet(
     500_000, // 0.5 credits
   );
 
-  const result = await pollTransactionStatus(txId);
+  // Wallet returns an internal ID (e.g. "shield_...") — need wallet-native polling
+  // to get the real Aleo tx ID and confirmation status.
+  const isWalletId = !walletTxId.startsWith("at1");
 
-  if (result.status === "rejected") {
-    throw new Error(result.error ?? "Transaction rejected");
+  let finalTxId = walletTxId;
+
+  if (isWalletId && walletTransactionStatus) {
+    // Poll via wallet adapter until accepted/rejected
+    const POLL_INTERVAL = 5_000;
+    const POLL_TIMEOUT = 300_000; // 5 minutes
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < POLL_TIMEOUT) {
+      await sleep(POLL_INTERVAL);
+      try {
+        const status = await walletTransactionStatus(walletTxId);
+        const s = status.status?.toLowerCase();
+
+        if (status.transactionId && status.transactionId.startsWith("at1")) {
+          finalTxId = status.transactionId;
+        }
+
+        if (s === "finalized" || s === "confirmed" || s === "accepted" || s === "completed") {
+          return { tx_id: finalTxId, outputs: [], fee: "500000" };
+        }
+
+        if (s === "rejected" || s === "failed") {
+          throw new Error(status.error ?? "Transaction rejected by network");
+        }
+      } catch (err) {
+        if (err instanceof Error && (err.message.includes("rejected") || err.message.includes("failed"))) {
+          throw err;
+        }
+        // Transient poll error — keep trying
+      }
+    }
+    throw new Error("Transaction status unknown after wallet polling timeout");
+  } else {
+    // Standard REST polling (for at1... IDs or when no wallet status fn)
+    const result = await pollTransactionStatus(walletTxId);
+
+    if (result.status === "rejected") {
+      throw new Error(result.error ?? "Transaction rejected");
+    }
+    if (result.status === "unknown") {
+      throw new Error(result.error ?? "Transaction status unknown after timeout");
+    }
+
+    return { tx_id: finalTxId, outputs: [], fee: "500000" };
   }
-
-  if (result.status === "unknown") {
-    throw new Error(result.error ?? "Transaction status unknown after timeout");
-  }
-
-  return {
-    tx_id: txId,
-    outputs: [],
-    fee: "500000",
-  };
 }
 
 // ----------------------------------------------------------------
