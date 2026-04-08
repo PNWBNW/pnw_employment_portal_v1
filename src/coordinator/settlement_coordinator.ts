@@ -613,7 +613,7 @@ async function executeChunkViaWallet(
   if (isWalletId && walletTransactionStatus) {
     // Poll via wallet adapter until accepted/rejected
     const POLL_INTERVAL = 5_000;
-    const POLL_TIMEOUT = 300_000; // 5 minutes
+    const POLL_TIMEOUT = 600_000; // 10 minutes (proof generation for multi-program tx can take 5+ min)
     const startTime = Date.now();
     console.log("[PNW-PAYROLL] Starting wallet-native polling for:", walletTxId);
 
@@ -644,11 +644,18 @@ async function executeChunkViaWallet(
           throw new Error(status.error ?? "Transaction rejected by network");
         }
       } catch (err) {
-        console.warn(`[PNW-PAYROLL] Poll attempt ${pollCount} error:`, err instanceof Error ? err.message : err);
-        if (err instanceof Error && (err.message.includes("rejected") || err.message.includes("failed"))) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        // "not found" = wallet is still building the proof locally — treat as pending
+        const isNotFound = errMsg.toLowerCase().includes("not found");
+        if (!isNotFound) {
+          console.warn(`[PNW-PAYROLL] Poll attempt ${pollCount} error:`, errMsg);
+        } else if (pollCount <= 3 || pollCount % 10 === 0) {
+          console.log(`[PNW-PAYROLL] Poll ${pollCount}: proof still building (this can take 2-5 min)...`);
+        }
+        if (err instanceof Error && (errMsg.includes("rejected") || errMsg.includes("failed"))) {
           throw err;
         }
-        // Transient poll error — keep trying
+        // Transient poll error or proof still building — keep trying
       }
     }
     throw new Error("Transaction status unknown after wallet polling timeout");
