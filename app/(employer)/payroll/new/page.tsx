@@ -29,6 +29,7 @@ import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
+import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
 import {
   SessionKeyProvider,
   encryptDraft,
@@ -66,7 +67,7 @@ export default function NewPayrollPage() {
   const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
   const viewKey = useSessionStore((s) => s.viewKey);
-  const { requestRecords } = useWallet();
+  const { requestRecords, executeTransaction } = useWallet();
   const setManifest = usePayrollRunStore((s) => s.setManifest);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
   const updateStatus = usePayrollRunStore((s) => s.updateStatus);
@@ -458,13 +459,34 @@ export default function NewPayrollPage() {
             setManifest(compiledManifest);
             updateChunks(compiledChunks);
 
-            // Get private key for adapter
-            const privateKey = getPrivateKey();
-            if (!privateKey) {
-              setCompileError("No private key in session. Please reconnect.");
-              setIsSettling(false);
-              settlingRef.current = false;
-              return;
+            // Build wallet execute function (preferred) or fall back to private key
+            let walletExecute: WalletExecuteFn | undefined;
+            let privateKey: string | null = null;
+
+            if (executeTransaction) {
+              walletExecute = async (params) => {
+                const result = await executeTransaction({
+                  program: params.program,
+                  function: params.function,
+                  inputs: params.inputs,
+                  fee: params.fee,
+                });
+                const txId = typeof result === "string"
+                  ? result
+                  : (result as Record<string, unknown>)?.transactionId as string
+                    ?? (result as Record<string, unknown>)?.id as string
+                    ?? String(result);
+                return txId;
+              };
+            } else {
+              privateKey = getPrivateKey();
+              if (!privateKey) {
+                setCompileError("No wallet connected and no private key in session. Please connect your wallet.");
+                setSettlementStatus(null);
+                setIsSettling(false);
+                settlingRef.current = false;
+                return;
+              }
             }
 
             const callbacks: CoordinatorCallbacks = {
@@ -501,9 +523,11 @@ export default function NewPayrollPage() {
               adapterConfig: {
                 endpoint: ENV.ALEO_ENDPOINT,
                 network: ENV.NETWORK,
-                privateKey,
+                privateKey: privateKey ?? "",
               },
               callbacks,
+              walletExecute,
+              viewKey: viewKey ?? undefined,
             });
           }}
         />
