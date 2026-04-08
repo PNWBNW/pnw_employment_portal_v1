@@ -571,29 +571,37 @@ async function executeChunkViaWallet(
     // Uses Provable SDK's SealanceMerkleTree with Poseidon4 hashing
     // to generate valid exclusion proofs matching on-chain verification.
     console.log("[PNW-PAYROLL] Generating Sealance Merkle exclusion proofs...");
-    const sealance = new SealanceMerkleTree();
+    try {
+      const sealance = new SealanceMerkleTree();
 
-    // Fetch frozen addresses from on-chain freeze list
-    const frozenAddresses = await fetchFreezeListAddresses(endpoint ?? "https://api.explorer.provable.com/v2/testnet");
-    console.log("[PNW-PAYROLL] Frozen addresses:", frozenAddresses.length);
+      // Fetch frozen addresses from on-chain freeze list
+      const frozenAddresses = await fetchFreezeListAddresses(endpoint ?? "https://api.explorer.provable.com/v2/testnet");
+      console.log("[PNW-PAYROLL] Frozen addresses:", frozenAddresses.length);
 
-    // Generate leaves (sorted, padded to power-of-2)
-    // Depth 15 matches the on-chain tree structure
-    const TREE_DEPTH = 15;
-    const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
-    const tree = sealance.buildTree(leaves);
+      // Generate leaves (sorted, padded to power-of-2)
+      // Depth 15 matches the on-chain tree structure
+      const TREE_DEPTH = 15;
+      const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
+      console.log("[PNW-PAYROLL] Leaves generated:", leaves.length);
+      const tree = sealance.buildTree(leaves);
+      console.log("[PNW-PAYROLL] Tree built, size:", tree.length);
 
-    // Get exclusion proof for the employer address
-    const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
-    const proofLeft = sealance.getSiblingPath(tree, leftIdx, TREE_DEPTH);
-    const proofRight = sealance.getSiblingPath(tree, rightIdx, TREE_DEPTH);
-    const formattedProof = sealance.formatMerkleProof([proofLeft, proofRight]);
-    console.log("[PNW-PAYROLL] Merkle proof generated, root check should pass");
+      // Get exclusion proof for the employer address
+      const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
+      console.log("[PNW-PAYROLL] Leaf indices:", { leftIdx, rightIdx });
+      const proofLeft = sealance.getSiblingPath(tree, leftIdx, TREE_DEPTH);
+      const proofRight = sealance.getSiblingPath(tree, rightIdx, TREE_DEPTH);
+      const formattedProof = sealance.formatMerkleProof([proofLeft, proofRight]);
+      console.log("[PNW-PAYROLL] Merkle proof generated:", formattedProof.slice(0, 120) + "...");
 
-    inputs.push(formattedProof);
-
-    if (transitionName.includes("batch_2")) {
       inputs.push(formattedProof);
+
+      if (transitionName.includes("batch_2")) {
+        inputs.push(formattedProof);
+      }
+    } catch (proofError) {
+      console.error("[PNW-PAYROLL] Merkle proof generation FAILED:", proofError);
+      throw new Error(`Merkle proof generation failed: ${proofError instanceof Error ? proofError.message : String(proofError)}`);
     }
   } else {
     // Non-payroll transitions or no requestRecords — use flat serialization
