@@ -15,6 +15,7 @@ import { ENV } from "@/src/config/env";
 import { PROGRAMS } from "@/src/config/programs";
 import type { Address, Bytes32 } from "@/src/lib/pnw-adapter/aleo_types";
 import type { WorkerRecord } from "@/src/stores/worker_store";
+import { queryWorkerName, queryNamePlaintext } from "@/src/registry/name_registry";
 
 /** Agreement status from on-chain state */
 export type AgreementStatus = "active" | "paused" | "terminated";
@@ -136,6 +137,26 @@ export async function scanAgreementRecords(
     }
 
     console.log("[PNW] Parsed worker records:", workers.length);
+
+    // Resolve .pnw names for each worker
+    for (const worker of workers) {
+      try {
+        const nameHash = await queryWorkerName(worker.worker_addr);
+        if (nameHash) {
+          const cleanHash = nameHash.replace(/field$/, "").trim();
+          if (!worker.worker_name_hash) worker.worker_name_hash = cleanHash;
+          const plaintext = await queryNamePlaintext(cleanHash);
+          if (plaintext) worker.display_name = `${plaintext}.pnw`;
+        }
+      } catch {
+        // Name resolution is best-effort
+      }
+      // Fallback display: truncated address
+      if (!worker.display_name) {
+        worker.display_name = `${worker.worker_addr.slice(0, 12)}...${worker.worker_addr.slice(-6)}`;
+      }
+    }
+
     return workers;
   } catch (error) {
     console.warn("[PNW] Wallet record scan failed:", error);
