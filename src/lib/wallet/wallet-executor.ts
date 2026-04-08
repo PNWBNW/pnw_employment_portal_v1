@@ -137,6 +137,18 @@ export async function pollTransactionStatus(
   txId: string,
   onStatusChange?: (status: TransactionStatus) => void,
 ): Promise<TransactionResult> {
+  // Wallet-internal IDs (e.g. "shield_...", "puzzle_...") are not real Aleo
+  // transaction IDs and will always 404 on the REST API. These must be polled
+  // via the wallet adapter's transactionStatus() instead.
+  if (!txId.startsWith("at1")) {
+    onStatusChange?.("pending");
+    return {
+      txId,
+      status: "pending" as TransactionStatus,
+      error: "Wallet-internal ID — use wallet adapter polling instead",
+    };
+  }
+
   const endpoint = ENV.ALEO_ENDPOINT;
   const startTime = Date.now();
   let interval = POLL_INTERVAL_MS;
