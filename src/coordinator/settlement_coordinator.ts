@@ -604,10 +604,18 @@ async function executeChunkViaWallet(
     const startTime = Date.now();
     console.log("[PNW-PAYROLL] Starting wallet-native polling for:", walletTxId);
 
+    let pollCount = 0;
     while (Date.now() - startTime < POLL_TIMEOUT) {
       await sleep(POLL_INTERVAL);
+      pollCount++;
+      console.log(`[PNW-PAYROLL] Polling attempt ${pollCount}...`);
       try {
-        const status = await walletTransactionStatus(walletTxId);
+        const statusPromise = walletTransactionStatus(walletTxId);
+        // Add 15s timeout to prevent hanging
+        const status = await Promise.race([
+          statusPromise,
+          sleep(15_000).then(() => { throw new Error("Wallet status poll timed out after 15s"); }),
+        ]) as Awaited<ReturnType<typeof walletTransactionStatus>>;
         console.log("[PNW-PAYROLL] Wallet poll response:", status);
         const s = status.status?.toLowerCase();
 
