@@ -595,16 +595,20 @@ async function executeChunkViaWallet(
 
   let finalTxId = walletTxId;
 
+  console.log("[PNW-PAYROLL] Post-execute:", { walletTxId, isWalletId, hasWalletStatus: !!walletTransactionStatus });
+
   if (isWalletId && walletTransactionStatus) {
     // Poll via wallet adapter until accepted/rejected
     const POLL_INTERVAL = 5_000;
     const POLL_TIMEOUT = 300_000; // 5 minutes
     const startTime = Date.now();
+    console.log("[PNW-PAYROLL] Starting wallet-native polling for:", walletTxId);
 
     while (Date.now() - startTime < POLL_TIMEOUT) {
       await sleep(POLL_INTERVAL);
       try {
         const status = await walletTransactionStatus(walletTxId);
+        console.log("[PNW-PAYROLL] Wallet poll response:", status);
         const s = status.status?.toLowerCase();
 
         if (status.transactionId && status.transactionId.startsWith("at1")) {
@@ -628,7 +632,9 @@ async function executeChunkViaWallet(
     throw new Error("Transaction status unknown after wallet polling timeout");
   } else {
     // Standard REST polling (for at1... IDs or when no wallet status fn)
+    console.log("[PNW-PAYROLL] Using REST polling (no wallet status fn or at1 ID):", walletTxId);
     const result = await pollTransactionStatus(walletTxId);
+    console.log("[PNW-PAYROLL] REST poll result:", result);
 
     if (result.status === "rejected") {
       throw new Error(result.error ?? "Transaction rejected");
