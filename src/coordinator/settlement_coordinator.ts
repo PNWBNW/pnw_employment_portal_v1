@@ -38,6 +38,11 @@ import type {
 import type { BatchPayrollWorker } from "../lib/pnw-adapter/layer1_router";
 import { LAYER1_TRANSITIONS } from "../lib/pnw-adapter/layer1_adapter";
 import { PROGRAMS } from "../config/programs";
+import {
+  fetchFreezeListTree,
+  buildExclusionProof,
+  formatProofAsInputs,
+} from "../lib/pnw-adapter/freeze_list_resolver";
 import type { ExecutionResult, AdapterConfig } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { executeTransition } from "../lib/pnw-adapter/aleo_cli_adapter";
 import type { WalletExecuteFn } from "../lib/wallet/wallet-executor";
@@ -74,6 +79,9 @@ const NON_RETRYABLE_PATTERNS = [
   "double pay",
   "conflict",
   "invalid state",
+  "execution failed",
+  "assert",
+  "not equal",
   "insufficient balance",
   "record already spent",
 ];
@@ -563,14 +571,19 @@ async function executeChunkViaWallet(
     }
 
     // Merkle proofs: [test_usdcx_stablecoin.aleo/MerkleProof; 2]
-    // MerkleProof = { siblings: [field; 16], leaf_index: u32 }
-    // transfer_private requires valid Merkle proofs that the sender
-    // is not on the freeze list. For testnet, generate zero proofs.
-    const zeroProof = "{ siblings: [ 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field, 0field ], leaf_index: 0u32 }";
-    inputs.push(`[ ${zeroProof}, ${zeroProof} ]`);
+    // Build real exclusion proofs from the on-chain freeze list tree
+    console.log("[PNW-PAYROLL] Fetching freeze list tree...");
+    const freezeTree = await fetchFreezeListTree();
+    console.log("[PNW-PAYROLL] Freeze list tree:", { root: freezeTree.root, leaves: freezeTree.leaves.length, depth: freezeTree.depth });
+
+    const exclusionProof = buildExclusionProof(manifest.employer_addr, freezeTree);
+    const proofInputs = formatProofAsInputs(exclusionProof);
+    // formatProofAsInputs returns [proofLow, proofHigh] — combine into array literal
+    // Pad sibling paths to exactly 16 fields (on-chain MerkleProof has [field; 16])
+    inputs.push(formatMerkleProofArray(exclusionProof));
 
     if (transitionName.includes("batch_2")) {
-      inputs.push(`[ ${zeroProof}, ${zeroProof} ]`);
+      inputs.push(formatMerkleProofArray(exclusionProof));
     }
   } else {
     // Non-payroll transitions or no requestRecords — use flat serialization
@@ -716,6 +729,8 @@ function buildWorkerPayArgs(
   };
 }
 
+const MERKLE_TREE_DEPTH = 16; // On-chain MerkleProof has siblings: [field; 16]
+
 const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
 
 /** Convert a hex string (with or without 0x prefix) to a decimal field string. */
@@ -739,6 +754,24 @@ function hexToU8Array(hex: string): string {
   // Pad to 32 bytes if needed
   while (bytes.length < 32) bytes.push(0);
   return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
+}
+
+/**
+ * Format a FreezeListProof as an Aleo [MerkleProof; 2] array literal.
+ * Pads sibling paths to exactly MERKLE_TREE_DEPTH (16) fields.
+ */
+function formatMerkleProofArray(proof: import("../lib/pnw-adapter/sealance_types").FreezeListProof): string {
+  function formatSingle(p: import("../lib/pnw-adapter/sealance_types").MerkleSiblingPath): string {
+    // Pad path to 16 siblings
+    const padded = [...p.path];
+    while (padded.length < MERKLE_TREE_DEPTH) {
+      padded.push("0field");
+    }
+    const siblings = padded.slice(0, MERKLE_TREE_DEPTH).join(", ");
+    return `{ siblings: [ ${siblings} ], leaf_index: ${p.leaf_index}u32 }`;
+  }
+
+  return `[ ${formatSingle(proof.proof_low)}, ${formatSingle(proof.proof_high)} ]`;
 }
 
 /**
