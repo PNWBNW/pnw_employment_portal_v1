@@ -467,18 +467,31 @@ export default function NewPayrollPage() {
 
             if (executeTransaction) {
               walletExecute = async (params) => {
-                const result = await executeTransaction({
+                console.log("[PNW-PAYROLL] Calling wallet executeTransaction...", {
                   program: params.program,
                   function: params.function,
-                  inputs: params.inputs,
+                  inputCount: params.inputs.length,
                   fee: params.fee,
                 });
-                const txId = typeof result === "string"
-                  ? result
-                  : (result as Record<string, unknown>)?.transactionId as string
-                    ?? (result as Record<string, unknown>)?.id as string
-                    ?? String(result);
-                return txId;
+                try {
+                  const result = await executeTransaction({
+                    program: params.program,
+                    function: params.function,
+                    inputs: params.inputs,
+                    fee: params.fee,
+                  });
+                  console.log("[PNW-PAYROLL] Wallet returned:", result);
+                  const txId = typeof result === "string"
+                    ? result
+                    : (result as Record<string, unknown>)?.transactionId as string
+                      ?? (result as Record<string, unknown>)?.id as string
+                      ?? String(result);
+                  console.log("[PNW-PAYROLL] Extracted txId:", txId);
+                  return txId;
+                } catch (err) {
+                  console.error("[PNW-PAYROLL] Wallet executeTransaction FAILED:", err);
+                  throw err;
+                }
               };
             } else {
               privateKey = getPrivateKey();
@@ -519,7 +532,8 @@ export default function NewPayrollPage() {
             };
 
             // Fire and forget — the coordinator handles its own lifecycle
-            void executeSettlement({
+            console.log("[PNW-PAYROLL] Starting executeSettlement...");
+            executeSettlement({
               manifest: compiledManifest,
               chunks: compiledChunks,
               adapterConfig: {
@@ -533,6 +547,13 @@ export default function NewPayrollPage() {
               requestRecords: requestRecords ?? undefined,
               viewKey: viewKey ?? undefined,
               skipCredentials: true, // testnet: skip Sealance credentials, use base transfer path
+            }).then((result) => {
+              console.log("[PNW-PAYROLL] Settlement finished:", result);
+            }).catch((err) => {
+              console.error("[PNW-PAYROLL] Settlement UNHANDLED ERROR:", err);
+              setSettlementStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+              setIsSettling(false);
+              settlingRef.current = false;
             });
           }}
         />
