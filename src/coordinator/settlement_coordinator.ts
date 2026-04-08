@@ -644,6 +644,7 @@ async function executeChunkViaWallet(
           throw new Error(status.error ?? "Transaction rejected by network");
         }
       } catch (err) {
+        console.warn(`[PNW-PAYROLL] Poll attempt ${pollCount} error:`, err instanceof Error ? err.message : err);
         if (err instanceof Error && (err.message.includes("rejected") || err.message.includes("failed"))) {
           throw err;
         }
