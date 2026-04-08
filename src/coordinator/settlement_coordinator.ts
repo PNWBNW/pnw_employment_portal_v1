@@ -449,7 +449,7 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords)
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords, ctx.adapterConfig.endpoint)
         : await executeChunk(manifest, current, ctx.adapterConfig, credentials, rosterCredentials ?? null);
 
       current.status = "settled";
@@ -492,6 +492,7 @@ async function executeChunkViaWallet(
   rosterCredentials: RosterCredentialsRecord | null,
   walletTransactionStatus?: WalletStatusFn,
   requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>,
+  endpoint?: string,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -573,7 +574,7 @@ async function executeChunkViaWallet(
     const sealance = new SealanceMerkleTree();
 
     // Fetch frozen addresses from on-chain freeze list
-    const frozenAddresses = await fetchFreezeListAddresses(ctx.adapterConfig.endpoint);
+    const frozenAddresses = await fetchFreezeListAddresses(endpoint ?? "https://api.explorer.provable.com/v2/testnet");
     console.log("[PNW-PAYROLL] Frozen addresses:", frozenAddresses.length);
 
     // Generate leaves (sorted, padded to power-of-2)
