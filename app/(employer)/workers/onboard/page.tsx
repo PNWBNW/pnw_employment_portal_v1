@@ -211,6 +211,11 @@ export default function OnboardWorkerPage() {
 
   async function handleBroadcast() {
     if (!computed || !employerAddress || !workerAddress || !workerNameHash || !employerNameHash) return;
+    // Guard against double-submit (React strict mode, fast double-click, etc.)
+    if (step === "broadcasting" || isExecuting) return;
+
+    // Lock the UI immediately to prevent double-submit
+    setStep("broadcasting");
 
     // Step 1: Encrypt and upload terms to IPFS
     setTermsUploadStatus("encrypting");
@@ -237,6 +242,7 @@ export default function OnboardWorkerPage() {
       console.error("[PNW] Terms upload failed:", err);
       setTermsUploadStatus("error");
       setError("Failed to encrypt and upload agreement terms. Please try again.");
+      setStep("review");
       return;
     }
 
@@ -265,8 +271,6 @@ export default function OnboardWorkerPage() {
     ];
 
     console.log("[PNW] create_job_offer inputs:", inputs);
-
-    setStep("broadcasting");
 
     const result = await execute(
       PROGRAMS.layer1.employer_agreement,
