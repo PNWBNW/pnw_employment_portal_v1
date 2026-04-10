@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
+import { scanPayrollHistory, type HistoricalPayrollRun } from "@/src/records/payroll_history_scanner";
 
 const STATUS_BADGE: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -23,22 +26,67 @@ function formatMinorUnits(value: string): string {
   return `$${dollars.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function formatDate(ts: number): string {
+function formatDate(ts: number | undefined): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleDateString();
 }
 
 export default function PayrollHistoryPage() {
   const manifest = usePayrollRunStore((s) => s.manifest);
-  const history = usePayrollRunStore((s) => s.history);
-  const restore = usePayrollRunStore((s) => s.restore);
+  const { address } = useAleoSession();
+  const { requestRecords } = useWallet();
+  const [onChainHistory, setOnChainHistory] = useState<HistoricalPayrollRun[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Scan wallet for EmployerPaystubReceipt records on mount
   useEffect(() => {
-    restore();
-  }, [restore]);
+    if (!requestRecords || !address) return;
+    setIsLoading(true);
+    scanPayrollHistory(requestRecords, address)
+      .then(setOnChainHistory)
+      .catch((err) => console.warn("Payroll history scan failed:", err))
+      .finally(() => setIsLoading(false));
+  }, [requestRecords, address]);
 
-  // Active run + completed history
-  const allRuns = manifest ? [manifest, ...history] : history;
+  // Show the active in-progress run (if any) plus on-chain history.
+  // Any "settled"/"anchored" active run is hidden to avoid duplicates
+  // with the on-chain scan.
+  const allRuns = (() => {
+    type Row = {
+      batch_id: string;
+      epoch_id: number;
+      row_count: number;
+      total_net_amount: string;
+      status: string;
+      created_at?: number;
+    };
+    const rows: Row[] = [];
+    if (
+      manifest &&
+      manifest.status !== "settled" &&
+      manifest.status !== "anchored"
+    ) {
+      rows.push({
+        batch_id: manifest.batch_id,
+        epoch_id: manifest.epoch_id,
+        row_count: manifest.row_count,
+        total_net_amount: manifest.total_net_amount,
+        status: manifest.status,
+        created_at: manifest.created_at,
+      });
+    }
+    for (const run of onChainHistory) {
+      rows.push({
+        batch_id: run.batch_id,
+        epoch_id: run.epoch_id,
+        row_count: run.row_count,
+        total_net_amount: run.total_net_amount,
+        status: run.status,
+        created_at: run.created_at,
+      });
+    }
+    return rows;
+  })();
 
   return (
     <div className="space-y-4">
@@ -59,7 +107,13 @@ export default function PayrollHistoryPage() {
         </Link>
       </div>
 
-      {allRuns.length === 0 ? (
+      {isLoading && allRuns.length === 0 ? (
+        <div className="rounded-lg border border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            Scanning wallet for payroll receipts...
+          </p>
+        </div>
+      ) : allRuns.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">
             No payroll runs yet. Create one to get started.

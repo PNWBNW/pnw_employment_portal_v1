@@ -7,6 +7,7 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWorkerStore } from "@/src/stores/worker_store";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
 import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
+import { scanPayrollHistory, type HistoricalPayrollRun } from "@/src/records/payroll_history_scanner";
 import {
   scanUSDCxBalance,
   formatUSDCxShort,
@@ -21,10 +22,44 @@ export default function DashboardPage() {
   const { chosenName, suffixCode, profileAnchored } = useEmployerIdentityStore();
   const { workers, setWorkers, setLoading: setWorkersLoading } =
     useWorkerStore();
-  const { history } = usePayrollRunStore();
-
+  const { manifest: currentRun } = usePayrollRunStore();
+  const [payrollHistory, setPayrollHistory] = useState<HistoricalPayrollRun[]>([]);
   const [balance, setBalance] = useState<USDCxBalance | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+
+  // Recent runs = active in-progress run (if any) + on-chain history
+  const recentRuns = (() => {
+    type Row = {
+      batch_id: string;
+      epoch_id: number;
+      row_count: number;
+      total_net_amount: string;
+      status: string;
+      created_at?: number;
+    };
+    const rows: Row[] = [];
+    if (currentRun && currentRun.status !== "settled" && currentRun.status !== "anchored") {
+      rows.push({
+        batch_id: currentRun.batch_id,
+        epoch_id: currentRun.epoch_id,
+        row_count: currentRun.row_count,
+        total_net_amount: currentRun.total_net_amount,
+        status: currentRun.status,
+        created_at: currentRun.created_at,
+      });
+    }
+    for (const run of payrollHistory) {
+      rows.push({
+        batch_id: run.batch_id,
+        epoch_id: run.epoch_id,
+        row_count: run.row_count,
+        total_net_amount: run.total_net_amount,
+        status: run.status,
+        created_at: run.created_at,
+      });
+    }
+    return rows;
+  })();
 
   const loadData = useCallback(async () => {
     if (!address) return;
@@ -45,6 +80,12 @@ export default function DashboardPage() {
         workerRecords = await readAgreementRecords(viewKey, address);
       }
       setWorkers(workerRecords);
+
+      // Load payroll history from on-chain EmployerPaystubReceipt records
+      if (requestRecords) {
+        const history = await scanPayrollHistory(requestRecords, address);
+        setPayrollHistory(history);
+      }
     } catch (err) {
       console.warn("Dashboard data load failed:", err);
     } finally {
@@ -201,9 +242,9 @@ export default function DashboardPage() {
         <h2 className="text-sm font-medium text-card-foreground">
           Recent Activity
         </h2>
-        {history.length > 0 ? (
+        {recentRuns.length > 0 ? (
           <div className="mt-2 space-y-2">
-            {history.slice(0, 5).map((run) => (
+            {recentRuns.slice(0, 5).map((run) => (
               <div
                 key={run.batch_id}
                 className="flex items-center justify-between rounded-md border border-border px-3 py-2"
