@@ -170,7 +170,10 @@ export function AleoWalletProviderWrapper({
         "payroll_core_v2.aleo",
         // Router and L2 anchors
         "pnw_router_v4.aleo",
+        // Legacy v1 (still @noupgrade but listed for read compatibility)
         "payroll_nfts.aleo",
+        // New v2 (imports employer_agreement_v4 instead of v2)
+        "payroll_nfts_v2.aleo",
         "credential_nft.aleo",
         "audit_nft.aleo",
       ]}
