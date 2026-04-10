@@ -12,6 +12,12 @@
 
 import { PROGRAMS } from "@/src/config/programs";
 import type { Address } from "@/src/lib/pnw-adapter/aleo_types";
+import type {
+  PayrollRunManifest,
+  PayrollRow,
+  ChunkPlan,
+} from "@/src/manifest/types";
+import type { WorkerRecord } from "@/src/stores/worker_store";
 
 /** A single parsed receipt record */
 export type ParsedReceipt = {
@@ -194,4 +200,83 @@ export async function scanPayrollHistory(
     console.warn("[PNW] Payroll history scan failed:", error);
     return [];
   }
+}
+
+/**
+ * Convert a HistoricalPayrollRun + known workers into a full PayrollRunManifest.
+ * The resulting manifest is good enough for read-only display in the run detail
+ * page (status list, totals, PDF generation, anchor button).
+ *
+ * Worker addresses are looked up by agreement_id against the known worker list.
+ * If a receipt's agreement_id doesn't match any known worker, the row shows
+ * the agreement_id as a fallback "unknown-worker" placeholder.
+ */
+export function historicalRunToManifest(
+  run: HistoricalPayrollRun,
+  employerAddr: Address,
+  workers: WorkerRecord[],
+): PayrollRunManifest {
+  // Build lookup: agreement_id → worker
+  const workerByAgreement = new Map<string, WorkerRecord>();
+  for (const w of workers) {
+    workerByAgreement.set(w.agreement_id.toLowerCase(), w);
+  }
+
+  const rows: PayrollRow[] = run.receipts.map((r, idx) => {
+    const worker = workerByAgreement.get(r.agreement_id.toLowerCase());
+    return {
+      row_index: idx,
+      worker_addr: (worker?.worker_addr ?? "aleo1unknown") as string,
+      worker_name_hash: r.worker_name_hash,
+      agreement_id: r.agreement_id as `${string}`,
+      epoch_id: r.epoch_id,
+      currency: "USDCx" as const,
+      gross_amount: r.gross_amount,
+      tax_withheld: r.tax_withheld,
+      fee_amount: r.fee_amount,
+      net_amount: r.net_amount,
+      payroll_inputs_hash: r.payroll_inputs_hash as `${string}`,
+      receipt_anchor: r.receipt_anchor as `${string}`,
+      receipt_pair_hash: r.pair_hash as `${string}`,
+      utc_time_hash: r.utc_time_hash as `${string}`,
+      audit_event_hash: "0".repeat(64),
+      row_hash: r.payroll_inputs_hash as `${string}`,
+      status: "settled" as const,
+    };
+  });
+
+  // Synthetic chunks — one chunk per row, marked settled
+  const chunks: ChunkPlan[] = rows.map((row, i) => ({
+    chunk_index: i,
+    chunk_id: row.row_hash as `${string}`,
+    row_indices: [i],
+    net_total: row.net_amount,
+    transition: "execute_payroll" as const,
+    status: "settled" as const,
+    attempts: 1,
+  }));
+
+  return {
+    batch_id: run.batch_id as `${string}`,
+    schema_v: 1,
+    calc_v: 1,
+    policy_v: 1,
+    employer_addr: employerAddr,
+    employer_name_hash: run.employer_name_hash,
+    epoch_id: run.epoch_id,
+    currency: "USDCx" as const,
+    row_count: run.row_count,
+    rows,
+    total_gross_amount: run.total_gross_amount,
+    total_tax_withheld: run.total_tax_withheld,
+    total_fee_amount: run.total_fee_amount,
+    total_net_amount: run.total_net_amount,
+    row_root: "0".repeat(64),
+    inputs_hash: "0".repeat(64),
+    doc_hash: "0".repeat(64),
+    status: "settled" as const,
+    chunks,
+    created_at: run.created_at,
+    updated_at: run.updated_at,
+  };
 }

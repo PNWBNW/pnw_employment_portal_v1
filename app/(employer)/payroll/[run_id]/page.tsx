@@ -15,6 +15,11 @@ import { ENV } from "@/src/config/env";
 import type { PayrollRunManifest } from "@/src/manifest/types";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
 import { useWorkerStore } from "@/src/stores/worker_store";
+import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import {
+  scanPayrollHistory,
+  historicalRunToManifest,
+} from "@/src/records/payroll_history_scanner";
 
 function downloadJson(manifest: PayrollRunManifest) {
   const json = JSON.stringify(manifest, null, 2);
@@ -30,7 +35,10 @@ function downloadJson(manifest: PayrollRunManifest) {
 export default function RunStatusPage() {
   const params = useParams<{ run_id: string }>();
   const runId = params.run_id;
-  const { executeTransaction } = useWallet();
+  const { executeTransaction, requestRecords } = useWallet();
+  const { address: employerAddr } = useAleoSession();
+  const [scannedManifest, setScannedManifest] = useState<PayrollRunManifest | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
 
   // Build wallet executor function from wallet adapter
   // CRITICAL: privateFee: false is required — Shield wallet silently fails
@@ -75,11 +83,33 @@ export default function RunStatusPage() {
     restore();
   }, [restore]);
 
-  // Find the manifest — current run or from history
+  // Find the manifest — try in-store first, then on-chain scan fallback
   const resolvedManifest = useMemo(() => {
     if (manifest && manifest.batch_id === runId) return manifest;
-    return history.find((m) => m.batch_id === runId) ?? null;
-  }, [manifest, history, runId]);
+    const inHistory = history.find((m) => m.batch_id === runId) ?? null;
+    if (inHistory) return inHistory;
+    if (scannedManifest && scannedManifest.batch_id === runId) return scannedManifest;
+    return null;
+  }, [manifest, history, runId, scannedManifest]);
+
+  // If we couldn't find it in-store, scan the wallet for matching receipts
+  useEffect(() => {
+    if (resolvedManifest) return; // already found
+    if (!requestRecords || !employerAddr) return;
+    if (scanLoading) return;
+
+    setScanLoading(true);
+    scanPayrollHistory(requestRecords, employerAddr)
+      .then((runs) => {
+        const match = runs.find((r) => r.batch_id === runId);
+        if (match) {
+          const fabricated = historicalRunToManifest(match, employerAddr, workers);
+          setScannedManifest(fabricated);
+        }
+      })
+      .catch((err) => console.warn("On-chain run scan failed:", err))
+      .finally(() => setScanLoading(false));
+  }, [resolvedManifest, requestRecords, employerAddr, runId, workers, scanLoading]);
 
   const chunks = resolvedManifest?.chunks ?? [];
   const rows = resolvedManifest?.rows ?? [];
@@ -167,9 +197,18 @@ export default function RunStatusPage() {
           </Link>
         </div>
         <div className="rounded-lg border border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            Run not found. It may have expired from your session.
-          </p>
+          {scanLoading ? (
+            <>
+              <div className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Loading payroll run from on-chain records...
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Run not found on-chain. The receipts may not be in your connected wallet.
+            </p>
+          )}
         </div>
       </div>
     );
