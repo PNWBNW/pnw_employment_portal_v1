@@ -610,7 +610,8 @@ async function executeChunkViaWallet(
     console.log("[PNW-PAYROLL] Generating Sealance Merkle exclusion proof...");
     const sealance = new SealanceMerkleTree();
     const frozenAddresses = await fetchFreezeListAddresses(endpoint ?? "https://api.explorer.provable.com/v2/testnet");
-    const TREE_DEPTH = 15;
+    // On-chain MerkleProof struct has siblings: [field; 16] — must produce exactly 16
+    const TREE_DEPTH = 16;
     const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
     const tree = sealance.buildTree(leaves);
     const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
@@ -813,7 +814,8 @@ async function executeSequentialPayroll(
   const frozenAddresses = await fetchFreezeListAddresses(
     endpoint ?? "https://api.explorer.provable.com/v2/testnet",
   );
-  const TREE_DEPTH = 15;
+  // On-chain MerkleProof struct has siblings: [field; 16] — must produce exactly 16
+  const TREE_DEPTH = 16;
   const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
   const tree = sealance.buildTree(leaves);
   const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
