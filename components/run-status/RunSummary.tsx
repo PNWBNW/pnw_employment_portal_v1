@@ -134,7 +134,7 @@ export function RunSummary({ manifest, onExportJson, onMintAnchor, anchorLoading
             disabled={anchorLoading}
             className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {anchorLoading ? "Minting..." : "Mint Batch Anchor"}
+            {anchorLoading ? "Minting..." : "Mint Payroll Anchor"}
           </button>
         )}
         {anchorError && (

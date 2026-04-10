@@ -7,9 +7,10 @@ type Props = {
   chunks: ChunkPlan[];
   rows: PayrollRow[];
   onRetryChunk?: (chunkIndex: number) => void;
+  workerNames?: Record<string, string>;
 };
 
-export function ChunkStatusList({ chunks, rows, onRetryChunk }: Props) {
+export function ChunkStatusList({ chunks, rows, onRetryChunk, workerNames }: Props) {
   if (chunks.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-6 text-center">
@@ -40,6 +41,7 @@ export function ChunkStatusList({ chunks, rows, onRetryChunk }: Props) {
             chunk={chunk}
             rows={rows}
             onRetry={onRetryChunk}
+            workerNames={workerNames}
           />
         ))}
       </div>

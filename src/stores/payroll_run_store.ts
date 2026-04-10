@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type {
   PayrollRunManifest,
   PayrollRunStatus,
+  PayrollRow,
   ChunkPlan,
 } from "@/src/manifest/types";
 
@@ -25,6 +26,8 @@ type PayrollRunActions = {
   updateStatus: (status: PayrollRunStatus) => void;
   /** Update chunks */
   updateChunks: (chunks: ChunkPlan[]) => void;
+  /** Update a single row's status and tx_id */
+  updateRow: (rowIndex: number, status: PayrollRow["status"], txId?: string) => void;
   /** Set anchor info after batch NFT minted */
   setAnchor: (txId: string, nftId: string) => void;
   /** Complete the run and move to history */
@@ -74,6 +77,17 @@ export const usePayrollRunStore = create<PayrollRunState & PayrollRunActions>(
       const { manifest } = get();
       if (!manifest) return;
       const updated = { ...manifest, chunks, updated_at: Date.now() };
+      set({ manifest: updated });
+      persistManifest(updated);
+    },
+
+    updateRow: (rowIndex, status, txId) => {
+      const { manifest } = get();
+      if (!manifest) return;
+      const newRows = manifest.rows.map((r) =>
+        r.row_index === rowIndex ? { ...r, status, ...(txId ? { tx_id: txId } : {}) } : r,
+      );
+      const updated = { ...manifest, rows: newRows, updated_at: Date.now() };
       set({ manifest: updated });
       persistManifest(updated);
     },

@@ -20,10 +20,11 @@
 
 import type { PayrollRunManifest } from "../manifest/types";
 import type { Bytes32 } from "../lib/pnw-adapter/aleo_types";
-import type { CycleNftParams } from "../lib/pnw-adapter/layer2_router";
 import { LAYER2_TRANSITIONS } from "../lib/pnw-adapter/layer2_adapter";
 import type { ExecutionResult, AdapterConfig } from "../lib/pnw-adapter/aleo_cli_adapter";
 import { executeTransition } from "../lib/pnw-adapter/aleo_cli_adapter";
+import { executeAleoTransaction } from "../lib/wallet/wallet-executor";
+import type { WalletExecuteFn } from "../lib/wallet/wallet-executor";
 import { domainHash, toHex } from "../lib/pnw-adapter/hash";
 
 // ----------------------------------------------------------------
@@ -55,36 +56,49 @@ export function deriveNftId(batchId: Bytes32): Bytes32 {
   return toHex(hash) as Bytes32;
 }
 
-/**
- * Build the CycleNftParams from a settled manifest.
- */
-export function buildCycleNftParams(manifest: PayrollRunManifest): CycleNftParams {
-  return {
-    employer_addr: manifest.employer_addr,
-    batch_id: manifest.batch_id,
-    batch_root: manifest.row_root,
-    epoch_id: manifest.epoch_id,
-    worker_count: manifest.row_count,
-    total_gross: manifest.total_gross_amount,
-  };
+/** Convert a hex string (with or without 0x) to an Aleo [u8; 32] array literal. */
+function hexToU8Array32(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes.push(parseInt(clean.slice(i, i + 2), 16));
+  }
+  while (bytes.length < 32) bytes.push(0);
+  return "[ " + bytes.slice(0, 32).map(b => `${b}u8`).join(", ") + " ]";
 }
 
 /**
- * Serialize CycleNftParams + nft_id into Aleo input strings
- * for the mint_cycle_nft transition.
+ * Serialize inputs for mint_cycle_nft matching the deployed program signature:
+ *   r0: nft_id [u8;32]
+ *   r1: agreement_id [u8;32]  (first row's agreement — single-employer assumption)
+ *   r2: period_start u32      (epoch_id)
+ *   r3: period_end u32        (epoch_id for single-epoch runs)
+ *   r4: doc_hash [u8;32]      (IPFS hash of PDF, or batch_id as placeholder)
+ *   r5: root [u8;32]          (row_root)
+ *   r6: audit_event_hash [u8;32]  (audit hash anchored in step 4 of sequential payroll)
+ *   r7: schema_v u16
+ *   r8: calc_v u16
+ *   r9: policy_v u16
  */
 export function serializeAnchorInputs(
-  params: CycleNftParams,
+  manifest: PayrollRunManifest,
   nftId: Bytes32,
+  docHash?: Bytes32,
 ): string[] {
+  const firstRow = manifest.rows[0];
+  if (!firstRow) throw new Error("Manifest has no rows to anchor");
+
   return [
-    params.employer_addr,
-    `${nftId}field`,
-    `${String(params.batch_id)}field`,
-    `${String(params.batch_root)}field`,
-    `${String(params.epoch_id)}u32`,
-    `${String(params.worker_count)}u32`,
-    `${String(params.total_gross)}field`,
+    hexToU8Array32(nftId),
+    hexToU8Array32(firstRow.agreement_id),
+    `${manifest.epoch_id}u32`,
+    `${manifest.epoch_id}u32`,
+    hexToU8Array32(docHash ?? manifest.batch_id),
+    hexToU8Array32(manifest.row_root),
+    hexToU8Array32(firstRow.audit_event_hash),
+    `${manifest.schema_v ?? 1}u16`,
+    `${manifest.calc_v ?? 1}u16`,
+    `${manifest.policy_v ?? 1}u16`,
   ];
 }
 
@@ -102,25 +116,18 @@ export function serializeAnchorInputs(
 export async function mintBatchAnchor(
   manifest: PayrollRunManifest,
   config: AdapterConfig,
+  docHash?: Bytes32,
 ): Promise<AnchorResult> {
-  // Guard: only anchor a fully settled run
   if (manifest.status !== "settled") {
     throw new Error(
       `Cannot anchor manifest in status "${manifest.status}". Must be "settled".`,
     );
   }
 
-  // Derive nft_id
   const nftId = deriveNftId(manifest.batch_id);
-
-  // Build params and serialize
-  const params = buildCycleNftParams(manifest);
-  const inputs = serializeAnchorInputs(params, nftId);
-
-  // Get Layer 2 transition info
+  const inputs = serializeAnchorInputs(manifest, nftId, docHash);
   const transition = LAYER2_TRANSITIONS.mint_cycle_nft;
 
-  // Execute on-chain
   const result: ExecutionResult = await executeTransition(
     config,
     transition.program,
@@ -131,6 +138,45 @@ export async function mintBatchAnchor(
 
   return {
     tx_id: result.tx_id,
+    nft_id: nftId,
+  };
+}
+
+/**
+ * Mint the batch anchor via wallet signing (preferred path for Shield/Leo/Puzzle).
+ * Matches how sequential payroll calls the wallet.
+ */
+export async function mintBatchAnchorViaWallet(
+  manifest: PayrollRunManifest,
+  walletExecute: WalletExecuteFn,
+  docHash?: Bytes32,
+): Promise<AnchorResult> {
+  if (manifest.status !== "settled") {
+    throw new Error(
+      `Cannot anchor manifest in status "${manifest.status}". Must be "settled".`,
+    );
+  }
+
+  const nftId = deriveNftId(manifest.batch_id);
+  const inputs = serializeAnchorInputs(manifest, nftId, docHash);
+  const transition = LAYER2_TRANSITIONS.mint_cycle_nft;
+
+  console.log("[PNW-ANCHOR] Minting payroll anchor NFT:", {
+    program: transition.program,
+    function: transition.transition,
+    inputs: inputs.map(i => i.slice(0, 60) + (i.length > 60 ? "..." : "")),
+  });
+
+  const txId = await executeAleoTransaction(
+    walletExecute,
+    transition.program,
+    transition.transition,
+    inputs,
+    Number(DEFAULT_FEE),
+  );
+
+  return {
+    tx_id: txId,
     nft_id: nftId,
   };
 }
