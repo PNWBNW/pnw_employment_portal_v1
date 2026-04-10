@@ -73,7 +73,7 @@ export default function NewPayrollPage() {
   const { requestRecords, executeTransaction, transactionStatus: walletTransactionStatus } = useWallet();
   const setManifest = usePayrollRunStore((s) => s.setManifest);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
-  const updateRow = usePayrollRunStore((s) => s.updateRow);
+  const updateStoreRow = usePayrollRunStore((s) => s.updateRow);
   const updateStatus = usePayrollRunStore((s) => s.updateStatus);
   const router = useRouter();
   const settlingRef = useRef(false);
@@ -412,7 +412,7 @@ export default function NewPayrollPage() {
         updateChunks(chunks);
       },
       onRowUpdate: (rowIndex, status, txId) => {
-        updateRow(rowIndex, status, txId);
+        updateStoreRow(rowIndex, status, txId);
       },
       onComplete: () => {
         setSettlementStatus("Settlement complete!");
@@ -421,7 +421,7 @@ export default function NewPayrollPage() {
         settlingRef.current = false;
         // Mark ALL rows as settled (sequential path doesn't emit per-row updates yet)
         compiledManifest.rows.forEach((row) => {
-          updateRow(row.row_index, "settled" as const);
+          updateStoreRow(row.row_index, "settled" as const);
         });
         updateStatus("settled" as const);
         setTimeout(() => router.push(`/payroll/${compiledManifest.batch_id}`), 1500);
@@ -471,7 +471,7 @@ export default function NewPayrollPage() {
     viewKey,
     setManifest,
     updateChunks,
-    updateRow,
+    updateStoreRow,
     updateStatus,
     router,
   ]);
