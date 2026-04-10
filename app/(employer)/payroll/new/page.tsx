@@ -344,6 +344,124 @@ export default function NewPayrollPage() {
     [address, activeDraftId],
   );
 
+  // Extracted settlement launcher — called by the confirmation dialog
+  const startSettlement = useCallback(() => {
+    if (!compiledManifest) return;
+    if (settlingRef.current) return;
+    settlingRef.current = true;
+    setIsSettling(true);
+    setSettlementStatus("Queuing settlement...");
+    setCurrentPayrollStep(null);
+
+    setManifest(compiledManifest);
+    updateChunks(compiledChunks);
+
+    let walletExecute: WalletExecuteFn | undefined;
+    let privateKey: string | null = null;
+
+    if (executeTransaction) {
+      walletExecute = async (params) => {
+        console.log("[PNW-PAYROLL] Calling wallet executeTransaction...", {
+          program: params.program,
+          function: params.function,
+          inputCount: params.inputs.length,
+          fee: params.fee,
+        });
+        try {
+          const result = await executeTransaction({
+            program: params.program,
+            function: params.function,
+            inputs: params.inputs,
+            fee: params.fee,
+          });
+          console.log("[PNW-PAYROLL] Wallet returned:", result);
+          const txId = typeof result === "string"
+            ? result
+            : (result as Record<string, unknown>)?.transactionId as string
+              ?? (result as Record<string, unknown>)?.id as string
+              ?? String(result);
+          return txId;
+        } catch (err) {
+          console.error("[PNW-PAYROLL] Wallet executeTransaction FAILED:", err);
+          throw err;
+        }
+      };
+    } else {
+      privateKey = getPrivateKey();
+      if (!privateKey) {
+        setCompileError("No wallet connected and no private key in session. Please connect your wallet.");
+        setSettlementStatus(null);
+        setIsSettling(false);
+        settlingRef.current = false;
+        return;
+      }
+    }
+
+    const callbacks: CoordinatorCallbacks = {
+      onRunStatusChange: (status: PayrollRunStatus) => {
+        updateStatus(status);
+        setSettlementStatus(`Status: ${status}`);
+      },
+      onChunkUpdate: (chunks: ChunkPlan[]) => {
+        updateChunks(chunks);
+      },
+      onRowUpdate: () => { /* handled via chunks */ },
+      onComplete: () => {
+        setSettlementStatus("Settlement complete!");
+        setCurrentPayrollStep(null);
+        setIsSettling(false);
+        settlingRef.current = false;
+        setTimeout(() => router.push(`/payroll/${compiledManifest.batch_id}`), 1500);
+      },
+      onError: (msg: string) => {
+        setSettlementStatus(`Error: ${msg}`);
+        setCurrentPayrollStep(null);
+        setIsSettling(false);
+        settlingRef.current = false;
+      },
+    };
+
+    executeSettlement({
+      manifest: compiledManifest,
+      chunks: compiledChunks,
+      adapterConfig: {
+        endpoint: ENV.ALEO_ENDPOINT,
+        network: ENV.NETWORK,
+        privateKey: privateKey ?? "",
+      },
+      callbacks,
+      walletExecute,
+      walletTransactionStatus: walletTransactionStatus ?? undefined,
+      requestRecords: requestRecords ?? undefined,
+      viewKey: viewKey ?? undefined,
+      skipCredentials: true,
+      onStepChange: (step) => {
+        console.log(`[PNW-PAYROLL] Step change: ${step.stepNumber}/${step.totalSteps} — ${step.label}`);
+        setCurrentPayrollStep(step);
+        setSettlementStatus(`Step ${step.stepNumber}/${step.totalSteps}: ${step.label}`);
+      },
+    }).then((result) => {
+      console.log("[PNW-PAYROLL] Settlement finished:", result);
+    }).catch((err) => {
+      console.error("[PNW-PAYROLL] Settlement UNHANDLED ERROR:", err);
+      setSettlementStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      setCurrentPayrollStep(null);
+      setIsSettling(false);
+      settlingRef.current = false;
+    });
+  }, [
+    compiledManifest,
+    compiledChunks,
+    executeTransaction,
+    walletTransactionStatus,
+    requestRecords,
+    viewKey,
+    setManifest,
+    updateChunks,
+    updateStatus,
+    router,
+  ]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -455,115 +573,96 @@ export default function NewPayrollPage() {
             setCompiledChunks([]);
           }}
           onConfirm={() => {
-            if (settlingRef.current) return;
-            settlingRef.current = true;
-            setIsSettling(true);
-            setSettlementStatus("Queuing settlement...");
-
-            // Store manifest in payroll run store
-            setManifest(compiledManifest);
-            updateChunks(compiledChunks);
-
-            // Build wallet execute function (preferred) or fall back to private key
-            let walletExecute: WalletExecuteFn | undefined;
-            let privateKey: string | null = null;
-
-            if (executeTransaction) {
-              walletExecute = async (params) => {
-                console.log("[PNW-PAYROLL] Calling wallet executeTransaction...", {
-                  program: params.program,
-                  function: params.function,
-                  inputCount: params.inputs.length,
-                  fee: params.fee,
-                });
-                try {
-                  const result = await executeTransaction({
-                    program: params.program,
-                    function: params.function,
-                    inputs: params.inputs,
-                    fee: params.fee,
-                  });
-                  console.log("[PNW-PAYROLL] Wallet returned:", result);
-                  const txId = typeof result === "string"
-                    ? result
-                    : (result as Record<string, unknown>)?.transactionId as string
-                      ?? (result as Record<string, unknown>)?.id as string
-                      ?? String(result);
-                  console.log("[PNW-PAYROLL] Extracted txId:", txId);
-                  return txId;
-                } catch (err) {
-                  console.error("[PNW-PAYROLL] Wallet executeTransaction FAILED:", err);
-                  throw err;
-                }
-              };
-            } else {
-              privateKey = getPrivateKey();
-              if (!privateKey) {
-                setCompileError("No wallet connected and no private key in session. Please connect your wallet.");
-                setSettlementStatus(null);
-                setIsSettling(false);
-                settlingRef.current = false;
-                return;
-              }
-            }
-
-            const callbacks: CoordinatorCallbacks = {
-              onRunStatusChange: (status: PayrollRunStatus) => {
-                updateStatus(status);
-                setSettlementStatus(`Status: ${status}`);
-              },
-              onChunkUpdate: (chunks: ChunkPlan[]) => {
-                updateChunks(chunks);
-                const settled = chunks.filter((c) => c.status === "settled").length;
-                setSettlementStatus(`Settling: ${settled}/${chunks.length} chunks`);
-              },
-              onRowUpdate: () => {
-                // Row updates handled via chunk updates
-              },
-              onComplete: () => {
-                setSettlementStatus("Settlement complete!");
-                setIsSettling(false);
-                settlingRef.current = false;
-                // Navigate to run status page after short delay
-                setTimeout(() => router.push(`/payroll/${compiledManifest.batch_id}`), 1500);
-              },
-              onError: (msg: string) => {
-                setSettlementStatus(`Error: ${msg}`);
-                setIsSettling(false);
-                settlingRef.current = false;
-              },
-            };
-
-            // Fire and forget — the coordinator handles its own lifecycle
-            console.log("[PNW-PAYROLL] Starting executeSettlement...", {
-              hasWalletExecute: !!walletExecute,
-              hasWalletTransactionStatus: !!walletTransactionStatus,
-              hasRequestRecords: !!requestRecords,
-            });
-            executeSettlement({
-              manifest: compiledManifest,
-              chunks: compiledChunks,
-              adapterConfig: {
-                endpoint: ENV.ALEO_ENDPOINT,
-                network: ENV.NETWORK,
-                privateKey: privateKey ?? "",
-              },
-              callbacks,
-              walletExecute,
-              walletTransactionStatus: walletTransactionStatus ?? undefined,
-              requestRecords: requestRecords ?? undefined,
-              viewKey: viewKey ?? undefined,
-              skipCredentials: true, // testnet: skip Sealance credentials, use base transfer path
-            }).then((result) => {
-              console.log("[PNW-PAYROLL] Settlement finished:", result);
-            }).catch((err) => {
-              console.error("[PNW-PAYROLL] Settlement UNHANDLED ERROR:", err);
-              setSettlementStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
-              setIsSettling(false);
-              settlingRef.current = false;
-            });
+            // Show warning dialog first — payroll requires 4 wallet signatures
+            setPendingSettleAction(() => () => startSettlement());
+            setShowConfirmDialog(true);
           }}
         />
+      )}
+
+      {/* Sequential signing confirmation dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
+            <h2 className="mb-3 text-lg font-semibold text-foreground">
+              Payroll Requires 4 Wallet Signatures
+            </h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Private payroll is split into 4 sequential on-chain steps. You will be prompted to sign each one individually:
+            </p>
+            <ol className="mb-4 space-y-2 text-sm">
+              <li className="flex gap-2">
+                <span className="font-mono text-xs text-muted-foreground">1.</span>
+                <span><strong className="text-foreground">Verify Employment Agreement</strong> — confirms the agreement is active on-chain</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-mono text-xs text-muted-foreground">2.</span>
+                <span><strong className="text-foreground">Transfer USDCx to Worker</strong> — sends the net amount privately via Merkle-proof compliance check</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-mono text-xs text-muted-foreground">3.</span>
+                <span><strong className="text-foreground">Mint Payroll Receipts</strong> — creates paystub records for worker and employer</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-mono text-xs text-muted-foreground">4.</span>
+                <span><strong className="text-foreground">Anchor Audit Event</strong> — records an audit trail hash on-chain</span>
+              </li>
+            </ol>
+            <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                ⚠ Each step may take 2–5 minutes to generate its ZK proof. <strong>Do not close this page until all 4 steps complete.</strong>
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  setPendingSettleAction(null);
+                }}
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  if (pendingSettleAction) pendingSettleAction();
+                  setPendingSettleAction(null);
+                }}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                I Understand — Begin Signing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Current payroll step indicator */}
+      {currentPayrollStep && isSettling && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-primary">
+              Step {currentPayrollStep.stepNumber} of {currentPayrollStep.totalSteps}
+            </span>
+            <div className="flex gap-1">
+              {Array.from({ length: currentPayrollStep.totalSteps }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-2 w-8 rounded-full ${
+                    i < currentPayrollStep.stepNumber
+                      ? "bg-primary"
+                      : "bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+          <p className="text-sm font-semibold text-foreground">{currentPayrollStep.label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Building zero-knowledge proof in your wallet... This can take 2–5 minutes. Do not close this page.
+          </p>
+        </div>
       )}
 
       {/* Settlement status */}
