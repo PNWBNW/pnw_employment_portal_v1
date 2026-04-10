@@ -678,7 +678,6 @@ async function executeChunkViaWallet(
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        // Log full error on first 3 attempts and every 30 after
         const shouldLog = pollCount <= 3 || pollCount % 30 === 0;
         const isNotFound = errMsg.toLowerCase().includes("not found");
 
@@ -697,7 +696,38 @@ async function executeChunkViaWallet(
         if (err instanceof Error && (errMsg.includes("rejected") || errMsg.includes("failed"))) {
           throw err;
         }
-        // Transient poll error or proof still building — keep trying
+      }
+
+      // Every 10 polls, also check the REST API to see if ANY new payroll tx
+      // landed on-chain (Shield's transactionStatus may not report it).
+      // This is a fallback in case the wallet ID polling is broken.
+      if (pollCount % 10 === 0 && endpoint) {
+        try {
+          // Check the paid_epoch mapping — if our epoch appears, we're done
+          const row = manifest.rows[chunk.row_indices[0]!];
+          if (row) {
+            const epochKey = `{ agreement_id: ${hexToU8Array(row.agreement_id)}, epoch_id: ${row.epoch_id}u32 }`;
+            const encodedKey = encodeURIComponent(epochKey);
+            const paidUrl = `${endpoint}/program/payroll_core_v2.aleo/mapping/paid_epoch/${encodedKey}`;
+            const paidResp = await fetch(paidUrl, {
+              headers: { Accept: "application/json" },
+              signal: AbortSignal.timeout(5_000),
+            });
+            if (paidResp.ok) {
+              const paidData = await paidResp.text();
+              console.log(`[PNW-PAYROLL] REST check paid_epoch: ${paidData}`);
+              if (paidData.includes("true")) {
+                console.log("[PNW-PAYROLL] Payroll confirmed on-chain via REST check!");
+                return { tx_id: finalTxId, outputs: [], fee: "500000" };
+              }
+            }
+          }
+        } catch (restErr) {
+          // REST check is best-effort, don't fail the run
+          if (pollCount <= 10) {
+            console.log(`[PNW-PAYROLL] REST fallback check error:`, restErr instanceof Error ? restErr.message : restErr);
+          }
+        }
       }
     }
     throw new Error("Transaction status unknown after wallet polling timeout");
