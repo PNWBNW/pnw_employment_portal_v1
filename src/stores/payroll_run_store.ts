@@ -39,22 +39,22 @@ type PayrollRunActions = {
 };
 
 const STORAGE_KEY = "pnw_payroll_run";
-const HISTORY_KEY = "pnw_payroll_history";
 
-// Persist to localStorage so history survives tab close and browser restart.
-// (Previously used sessionStorage which wipes on tab close.)
+// Persist only the ACTIVE (in-progress) run to localStorage so the user can
+// recover if the tab closes mid-settlement. Completed runs are reconstructed
+// from on-chain EmployerPaystubReceipt records via scanPayrollHistory — we
+// don't store payroll data in browser storage.
 function persistManifest(manifest: PayrollRunManifest | null) {
   if (typeof window === "undefined") return;
-  if (manifest) {
+  if (manifest && manifest.status !== "settled" && manifest.status !== "anchored") {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(manifest));
   } else {
     localStorage.removeItem(STORAGE_KEY);
   }
 }
 
-function persistHistory(history: PayrollRunManifest[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+function persistHistory(_history: PayrollRunManifest[]) {
+  // History no longer persisted — scanned from on-chain records instead.
 }
 
 export const usePayrollRunStore = create<PayrollRunState & PayrollRunActions>(
@@ -137,20 +137,13 @@ export const usePayrollRunStore = create<PayrollRunState & PayrollRunActions>(
     restore: () => {
       if (typeof window === "undefined") return;
       try {
-        // Prefer localStorage (persists across sessions). Fall back to
-        // sessionStorage for users on old deployments that still had it there.
-        const rawManifest =
-          localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
-        const rawHistory =
-          localStorage.getItem(HISTORY_KEY) ?? sessionStorage.getItem(HISTORY_KEY);
+        const rawManifest = localStorage.getItem(STORAGE_KEY);
         set({
           manifest: rawManifest ? (JSON.parse(rawManifest) as PayrollRunManifest) : null,
-          history: rawHistory ? (JSON.parse(rawHistory) as PayrollRunManifest[]) : [],
+          history: [],
         });
       } catch {
-        // Corrupted storage — clear it
         localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(HISTORY_KEY);
       }
     },
   }),
