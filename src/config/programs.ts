@@ -20,7 +20,7 @@ export const PROGRAMS = {
     pnw_router: "pnw_router_v4.aleo",
   },
   layer2: {
-    payroll_nfts: "payroll_nfts.aleo",
+    payroll_nfts: "payroll_nfts_v2.aleo",
     credential_nft: "credential_nft.aleo",
     audit_nft: "audit_nft.aleo",
   },
