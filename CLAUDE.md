@@ -402,17 +402,53 @@ Each copied file starts with:
 | Phase | Status | Notes |
 |-------|--------|-------|
 | E1 | Done | Scaffold + key manager + config |
-| E2 | Done | Worker list + agreement status |
+| E2 | Done | Worker list + agreement status (from on-chain FinalAgreement records) |
 | E3 | Done | Payroll table UI |
 | E4 | Done | Manifest compiler |
-| E5 | Done | Settlement Coordinator |
-| E6 | Done | Run status UI |
-| E7 | Done | Batch anchor finalizer |
+| E5 | Done | Settlement Coordinator (sequential 4-step path for Shield compatibility) |
+| E6 | Done | Run status UI (now sources history from on-chain receipts) |
+| E7 | Done | Batch anchor finalizer via `payroll_nfts_v2.aleo` |
 | E8 | Done | Receipt viewer + credential issuer |
 | E9 | Done | Audit authorization flow |
 | Post-E9 | Done | Official wallet adapters + cinematic landing page |
-| E10 | Pending | End-to-end testnet happy path |
+| **E10** | **Done (2026-04-10)** | **End-to-end testnet happy path succeeded** |
+| E11 | In progress | Hardening: multi-worker, double-pay protection, error recovery |
 | Mobile polish | Pending | Responsive formatting in employer portal |
+
+### E10 Milestone Log (2026-04-10)
+
+First successful end-to-end private payroll + anchor:
+
+| Step | TX ID |
+|---|---|
+| 1. Verify agreement (`employer_agreement_v4::assert_agreement_active`) | `at1mydsktdsr8pk7d4utzrp6n2rvtgkkpavthukyt4kpdadgyx5lg8sgljea3` |
+| 2. Transfer USDCx (`test_usdcx_stablecoin::transfer_private`) | `at1yphn8n9zejqnnsktuev7rl9vkv8styq00rjpffa0h7rxnccssyyqdk9ltw` |
+| 3. Mint receipts (`paystub_receipts::mint_paystub_receipts`) | `at1w86wy80c9sgv0e2ukwlzja4r4km0vkld2tna586t9447q6pjvvrqhuvnw4` |
+| 4. Anchor event (`payroll_audit_log::anchor_event`) | `at1jp6mertn92hpn79uak8vdy9t4ha2t0f4fwq877uy6rmjl20g0syqdzygp3` |
+| 5. Mint payroll anchor NFT (`payroll_nfts_v2::mint_cycle_nft`) | `at1d8ht598hqqjgmqfxjwvt0cf47aqafgynzjhazhtreze6j22hzcrq5992r5` |
+
+### Architecture Notes from E10
+
+**Why sequential 4-step payroll instead of monolithic `execute_payroll`:**
+Shield wallet's in-browser WASM prover silently drops `execute_payroll` (5-program proof) — the transaction returns a wallet-internal ID but never reaches the network and `transactionStatus()` returns "not found" forever. Splitting into 4 independent transactions lets each proof build successfully. `src/coordinator/settlement_coordinator.ts::executeSequentialPayroll` implements this.
+
+**Critical Shield wallet flag:** `privateFee: false` must be passed to `executeTransaction` — without it Shield tries to use a private credits record for the fee, can't resolve it, and drops the proof silently.
+
+**Merkle exclusion proof:** Uses `@provablehq/sdk` `SealanceMerkleTree` with Poseidon4 hashing and `TREE_DEPTH = 16` to match the on-chain `MerkleProof` struct (`siblings: [field; 16]`).
+
+**Payroll history scanning (no localStorage):**
+`src/records/payroll_history_scanner.ts` reads `EmployerPaystubReceipt` records via the wallet's `requestRecords` and groups them by `(employer_name_hash, epoch_id)` into historical runs. The `audit_event_hash` needed for anchor minting is recomputed deterministically from `payroll_inputs_hash` + `receipt_anchor` using the same formula as the manifest compiler.
+
+**Deprecated: `payroll_nfts.aleo` (v1)**
+Was `@noupgrade` with `employer_agreement_v2` imports. `payroll_nfts_v2.aleo` replaces it (imports v4). See `pnw_mvp_v2/src/layer2/payroll_nfts_v2.aleo/`.
+
+### E11 Next Steps
+- [ ] Multi-worker payroll (batch_2 path via sequential flow)
+- [ ] Double-pay protection — the original `execute_payroll` wrote to `paid_epoch` in its finalize. The sequential flow lost this. Options: portal-side guard via manifest, or deploy a standalone `mark_epoch_paid` transition
+- [ ] Step failure recovery — if Step 3 fails after Step 2 committed USDCx, we need a "resume from step 3" UI instead of restarting the whole run
+- [ ] Local PDF storage in IndexedDB keyed by `batch_id` + BLAKE3 `doc_hash` passed to `mint_cycle_nft` (doc_hash is already a private field in the PayrollNFT record)
+- [ ] Mobile/responsive polish
+- [ ] Worker portal paystub viewer (scans `WorkerPaystubReceipt` records the same way)
 
 See `BUILD_ORDER.md` for exit criteria on each phase.
 
