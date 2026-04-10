@@ -368,11 +368,16 @@ export default function NewPayrollPage() {
           fee: params.fee,
         });
         try {
+          // CRITICAL: privateFee: false is required — Shield wallet silently
+          // fails proof generation without it (tries to use a private credits
+          // record for the fee and can't resolve it). This matches how
+          // useTransactionExecutor calls it for create_job_offer etc.
           const result = await executeTransaction({
             program: params.program,
             function: params.function,
             inputs: params.inputs,
             fee: params.fee,
+            privateFee: false,
           });
           console.log("[PNW-PAYROLL] Wallet returned:", result);
           const txId = typeof result === "string"
