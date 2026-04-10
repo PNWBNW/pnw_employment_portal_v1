@@ -629,29 +629,44 @@ async function executeChunkViaWallet(
   console.log("[PNW-PAYROLL] Post-execute:", { walletTxId, isWalletId, hasWalletStatus: !!walletTransactionStatus });
 
   if (isWalletId && walletTransactionStatus) {
-    // Poll via wallet adapter until accepted/rejected
-    const POLL_INTERVAL = 5_000;
-    const POLL_TIMEOUT = 600_000; // 10 minutes (proof generation for multi-program tx can take 5+ min)
+    // Adaptive polling intervals:
+    // - First 30s: poll every 1s (catch fast state transitions)
+    // - 30s-2min: poll every 3s
+    // - 2min+: poll every 5s
+    const POLL_TIMEOUT = 900_000; // 15 minutes
     const startTime = Date.now();
     console.log("[PNW-PAYROLL] Starting wallet-native polling for:", walletTxId);
 
     let pollCount = 0;
+    let lastStatusSnapshot = "";
     while (Date.now() - startTime < POLL_TIMEOUT) {
-      await sleep(POLL_INTERVAL);
+      const elapsed = Date.now() - startTime;
+      const interval = elapsed < 30_000 ? 1_000 : elapsed < 120_000 ? 3_000 : 5_000;
+      await sleep(interval);
       pollCount++;
-      console.log(`[PNW-PAYROLL] Polling attempt ${pollCount}...`);
+
       try {
         const statusPromise = walletTransactionStatus(walletTxId);
-        // Add 15s timeout to prevent hanging
         const status = await Promise.race([
           statusPromise,
-          sleep(15_000).then(() => { throw new Error("Wallet status poll timed out after 15s"); }),
+          sleep(20_000).then(() => { throw new Error("Wallet status poll timed out after 20s"); }),
         ]) as Awaited<ReturnType<typeof walletTransactionStatus>>;
-        console.log("[PNW-PAYROLL] Wallet poll response:", status);
+
+        // Log the FULL raw response (stringified) to catch any extra fields
+        const snapshot = JSON.stringify(status);
+        if (snapshot !== lastStatusSnapshot) {
+          console.log(`[PNW-PAYROLL] Poll ${pollCount} (${Math.round(elapsed / 1000)}s) NEW STATUS:`, status);
+          console.log(`[PNW-PAYROLL] Full response keys:`, Object.keys(status || {}));
+          lastStatusSnapshot = snapshot;
+        } else if (pollCount === 1 || pollCount % 20 === 0) {
+          console.log(`[PNW-PAYROLL] Poll ${pollCount} (${Math.round(elapsed / 1000)}s) unchanged:`, status);
+        }
+
         const s = status.status?.toLowerCase();
 
         if (status.transactionId && status.transactionId.startsWith("at1")) {
           finalTxId = status.transactionId;
+          console.log("[PNW-PAYROLL] Got real Aleo tx ID:", finalTxId);
         }
 
         if (s === "finalized" || s === "confirmed" || s === "accepted" || s === "completed") {
@@ -663,9 +678,18 @@ async function executeChunkViaWallet(
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        // "not found" = wallet is still building the proof locally — treat as pending
+        // Log full error on first 3 attempts and every 30 after
+        const shouldLog = pollCount <= 3 || pollCount % 30 === 0;
         const isNotFound = errMsg.toLowerCase().includes("not found");
-        if (!isNotFound) {
+
+        if (shouldLog) {
+          console.log(`[PNW-PAYROLL] Poll ${pollCount} (${Math.round((Date.now() - startTime) / 1000)}s) error: ${errMsg}`);
+          if (err instanceof Error && err.stack && pollCount <= 3) {
+            console.log(`[PNW-PAYROLL] Error stack:`, err.stack.slice(0, 300));
+          }
+        }
+
+        if (!isNotFound && !shouldLog) {
           console.warn(`[PNW-PAYROLL] Poll attempt ${pollCount} error:`, errMsg);
         } else if (pollCount <= 3 || pollCount % 10 === 0) {
           console.log(`[PNW-PAYROLL] Poll ${pollCount}: proof still building (this can take 2-5 min)...`);
