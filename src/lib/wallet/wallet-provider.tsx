@@ -149,18 +149,26 @@ export function AleoWalletProviderWrapper({
       network={Network.TESTNET}
       decryptPermission={DecryptPermission.UponRequest}
       programs={[
+        // Dependency order matters: imports must come before programs that import them.
+        // Shield wallet loads programs in order; out-of-order imports cause silent failures.
         "credits.aleo",
-        "test_usdcx_stablecoin.aleo",
+        // Leaf programs (no imports from our set)
         "test_usdcx_freezelist.aleo",
-        "pnw_name_registry_v2.aleo",
-        "pnw_name_registrar_v5.aleo",
         "employer_license_registry.aleo",
+        "pnw_name_registry_v2.aleo",
         "employer_profiles_v2.aleo",
         "pnw_worker_profiles_v2.aleo",
-        "employer_agreement_v4.aleo",
-        "payroll_core_v2.aleo",
         "paystub_receipts.aleo",
         "payroll_audit_log.aleo",
+        // Depends on freezelist
+        "test_usdcx_stablecoin.aleo",
+        // Depends on stablecoin + registry
+        "pnw_name_registrar_v5.aleo",
+        // Depends on license_registry + name_registry
+        "employer_agreement_v4.aleo",
+        // Depends on stablecoin + agreement + paystub_receipts + payroll_audit_log
+        "payroll_core_v2.aleo",
+        // Router and L2 anchors
         "pnw_router_v4.aleo",
         "payroll_nfts.aleo",
         "credential_nft.aleo",

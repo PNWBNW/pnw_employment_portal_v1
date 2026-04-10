@@ -133,6 +133,8 @@ export type SettlementContext = {
   skipCredentials?: boolean;
   /** Wallet requestRecords function — needed to fetch USDCx Token records */
   requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>;
+  /** Called when the sequential payroll advances to a new step (for UI updates) */
+  onStepChange?: (step: PayrollStep) => void;
 };
 
 /**
@@ -449,7 +451,7 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords, ctx.adapterConfig.endpoint)
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords, ctx.adapterConfig.endpoint, ctx.onStepChange)
         : await executeChunk(manifest, current, ctx.adapterConfig, credentials, rosterCredentials ?? null);
 
       current.status = "settled";
@@ -484,6 +486,42 @@ async function executeChunkWithRetry(
 // Internal: single chunk execution via wallet (E10 path)
 // ----------------------------------------------------------------
 
+/**
+ * Sequential payroll step descriptors — each is one wallet signature.
+ * Shield wallet can't handle execute_payroll (5 cross-program calls in one proof),
+ * so we call each sub-function as its own transaction.
+ */
+export type PayrollStep = {
+  stepNumber: number;
+  totalSteps: number;
+  label: string;
+  program: string;
+  functionName: string;
+};
+
+export const PAYROLL_STEPS: Omit<PayrollStep, "stepNumber" | "totalSteps">[] = [
+  {
+    label: "Verify Employment Agreement",
+    program: "employer_agreement_v4.aleo",
+    functionName: "assert_agreement_active",
+  },
+  {
+    label: "Transfer USDCx to Worker",
+    program: "test_usdcx_stablecoin.aleo",
+    functionName: "transfer_private",
+  },
+  {
+    label: "Mint Payroll Receipts",
+    program: "paystub_receipts.aleo",
+    functionName: "mint_paystub_receipts",
+  },
+  {
+    label: "Anchor Audit Event",
+    program: "payroll_audit_log.aleo",
+    functionName: "anchor_event",
+  },
+];
+
 async function executeChunkViaWallet(
   manifest: PayrollRunManifest,
   chunk: ChunkPlan,
@@ -493,6 +531,7 @@ async function executeChunkViaWallet(
   walletTransactionStatus?: WalletStatusFn,
   requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>,
   endpoint?: string,
+  onStepChange?: (step: PayrollStep) => void,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -503,14 +542,28 @@ async function executeChunkViaWallet(
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
 
-  // For payroll transitions, we need to build full inputs:
-  // execute_payroll(employer_usdcx: Token, employer_addr, employer_name_hash, w: WorkerPayArgs, merkle_proofs)
+  // Sequential payroll path (disabled by default — try monolithic first)
+  // Enable via USE_SEQUENTIAL_PAYROLL env flag if the monolithic call fails.
   const isPayrollTransition = transitionName.startsWith("execute_payroll");
+  const useSequential = typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USE_SEQUENTIAL_PAYROLL === "true";
+
+  if (isPayrollTransition && useSequential && requestRecords && workerArgs.length > 0) {
+    console.log("[PNW-PAYROLL] ===== Starting SEQUENTIAL payroll execution =====");
+    return executeSequentialPayroll(
+      manifest,
+      workerArgs[0]!,
+      walletExecute,
+      walletTransactionStatus,
+      requestRecords,
+      endpoint,
+      onStepChange,
+    );
+  }
 
   let inputs: string[];
 
   if (isPayrollTransition && requestRecords) {
-    // Fetch USDCx Token records from wallet
+    // Monolithic execute_payroll path: fetch USDCx Token record + build full inputs
     const usdcxProgram = PROGRAMS.external.usdcx;
     const records = await requestRecords(usdcxProgram, true);
     const tokenRecords = (records as Array<Record<string, unknown>>).filter(
@@ -518,39 +571,27 @@ async function executeChunkViaWallet(
     );
 
     if (tokenRecords.length === 0) {
-      throw new Error("No unspent USDCx Token records found in wallet. Fund the employer wallet with USDCx first.");
+      throw new Error("No unspent USDCx Token records found in wallet.");
     }
 
-    // Find a record with sufficient balance for all workers in this chunk
     const totalNeeded = workerArgs.reduce((sum, w) => sum + BigInt(w.net_amount), 0n);
     let selectedRecord: Record<string, unknown> | null = null;
-
     for (const rec of tokenRecords) {
       const plaintext = rec.recordPlaintext as string;
       const amountMatch = plaintext.match(/amount:\s*(\d+)u128/);
-      if (amountMatch?.[1]) {
-        const amount = BigInt(amountMatch[1]);
-        if (amount >= totalNeeded) {
-          selectedRecord = rec;
-          break;
-        }
+      if (amountMatch?.[1] && BigInt(amountMatch[1]) >= totalNeeded) {
+        selectedRecord = rec;
+        break;
       }
     }
-
     if (!selectedRecord) {
-      throw new Error(
-        `No USDCx Token record with sufficient balance. Need ${totalNeeded} minor units. ` +
-        `Found ${tokenRecords.length} record(s) but none large enough.`,
-      );
+      throw new Error(`No USDCx Token record with sufficient balance (need ${totalNeeded} minor units)`);
     }
 
     const tokenRecordInput = selectedRecord.recordPlaintext as string;
     console.log("[PNW-PAYROLL] Selected USDCx record:", tokenRecordInput.slice(0, 80) + "...");
     console.log("[PNW-PAYROLL] Total needed:", totalNeeded.toString(), "minor units");
 
-    // Build inputs matching on-chain function signature:
-    // execute_payroll(employer_usdcx, employer_addr, employer_name_hash, w, merkle_proofs)
-    // employer_name_hash may be stored as hex — convert to decimal field
     const empNameHash = manifest.employer_name_hash.startsWith("0x")
       ? hexToDecimalField(manifest.employer_name_hash)
       : `${manifest.employer_name_hash}field`;
@@ -561,50 +602,27 @@ async function executeChunkViaWallet(
       empNameHash,
       serializeWorkerPayArgsAsStruct(workerArgs[0]!),
     ];
-
-    // For batch_2, add second worker
     if (transitionName.includes("batch_2") && workerArgs.length > 1) {
       inputs.push(serializeWorkerPayArgsAsStruct(workerArgs[1]!));
     }
 
-    // Merkle proofs: [test_usdcx_stablecoin.aleo/MerkleProof; 2]
-    // Uses Provable SDK's SealanceMerkleTree with Poseidon4 hashing
-    // to generate valid exclusion proofs matching on-chain verification.
-    console.log("[PNW-PAYROLL] Generating Sealance Merkle exclusion proofs...");
-    try {
-      const sealance = new SealanceMerkleTree();
-
-      // Fetch frozen addresses from on-chain freeze list
-      const frozenAddresses = await fetchFreezeListAddresses(endpoint ?? "https://api.explorer.provable.com/v2/testnet");
-      console.log("[PNW-PAYROLL] Frozen addresses:", frozenAddresses.length);
-
-      // Generate leaves (sorted, padded to power-of-2)
-      // Depth 15 matches the on-chain tree structure
-      const TREE_DEPTH = 15;
-      const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
-      console.log("[PNW-PAYROLL] Leaves generated:", leaves.length);
-      const tree = sealance.buildTree(leaves);
-      console.log("[PNW-PAYROLL] Tree built, size:", tree.length);
-
-      // Get exclusion proof for the employer address
-      const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
-      console.log("[PNW-PAYROLL] Leaf indices:", { leftIdx, rightIdx });
-      const proofLeft = sealance.getSiblingPath(tree, leftIdx, TREE_DEPTH);
-      const proofRight = sealance.getSiblingPath(tree, rightIdx, TREE_DEPTH);
-      const formattedProof = sealance.formatMerkleProof([proofLeft, proofRight]);
-      console.log("[PNW-PAYROLL] Merkle proof generated:", formattedProof.slice(0, 120) + "...");
-
+    // Generate Sealance Merkle exclusion proof
+    console.log("[PNW-PAYROLL] Generating Sealance Merkle exclusion proof...");
+    const sealance = new SealanceMerkleTree();
+    const frozenAddresses = await fetchFreezeListAddresses(endpoint ?? "https://api.explorer.provable.com/v2/testnet");
+    const TREE_DEPTH = 15;
+    const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
+    const tree = sealance.buildTree(leaves);
+    const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
+    const proofLeft = sealance.getSiblingPath(tree, leftIdx, TREE_DEPTH);
+    const proofRight = sealance.getSiblingPath(tree, rightIdx, TREE_DEPTH);
+    const formattedProof = sealance.formatMerkleProof([proofLeft, proofRight]);
+    inputs.push(formattedProof);
+    if (transitionName.includes("batch_2")) {
       inputs.push(formattedProof);
-
-      if (transitionName.includes("batch_2")) {
-        inputs.push(formattedProof);
-      }
-    } catch (proofError) {
-      console.error("[PNW-PAYROLL] Merkle proof generation FAILED:", proofError);
-      throw new Error(`Merkle proof generation failed: ${proofError instanceof Error ? proofError.message : String(proofError)}`);
     }
   } else {
-    // Non-payroll transitions or no requestRecords — use flat serialization
+    // Non-payroll transitions use flat serialization
     inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
   }
 
@@ -746,6 +764,222 @@ async function executeChunkViaWallet(
 
     return { tx_id: finalTxId, outputs: [], fee: "500000" };
   }
+}
+
+// ----------------------------------------------------------------
+// Sequential payroll execution (4 wallet signatures, one per step)
+// ----------------------------------------------------------------
+
+async function executeSequentialPayroll(
+  manifest: PayrollRunManifest,
+  worker: BatchPayrollWorker,
+  walletExecute: WalletExecuteFn,
+  walletTransactionStatus: WalletStatusFn | undefined,
+  requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>,
+  endpoint: string | undefined,
+  onStepChange: ((step: PayrollStep) => void) | undefined,
+): Promise<ExecutionResult> {
+  const TOTAL = PAYROLL_STEPS.length;
+  const results: string[] = [];
+
+  // Pre-fetch the USDCx Token record (needed for step 2)
+  console.log("[PNW-PAYROLL] Fetching USDCx Token records...");
+  const records = await requestRecords(PROGRAMS.external.usdcx, true);
+  const tokenRecords = (records as Array<Record<string, unknown>>).filter(
+    (r) => r.recordName === "Token" && !r.spent && typeof r.recordPlaintext === "string",
+  );
+  if (tokenRecords.length === 0) {
+    throw new Error("No unspent USDCx Token records found in wallet. Fund the employer wallet with USDCx first.");
+  }
+
+  const needed = BigInt(worker.net_amount);
+  let selectedRecord: Record<string, unknown> | null = null;
+  for (const rec of tokenRecords) {
+    const plaintext = rec.recordPlaintext as string;
+    const amountMatch = plaintext.match(/amount:\s*(\d+)u128/);
+    if (amountMatch?.[1] && BigInt(amountMatch[1]) >= needed) {
+      selectedRecord = rec;
+      break;
+    }
+  }
+  if (!selectedRecord) {
+    throw new Error(`No USDCx Token record with sufficient balance for ${needed} minor units`);
+  }
+  const tokenRecordInput = selectedRecord.recordPlaintext as string;
+
+  // Pre-generate Merkle proof (needed for step 2)
+  console.log("[PNW-PAYROLL] Generating Sealance Merkle exclusion proof...");
+  const sealance = new SealanceMerkleTree();
+  const frozenAddresses = await fetchFreezeListAddresses(
+    endpoint ?? "https://api.explorer.provable.com/v2/testnet",
+  );
+  const TREE_DEPTH = 15;
+  const leaves = sealance.generateLeaves(frozenAddresses, TREE_DEPTH);
+  const tree = sealance.buildTree(leaves);
+  const [leftIdx, rightIdx] = sealance.getLeafIndices(tree, manifest.employer_addr);
+  const proofLeft = sealance.getSiblingPath(tree, leftIdx, TREE_DEPTH);
+  const proofRight = sealance.getSiblingPath(tree, rightIdx, TREE_DEPTH);
+  const formattedProof = sealance.formatMerkleProof([proofLeft, proofRight]);
+
+  const employerNameHashField = manifest.employer_name_hash.startsWith("0x")
+    ? hexToDecimalField(manifest.employer_name_hash)
+    : `${manifest.employer_name_hash}field`;
+  const workerNameHashField = worker.worker_name_hash.startsWith("0x")
+    ? hexToDecimalField(worker.worker_name_hash)
+    : `${worker.worker_name_hash}field`;
+
+  // ----- Step 1: Verify Employment Agreement -----
+  const step1: PayrollStep = { ...PAYROLL_STEPS[0]!, stepNumber: 1, totalSteps: TOTAL };
+  onStepChange?.(step1);
+  console.log(`[PNW-PAYROLL] === Step 1/${TOTAL}: ${step1.label} ===`);
+  const tx1 = await executeSingleStep(
+    walletExecute,
+    walletTransactionStatus,
+    step1.program,
+    step1.functionName,
+    [hexToU8Array(worker.agreement_id)],
+    500_000,
+    step1.label,
+  );
+  results.push(tx1);
+
+  // ----- Step 2: Transfer USDCx to Worker -----
+  const step2: PayrollStep = { ...PAYROLL_STEPS[1]!, stepNumber: 2, totalSteps: TOTAL };
+  onStepChange?.(step2);
+  console.log(`[PNW-PAYROLL] === Step 2/${TOTAL}: ${step2.label} ===`);
+  const tx2 = await executeSingleStep(
+    walletExecute,
+    walletTransactionStatus,
+    step2.program,
+    step2.functionName,
+    [
+      worker.worker_addr,
+      `${worker.net_amount}u128`,
+      tokenRecordInput,
+      formattedProof,
+    ],
+    500_000,
+    step2.label,
+  );
+  results.push(tx2);
+
+  // ----- Step 3: Mint Paystub Receipts -----
+  const step3: PayrollStep = { ...PAYROLL_STEPS[2]!, stepNumber: 3, totalSteps: TOTAL };
+  onStepChange?.(step3);
+  console.log(`[PNW-PAYROLL] === Step 3/${TOTAL}: ${step3.label} ===`);
+  const tx3 = await executeSingleStep(
+    walletExecute,
+    walletTransactionStatus,
+    step3.program,
+    step3.functionName,
+    [
+      worker.worker_addr,                        // r0: worker address
+      manifest.employer_addr,                    // r1: employer address
+      workerNameHashField,                       // r2: worker_name_hash field
+      employerNameHashField,                     // r3: employer_name_hash field
+      hexToU8Array(worker.agreement_id),         // r4: agreement_id
+      `${worker.epoch_id}u32`,                   // r5: epoch_id
+      `${worker.gross_amount}u128`,              // r6: gross
+      `${worker.net_amount}u128`,                // r7: net
+      `${worker.tax_withheld}u128`,              // r8: tax
+      `${worker.fee_amount}u128`,                // r9: fee
+      hexToU8Array(worker.payroll_inputs_hash),  // r10: payroll_inputs_hash
+      hexToU8Array(worker.receipt_anchor),       // r11: receipt_anchor
+      hexToU8Array(worker.receipt_pair_hash),    // r12: receipt_pair_hash
+      hexToU8Array(worker.utc_time_hash),        // r13: utc_time_hash
+    ],
+    500_000,
+    step3.label,
+  );
+  results.push(tx3);
+
+  // ----- Step 4: Anchor Audit Event -----
+  const step4: PayrollStep = { ...PAYROLL_STEPS[3]!, stepNumber: 4, totalSteps: TOTAL };
+  onStepChange?.(step4);
+  console.log(`[PNW-PAYROLL] === Step 4/${TOTAL}: ${step4.label} ===`);
+  const tx4 = await executeSingleStep(
+    walletExecute,
+    walletTransactionStatus,
+    step4.program,
+    step4.functionName,
+    [hexToU8Array(worker.audit_event_hash)],
+    500_000,
+    step4.label,
+  );
+  results.push(tx4);
+
+  console.log("[PNW-PAYROLL] ===== Sequential payroll COMPLETE =====");
+  console.log("[PNW-PAYROLL] All 4 transaction IDs:", results);
+
+  return {
+    tx_id: results[results.length - 1]!, // return last tx id as the chunk's canonical id
+    outputs: [],
+    fee: "2000000", // 0.5 credits × 4 steps
+  };
+}
+
+/**
+ * Execute a single Aleo transition and wait for it to confirm.
+ * Shared polling logic used by each step of executeSequentialPayroll.
+ */
+async function executeSingleStep(
+  walletExecute: WalletExecuteFn,
+  walletTransactionStatus: WalletStatusFn | undefined,
+  programId: string,
+  functionName: string,
+  inputs: string[],
+  fee: number,
+  label: string,
+): Promise<string> {
+  console.log(`[PNW-STEP] ${label}: submitting to wallet...`);
+  const walletTxId = await executeAleoTransaction(walletExecute, programId, functionName, inputs, fee);
+  console.log(`[PNW-STEP] ${label}: wallet returned ${walletTxId}`);
+
+  if (!walletTxId.startsWith("at1") && walletTransactionStatus) {
+    const POLL_TIMEOUT = 600_000; // 10 minutes per step
+    const startTime = Date.now();
+    let pollCount = 0;
+    let finalTxId = walletTxId;
+
+    while (Date.now() - startTime < POLL_TIMEOUT) {
+      const elapsed = Date.now() - startTime;
+      const interval = elapsed < 30_000 ? 2_000 : 5_000;
+      await sleep(interval);
+      pollCount++;
+
+      try {
+        const status = await Promise.race([
+          walletTransactionStatus(walletTxId),
+          sleep(20_000).then(() => { throw new Error("poll timeout 20s"); }),
+        ]) as Awaited<ReturnType<WalletStatusFn>>;
+
+        if (status.transactionId?.startsWith("at1")) {
+          finalTxId = status.transactionId;
+        }
+        const s = status.status?.toLowerCase();
+        if (s === "finalized" || s === "confirmed" || s === "accepted" || s === "completed") {
+          console.log(`[PNW-STEP] ${label}: CONFIRMED ${finalTxId}`);
+          return finalTxId;
+        }
+        if (s === "rejected" || s === "failed") {
+          throw new Error(`${label} rejected: ${status.error ?? "unknown"}`);
+        }
+        if (pollCount === 1 || pollCount % 10 === 0) {
+          console.log(`[PNW-STEP] ${label}: poll ${pollCount} (${Math.round(elapsed / 1000)}s) status:`, status);
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes("rejected") || errMsg.includes("failed")) {
+          throw err;
+        }
+        if (pollCount === 1 || pollCount % 30 === 0) {
+          console.log(`[PNW-STEP] ${label}: poll ${pollCount} (${Math.round(elapsed / 1000)}s) error: ${errMsg}`);
+        }
+      }
+    }
+    throw new Error(`${label}: timed out waiting for confirmation`);
+  }
+  return walletTxId;
 }
 
 // ----------------------------------------------------------------
