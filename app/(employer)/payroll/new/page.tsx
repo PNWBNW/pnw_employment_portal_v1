@@ -63,6 +63,9 @@ export default function NewPayrollPage() {
   const [compileError, setCompileError] = useState<string | null>(null);
   const [isSettling, setIsSettling] = useState(false);
   const [settlementStatus, setSettlementStatus] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingSettleAction, setPendingSettleAction] = useState<(() => void) | null>(null);
+  const [currentPayrollStep, setCurrentPayrollStep] = useState<{ stepNumber: number; totalSteps: number; label: string } | null>(null);
   const workers = useWorkerStore((s) => s.workers);
   const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
