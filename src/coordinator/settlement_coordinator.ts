@@ -542,12 +542,12 @@ async function executeChunkViaWallet(
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
 
-  // Sequential payroll path (disabled by default — try monolithic first)
-  // Enable via USE_SEQUENTIAL_PAYROLL env flag if the monolithic call fails.
+  // Sequential payroll: Shield can't handle execute_payroll's 4 cross-program
+  // calls in one proof. Split into individual transactions that Shield has
+  // proven capable of (e.g. transfer_private alone works).
   const isPayrollTransition = transitionName.startsWith("execute_payroll");
-  const useSequential = typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USE_SEQUENTIAL_PAYROLL === "true";
 
-  if (isPayrollTransition && useSequential && requestRecords && workerArgs.length > 0) {
+  if (isPayrollTransition && requestRecords && workerArgs.length > 0) {
     console.log("[PNW-PAYROLL] ===== Starting SEQUENTIAL payroll execution =====");
     return executeSequentialPayroll(
       manifest,
