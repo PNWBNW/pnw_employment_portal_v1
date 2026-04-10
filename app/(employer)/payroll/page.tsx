@@ -37,8 +37,22 @@ export default function PayrollHistoryPage() {
     restore();
   }, [restore]);
 
-  // Active run + completed history
-  const allRuns = manifest ? [manifest, ...history] : history;
+  // Active run + completed history, deduped by batch_id (active takes precedence)
+  const allRuns = (() => {
+    const seen = new Set<string>();
+    const result = [];
+    if (manifest) {
+      result.push(manifest);
+      seen.add(manifest.batch_id);
+    }
+    for (const run of history) {
+      if (!seen.has(run.batch_id)) {
+        result.push(run);
+        seen.add(run.batch_id);
+      }
+    }
+    return result;
+  })();
 
   return (
     <div className="space-y-4">

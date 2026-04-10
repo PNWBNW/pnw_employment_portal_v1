@@ -21,7 +21,29 @@ export default function DashboardPage() {
   const { chosenName, suffixCode, profileAnchored } = useEmployerIdentityStore();
   const { workers, setWorkers, setLoading: setWorkersLoading } =
     useWorkerStore();
-  const { history } = usePayrollRunStore();
+  const { manifest: currentRun, history, restore: restoreRuns } = usePayrollRunStore();
+
+  // Restore from localStorage so recent runs show after browser restart
+  useEffect(() => {
+    restoreRuns();
+  }, [restoreRuns]);
+
+  // Combine current run + history (deduped), newest first
+  const recentRuns = (() => {
+    const seen = new Set<string>();
+    const result = [];
+    if (currentRun) {
+      result.push(currentRun);
+      seen.add(currentRun.batch_id);
+    }
+    for (const run of history) {
+      if (!seen.has(run.batch_id)) {
+        result.push(run);
+        seen.add(run.batch_id);
+      }
+    }
+    return result;
+  })();
 
   const [balance, setBalance] = useState<USDCxBalance | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -201,9 +223,9 @@ export default function DashboardPage() {
         <h2 className="text-sm font-medium text-card-foreground">
           Recent Activity
         </h2>
-        {history.length > 0 ? (
+        {recentRuns.length > 0 ? (
           <div className="mt-2 space-y-2">
-            {history.slice(0, 5).map((run) => (
+            {recentRuns.slice(0, 5).map((run) => (
               <div
                 key={run.batch_id}
                 className="flex items-center justify-between rounded-md border border-border px-3 py-2"

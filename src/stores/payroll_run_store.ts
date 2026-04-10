@@ -63,8 +63,20 @@ export const usePayrollRunStore = create<PayrollRunState & PayrollRunActions>(
     history: [],
 
     setManifest: (manifest) => {
-      set({ manifest });
-      persistManifest(manifest);
+      const { manifest: current, history } = get();
+      // If there's an existing manifest with a DIFFERENT batch_id, archive
+      // it to history before overwriting. This prevents data loss when a
+      // user starts a new run without explicitly completing the previous one.
+      if (current && current.batch_id !== manifest.batch_id) {
+        const alreadyInHistory = history.some((h) => h.batch_id === current.batch_id);
+        const newHistory = alreadyInHistory ? history : [current, ...history];
+        set({ manifest, history: newHistory });
+        persistManifest(manifest);
+        persistHistory(newHistory);
+      } else {
+        set({ manifest });
+        persistManifest(manifest);
+      }
     },
 
     updateStatus: (status) => {
