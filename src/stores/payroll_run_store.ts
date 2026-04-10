@@ -41,18 +41,20 @@ type PayrollRunActions = {
 const STORAGE_KEY = "pnw_payroll_run";
 const HISTORY_KEY = "pnw_payroll_history";
 
+// Persist to localStorage so history survives tab close and browser restart.
+// (Previously used sessionStorage which wipes on tab close.)
 function persistManifest(manifest: PayrollRunManifest | null) {
   if (typeof window === "undefined") return;
   if (manifest) {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(manifest));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(manifest));
   } else {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   }
 }
 
 function persistHistory(history: PayrollRunManifest[]) {
   if (typeof window === "undefined") return;
-  sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
 
 export const usePayrollRunStore = create<PayrollRunState & PayrollRunActions>(
@@ -123,16 +125,20 @@ export const usePayrollRunStore = create<PayrollRunState & PayrollRunActions>(
     restore: () => {
       if (typeof window === "undefined") return;
       try {
-        const rawManifest = sessionStorage.getItem(STORAGE_KEY);
-        const rawHistory = sessionStorage.getItem(HISTORY_KEY);
+        // Prefer localStorage (persists across sessions). Fall back to
+        // sessionStorage for users on old deployments that still had it there.
+        const rawManifest =
+          localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
+        const rawHistory =
+          localStorage.getItem(HISTORY_KEY) ?? sessionStorage.getItem(HISTORY_KEY);
         set({
           manifest: rawManifest ? (JSON.parse(rawManifest) as PayrollRunManifest) : null,
           history: rawHistory ? (JSON.parse(rawHistory) as PayrollRunManifest[]) : [],
         });
       } catch {
         // Corrupted storage — clear it
-        sessionStorage.removeItem(STORAGE_KEY);
-        sessionStorage.removeItem(HISTORY_KEY);
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(HISTORY_KEY);
       }
     },
   }),
