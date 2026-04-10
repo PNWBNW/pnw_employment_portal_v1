@@ -9,11 +9,12 @@ import { RunStatusBanner } from "@/components/run-status/RunStatusBanner";
 import { ChunkStatusList } from "@/components/run-status/ChunkStatusList";
 import { RunSummary } from "@/components/run-status/RunSummary";
 import { retryChunk } from "@/src/coordinator/settlement_coordinator";
-import { mintBatchAnchor } from "@/src/anchor/batch_anchor_finalizer";
+import { mintBatchAnchor, mintBatchAnchorViaWallet } from "@/src/anchor/batch_anchor_finalizer";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
 import type { PayrollRunManifest } from "@/src/manifest/types";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
+import { useWorkerStore } from "@/src/stores/worker_store";
 
 function downloadJson(manifest: PayrollRunManifest) {
   const json = JSON.stringify(manifest, null, 2);
@@ -32,6 +33,9 @@ export default function RunStatusPage() {
   const { executeTransaction } = useWallet();
 
   // Build wallet executor function from wallet adapter
+  // CRITICAL: privateFee: false is required — Shield wallet silently fails
+  // without it (tries to use a private credits record for the fee and can't
+  // resolve it). Matches useTransactionExecutor.ts behavior.
   const walletExecute: WalletExecuteFn | undefined = useMemo(() => {
     if (!executeTransaction) return undefined;
     return async (params) => {
@@ -40,6 +44,7 @@ export default function RunStatusPage() {
         function: params.function,
         inputs: params.inputs,
         fee: params.fee,
+        privateFee: false,
       });
       if (!result) throw new Error("Wallet returned no result");
       return result.transactionId;
@@ -51,6 +56,16 @@ export default function RunStatusPage() {
   const restore = usePayrollRunStore((s) => s.restore);
   const updateChunks = usePayrollRunStore((s) => s.updateChunks);
   const setAnchor = usePayrollRunStore((s) => s.setAnchor);
+  const workers = useWorkerStore((s) => s.workers);
+
+  // Build a map of worker_addr → .pnw display name for PDF and UI
+  const workerNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const w of workers) {
+      if (w.display_name) map[w.worker_addr] = w.display_name;
+    }
+    return map;
+  }, [workers]);
 
   const [anchorLoading, setAnchorLoading] = useState(false);
   const [anchorError, setAnchorError] = useState<string | null>(null);
@@ -112,28 +127,33 @@ export default function RunStatusPage() {
 
   const handleMintAnchor = useCallback(async () => {
     if (!resolvedManifest) return;
-    const privateKey = getPrivateKey();
-    if (!privateKey) {
-      alert("No private key in session. Please reconnect.");
-      return;
-    }
-
     setAnchorLoading(true);
     setAnchorError(null);
 
     try {
-      const result = await mintBatchAnchor(resolvedManifest, {
-        endpoint: ENV.ALEO_ENDPOINT,
-        network: ENV.NETWORK,
-        privateKey,
-      });
+      let result;
+      if (walletExecute) {
+        // Preferred path: sign via connected wallet
+        result = await mintBatchAnchorViaWallet(resolvedManifest, walletExecute);
+      } else {
+        // Fallback: direct key entry (Path B)
+        const privateKey = getPrivateKey();
+        if (!privateKey) {
+          throw new Error("No wallet connected and no private key in session. Please connect your wallet.");
+        }
+        result = await mintBatchAnchor(resolvedManifest, {
+          endpoint: ENV.ALEO_ENDPOINT,
+          network: ENV.NETWORK,
+          privateKey,
+        });
+      }
       setAnchor(result.tx_id, result.nft_id);
     } catch (err) {
       setAnchorError(err instanceof Error ? err.message : "Anchor minting failed");
     } finally {
       setAnchorLoading(false);
     }
-  }, [resolvedManifest, setAnchor]);
+  }, [resolvedManifest, walletExecute, setAnchor]);
 
   if (!resolvedManifest) {
     return (
@@ -187,11 +207,13 @@ export default function RunStatusPage() {
         chunks={chunks}
         rows={rows}
         onRetryChunk={handleRetryChunk}
+        workerNames={workerNames}
       />
 
       {/* Run summary */}
       <RunSummary
         manifest={resolvedManifest}
+        workerNames={workerNames}
         onExportJson={() => downloadJson(resolvedManifest)}
         onMintAnchor={handleMintAnchor}
         anchorLoading={anchorLoading}

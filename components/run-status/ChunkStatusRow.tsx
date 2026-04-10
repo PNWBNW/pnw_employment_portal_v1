@@ -7,6 +7,8 @@ type Props = {
   chunk: ChunkPlan;
   rows: PayrollRow[];
   onRetry?: (chunkIndex: number) => void;
+  /** Optional .pnw display names keyed by worker_addr */
+  workerNames?: Record<string, string>;
 };
 
 const CHUNK_STATUS_STYLES: Record<
@@ -33,59 +35,91 @@ function truncateTxId(txId: string): string {
   return `${txId.slice(0, 8)}...${txId.slice(-6)}`;
 }
 
-export function ChunkStatusRow({ chunk, rows, onRetry }: Props) {
+export function ChunkStatusRow({ chunk, rows, onRetry, workerNames }: Props) {
   const style = CHUNK_STATUS_STYLES[chunk.status];
   const chunkRows = chunk.row_indices.map((i) => rows[i]).filter(Boolean) as PayrollRow[];
-  const workerLabel =
-    chunkRows.length === 1
-      ? chunkRows[0]!.worker_addr.slice(0, 12) + "..."
-      : `${chunkRows.length} workers`;
+
+  // Prefer the .pnw name; fall back to full address if unavailable
+  let workerDisplayName: string;
+  let workerFullAddr: string | null = null;
+  if (chunkRows.length === 1) {
+    const row = chunkRows[0]!;
+    workerFullAddr = row.worker_addr;
+    workerDisplayName = workerNames?.[row.worker_addr] ?? row.worker_addr;
+  } else {
+    workerDisplayName = `${chunkRows.length} workers`;
+  }
+
+  // Row-level status (takes precedence over chunk status for display)
+  // If all rows are settled, treat the chunk as settled even if chunk.status lags
+  const rowStatus = chunkRows.length === 1 ? chunkRows[0]!.status : null;
+  const effectiveStatusLabel =
+    rowStatus === "settled" && chunk.status !== "settled"
+      ? "Settled"
+      : style.label;
 
   return (
-    <div className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-sm">
-      {/* Chunk index + status dot */}
-      <div className="flex items-center gap-2 min-w-0">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`} />
-        <span className="font-mono text-xs text-muted-foreground">
-          #{chunk.chunk_index}
+    <div className="flex flex-col gap-1 rounded-md border border-border bg-card px-3 py-2 text-sm">
+      <div className="flex items-center justify-between">
+        {/* Chunk index + status dot + worker name */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`} />
+          <span className="font-mono text-xs text-muted-foreground">
+            #{chunk.chunk_index}
+          </span>
+          <span className="truncate font-medium text-foreground">
+            {workerDisplayName}
+          </span>
+        </div>
+
+        {/* Amount */}
+        <span className="shrink-0 font-mono text-xs px-2">
+          {formatMinorUnits(chunk.net_total)}
         </span>
-        <span className="truncate text-foreground">{workerLabel}</span>
+
+        {/* Status */}
+        <span className="shrink-0 text-xs text-muted-foreground w-24 text-center">
+          {effectiveStatusLabel}
+        </span>
+
+        {/* TX ID or retry */}
+        <div className="flex items-center gap-2 shrink-0 w-36 justify-end">
+          {chunk.tx_id && (
+            <a
+              href={`https://explorer.provable.com/transaction/${chunk.tx_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              title={chunk.tx_id}
+            >
+              {truncateTxId(chunk.tx_id)}
+            </a>
+          )}
+          {(chunk.status === "failed" || chunk.status === "needs_retry") && onRetry && (
+            <button
+              onClick={() => onRetry(chunk.chunk_index)}
+              className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800"
+            >
+              Retry
+            </button>
+          )}
+          {chunk.status === "failed" && chunk.last_error && (
+            <span
+              className="text-xs text-red-500 truncate max-w-[120px]"
+              title={chunk.last_error}
+            >
+              {chunk.last_error}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Amount */}
-      <span className="shrink-0 font-mono text-xs">
-        {formatMinorUnits(chunk.net_total)}
-      </span>
-
-      {/* Status */}
-      <span className="shrink-0 text-xs text-muted-foreground w-24 text-center">
-        {style.label}
-      </span>
-
-      {/* TX ID or retry */}
-      <div className="flex items-center gap-2 shrink-0 w-36 justify-end">
-        {chunk.tx_id && (
-          <span className="font-mono text-xs text-muted-foreground" title={chunk.tx_id}>
-            {truncateTxId(chunk.tx_id)}
-          </span>
-        )}
-        {(chunk.status === "failed" || chunk.status === "needs_retry") && onRetry && (
-          <button
-            onClick={() => onRetry(chunk.chunk_index)}
-            className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800"
-          >
-            Retry
-          </button>
-        )}
-        {chunk.status === "failed" && chunk.last_error && (
-          <span
-            className="text-xs text-red-500 truncate max-w-[120px]"
-            title={chunk.last_error}
-          >
-            {chunk.last_error}
-          </span>
-        )}
-      </div>
+      {/* Full Aleo address (monospace, tiny) */}
+      {workerFullAddr && (
+        <p className="font-mono text-[10px] text-muted-foreground break-all pl-6">
+          {workerFullAddr}
+        </p>
+      )}
     </div>
   );
 }
