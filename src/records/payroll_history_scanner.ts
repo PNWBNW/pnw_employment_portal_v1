@@ -18,6 +18,26 @@ import type {
   ChunkPlan,
 } from "@/src/manifest/types";
 import type { WorkerRecord } from "@/src/stores/worker_store";
+import { domainHash, toHex, fromHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
+import { tlvEncode, OBJ_AUDIT_EVENT } from "@/src/lib/pnw-adapter/canonical_encoder";
+
+/**
+ * Recompute the deterministic audit_event_hash from a receipt.
+ * Mirrors the manifest compiler's first-pass computation:
+ *   hash(OBJ_AUDIT_EVENT, [payroll_inputs_hash, receipt_anchor, 0, 0])
+ * which is the value that was anchored via payroll_audit_log::anchor_event
+ * during the sequential payroll flow.
+ */
+function recomputeAuditEventHash(payrollInputsHash: string, receiptAnchor: string): string {
+  const zeroHash = toHex(new Uint8Array(32));
+  const auditTlv = tlvEncode(OBJ_AUDIT_EVENT, [
+    { tag: 0x01, value: fromHex(payrollInputsHash) },
+    { tag: 0x02, value: fromHex(receiptAnchor) },
+    { tag: 0x03, value: fromHex(zeroHash) }, // batch_id placeholder
+    { tag: 0x04, value: fromHex(zeroHash) }, // row_hash placeholder
+  ]);
+  return toHex(domainHash(DOMAIN_TAGS.DOC, auditTlv));
+}
 
 /** A single parsed receipt record */
 export type ParsedReceipt = {
@@ -224,6 +244,10 @@ export function historicalRunToManifest(
 
   const rows: PayrollRow[] = run.receipts.map((r, idx) => {
     const worker = workerByAgreement.get(r.agreement_id.toLowerCase());
+    // Recompute audit_event_hash deterministically from receipt fields
+    // — this is the same value that was anchored via anchor_event during
+    // the sequential payroll flow, so assert_event_anchored will pass.
+    const auditEventHash = recomputeAuditEventHash(r.payroll_inputs_hash, r.receipt_anchor);
     return {
       row_index: idx,
       worker_addr: (worker?.worker_addr ?? "aleo1unknown") as string,
@@ -239,7 +263,7 @@ export function historicalRunToManifest(
       receipt_anchor: r.receipt_anchor as `${string}`,
       receipt_pair_hash: r.pair_hash as `${string}`,
       utc_time_hash: r.utc_time_hash as `${string}`,
-      audit_event_hash: "0".repeat(64),
+      audit_event_hash: auditEventHash,
       row_hash: r.payroll_inputs_hash as `${string}`,
       status: "settled" as const,
     };
