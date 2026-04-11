@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
@@ -94,9 +94,16 @@ export default function DashboardPage() {
     }
   }, [viewKey, address, requestRecords, setWorkers, setWorkersLoading]);
 
+  // Run loadData ONCE per address change. Using a ref guard because requestRecords
+  // from useWallet() returns a new function reference on every render — listing
+  // loadData (or its deps) in a useEffect dep array creates an infinite loop.
+  const loadedAddrRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!address) return;
+    if (loadedAddrRef.current === address) return;
+    loadedAddrRef.current = address;
     void loadData();
-  }, [loadData]);
+  }, [address, loadData]);
 
   const activeWorkers = workers.filter((w) => w.status === "active");
 
