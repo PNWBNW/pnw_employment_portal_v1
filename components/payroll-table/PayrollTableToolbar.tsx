@@ -95,18 +95,45 @@ export function PayrollTableToolbar({
     [epochId, onImportRows],
   );
 
+  // Format the epoch_id as a human-readable timestamp for display.
+  // epoch_id is a unix-seconds value that uniquely identifies this run.
+  const epochDisplay = (() => {
+    const seconds = parseInt(epochId, 10);
+    if (!seconds || isNaN(seconds)) return "";
+    // Legacy YYYYMMDD format (8 digits)
+    if (seconds >= 19700101 && seconds <= 99999999) {
+      const y = Math.floor(seconds / 10000);
+      const m = Math.floor((seconds % 10000) / 100);
+      const d = seconds % 100;
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")} (legacy)`;
+    }
+    return new Date(seconds * 1000).toLocaleString();
+  })();
+
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-2">
-        <label className="text-sm text-muted-foreground">Epoch:</label>
-        <input
-          type="text"
-          value={epochId}
-          onChange={(e) => onEpochChange(e.target.value)}
-          placeholder="YYYYMMDD"
-          className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm"
-          maxLength={8}
-        />
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-muted-foreground">Epoch:</label>
+          <input
+            type="text"
+            value={epochId}
+            onChange={(e) => onEpochChange(e.target.value)}
+            placeholder="unix seconds"
+            className="w-36 rounded-md border border-input bg-background px-2 py-1 text-sm font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => onEpochChange(Math.floor(Date.now() / 1000).toString())}
+            className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+            title="Reset to current timestamp (for re-running tests)"
+          >
+            ↻
+          </button>
+        </div>
+        {epochDisplay && (
+          <p className="text-[10px] text-muted-foreground pl-12">{epochDisplay}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
