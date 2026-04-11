@@ -32,14 +32,26 @@ export function validateRow(row: PayrollTableRow): RowValidationResult {
     errors.push({ field: "agreement_id", message: "No agreement — select a worker" });
   }
 
-  // Epoch ID required and valid format (set via toolbar)
+  // Epoch ID required: must be a positive integer that fits in u32 (max ~4.29e9)
+  // Accepts both legacy YYYYMMDD (8 digits) and unix-seconds (10 digits) formats.
   if (!row.epoch_id.trim()) {
     errors.push({ field: "epoch_id", message: "Epoch is required" });
-  } else if (!/^\d{8}$/.test(row.epoch_id.trim())) {
-    errors.push({
-      field: "epoch_id",
-      message: "Epoch must be YYYYMMDD format",
-    });
+  } else {
+    const trimmed = row.epoch_id.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      errors.push({
+        field: "epoch_id",
+        message: "Epoch must be a positive integer",
+      });
+    } else {
+      const value = Number(trimmed);
+      if (value <= 0 || value > 4_294_967_295) {
+        errors.push({
+          field: "epoch_id",
+          message: "Epoch must be between 1 and 4294967295 (u32 range)",
+        });
+      }
+    }
   }
 
   // Amount validations
