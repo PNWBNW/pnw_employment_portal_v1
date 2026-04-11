@@ -3,10 +3,13 @@
 /**
  * Credential Art Preview — dev-only tuning page.
  *
- * Pre-populated with pnw_dao.pnw + the name hash the user provided so the
- * first render shows the real sample they asked for. All inputs are editable
- * so you can tune line weights, palettes, and proportions in isolation
- * before wiring the art system into the full worker credentials page.
+ * Lets you punch in any seed + credential type + worker name and see the
+ * generative topographic card render live. Useful for tuning line weights,
+ * palettes, and proportions in isolation before wiring the art system into
+ * the full worker credentials page.
+ *
+ * Defaults are intentionally generic — the card shows whatever name you
+ * give it; no real worker identity is baked in.
  *
  * This page is intentionally outside the (employer) route group so it
  * doesn't require wallet connection or employer onboarding.
@@ -24,12 +27,13 @@ import {
   type CredentialStatus,
 } from "@/src/stores/credential_store";
 
-// Pre-populated with the real pnw_dao.pnw name hash the user provided
+// Generic placeholder defaults — not tied to any real worker identity.
+// Override any of these via the form to render a card for a specific credential.
 const DEFAULT_SEED =
-  "2799329730299227402922864368934752110359530977217366040351776574486990205182";
-const DEFAULT_NAME = "pnw_dao.pnw";
-const DEFAULT_TYPE: CredentialType = "clearance";
-const DEFAULT_SCOPE = "Diamond Security Clearance";
+  "0x1111111111111111111111111111111111111111111111111111111111111111";
+const DEFAULT_NAME = "worker.pnw";
+const DEFAULT_TYPE: CredentialType = "employment_verified";
+const DEFAULT_SCOPE = "Full-time employment";
 const DEFAULT_STATUS: CredentialStatus = "active";
 
 const CREDENTIAL_TYPES: CredentialType[] = [
@@ -69,8 +73,8 @@ export default function CredentialArtPreviewPage() {
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             Dev-only tuning page for the generative topographic credential NFT
-            art system. Pre-populated with the pnw_dao.pnw diamond security
-            clearance sample.
+            art system. Edit any input to see the card render live — the worker
+            name, credential type, scope, status, and seed are all variable.
           </p>
         </header>
 
