@@ -21,7 +21,10 @@ export const PROGRAMS = {
   },
   layer2: {
     payroll_nfts: "payroll_nfts_v2.aleo",
-    credential_nft: "credential_nft.aleo",
+    // credential_nft_v2 emits dual records (employer-owned + worker-owned)
+    // so the worker wallet picks up a copy automatically on scan.
+    // v1 (credential_nft.aleo) was @noupgrade and only minted to the caller.
+    credential_nft: "credential_nft_v2.aleo",
     audit_nft: "audit_nft.aleo",
   },
   external: {
