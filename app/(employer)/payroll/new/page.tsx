@@ -42,13 +42,33 @@ import type { DraftEnvelope } from "@/src/persistence";
 
 const DRAFT_STORAGE_KEY = "pnw_payroll_draft";
 
-/** Get today's date as YYYYMMDD */
+/**
+ * Get a unique epoch_id for this payroll run.
+ *
+ * Uses unix timestamp in seconds (fits in u32 until year 2106). This guarantees
+ * uniqueness for the on-chain `paid_epoch[(agreement_id, epoch_id)]` double-pay
+ * guard, so the same worker can be paid multiple times on the same day for
+ * legitimate reasons (regular pay + bonus + reimbursement) — each run gets its
+ * own epoch_id.
+ *
+ * Display the human-readable date alongside via `formatEpochAsDate(epochId)`.
+ */
 function todayEpoch(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}${m}${day}`;
+  return Math.floor(Date.now() / 1000).toString();
+}
+
+/** Convert a unix-seconds epoch_id back to a human-readable timestamp */
+function formatEpochAsDate(epochId: string | number): string {
+  const seconds = typeof epochId === "string" ? parseInt(epochId, 10) : epochId;
+  if (!seconds || isNaN(seconds)) return "—";
+  // Sanity: if value looks like YYYYMMDD (8 digits, < 99999999), treat as legacy
+  if (seconds >= 19700101 && seconds <= 99999999) {
+    const y = Math.floor(seconds / 10000);
+    const m = Math.floor((seconds % 10000) / 100);
+    const d = seconds % 100;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")} (legacy)`;
+  }
+  return new Date(seconds * 1000).toLocaleString();
 }
 
 export default function NewPayrollPage() {
