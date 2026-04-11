@@ -24,6 +24,7 @@ import type { ChunkPlan } from "@/src/manifest/types";
 import {
   executeSettlement,
   type CoordinatorCallbacks,
+  type WorkerProgress,
 } from "@/src/coordinator/settlement_coordinator";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
@@ -93,6 +94,24 @@ export default function NewPayrollPage() {
     overallStepNumber?: number;
     overallTotalSteps?: number;
   } | null>(null);
+  // Live per-worker progress for the monolithic execute_payroll path
+  const [workerProgress, setWorkerProgress] = useState<WorkerProgress | null>(null);
+  const [progressLog, setProgressLog] = useState<string[]>([]);
+  // Ticking timestamp so the elapsed-time display updates every second
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  // Tick nowMs every second only while a worker is mid-pipeline
+  useEffect(() => {
+    if (
+      !workerProgress ||
+      workerProgress.stage === "confirmed" ||
+      workerProgress.stage === "failed"
+    ) {
+      return;
+    }
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [workerProgress?.stage]);
   const workers = useWorkerStore((s) => s.workers);
   const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
@@ -451,6 +470,11 @@ export default function NewPayrollPage() {
           updateStoreRow(row.row_index, "settled" as const);
         });
         updateStatus("settled" as const);
+        // Clear progress bar after a short delay so the user sees the final state
+        setTimeout(() => {
+          setWorkerProgress(null);
+          setProgressLog([]);
+        }, 2000);
         setTimeout(() => router.push(`/payroll/${compiledManifest.batch_id}`), 1500);
       },
       onError: (msg: string) => {
@@ -458,6 +482,7 @@ export default function NewPayrollPage() {
         setCurrentPayrollStep(null);
         setIsSettling(false);
         settlingRef.current = false;
+        // Leave workerProgress visible so the user can see which worker/stage failed
       },
     };
 
@@ -479,6 +504,25 @@ export default function NewPayrollPage() {
         console.log(`[PNW-PAYROLL] Step change: ${step.stepNumber}/${step.totalSteps} — ${step.label}`);
         setCurrentPayrollStep(step);
         setSettlementStatus(`Step ${step.stepNumber}/${step.totalSteps}: ${step.label}`);
+      },
+      onWorkerProgress: (progress) => {
+        setWorkerProgress(progress);
+        setNowMs(Date.now()); // Force a tick so the elapsed display refreshes immediately
+        setProgressLog((prev) => {
+          // Append the new stage message + any extra log line, dedup consecutive duplicates
+          const additions: string[] = [];
+          const stageLine = `[${progress.stage}] ${progress.stageMessage}`;
+          if (prev[prev.length - 1] !== stageLine) additions.push(stageLine);
+          if (progress.lastLogLine && prev[prev.length - 1] !== progress.lastLogLine) {
+            additions.push(progress.lastLogLine);
+          }
+          // Keep only the most recent 12 lines to avoid runaway growth
+          return [...prev, ...additions].slice(-12);
+        });
+        // When a new worker starts, clear the previous worker's log
+        if (progress.stage === "preparing") {
+          setProgressLog([`[preparing] ${progress.stageMessage}`]);
+        }
       },
     }).then((result) => {
       console.log("[PNW-PAYROLL] Settlement finished:", result);
@@ -834,6 +878,94 @@ export default function NewPayrollPage() {
           </div>
         </div>
       )}
+
+      {/* Sticky per-worker progress bar (bottom of page) */}
+      {workerProgress && (() => {
+        const elapsedMs = Math.max(0, nowMs - workerProgress.startedAt);
+        const estTotal = workerProgress.estimatedTotalMs || 170_000;
+        // 0→90% fills linearly over the estimated duration. If the run finishes
+        // early the bar jumps to 100%. If it runs long the bar pauses at ~90%
+        // until the on-chain confirmation lands. Resets to 0 when the coordinator
+        // emits "preparing" for a new worker (startedAt changes → elapsedMs=0).
+        const isDone = workerProgress.stage === "confirmed";
+        const isFailed = workerProgress.stage === "failed";
+        const linearPct = Math.min((elapsedMs / estTotal) * 90, 90);
+        const pct = isDone ? 100 : isFailed ? linearPct : linearPct;
+        const elapsedSec = Math.floor(elapsedMs / 1000);
+        const estSec = Math.floor(estTotal / 1000);
+        const remainingSec = Math.max(0, estSec - elapsedSec);
+        const fmt = (s: number) => {
+          const m = Math.floor(s / 60);
+          const r = s % 60;
+          return m > 0 ? `${m}m ${r}s` : `${r}s`;
+        };
+        const barColor = isFailed
+          ? "bg-red-500"
+          : isDone
+            ? "bg-green-500"
+            : "bg-primary";
+        return (
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-sm shadow-lg">
+            <div className="mx-auto max-w-5xl px-4 py-3">
+              <div className="mb-2 flex items-center justify-between gap-4">
+                <div className="flex items-baseline gap-3 min-w-0">
+                  <span className="text-xs font-medium uppercase tracking-wider text-primary">
+                    Worker {workerProgress.workerNumber} of {workerProgress.totalWorkers}
+                  </span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">
+                    {workerProgress.workerLabel}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {isDone
+                    ? `Done in ${fmt(elapsedSec)}`
+                    : isFailed
+                      ? `Failed after ${fmt(elapsedSec)}`
+                      : `${fmt(elapsedSec)} elapsed · ~${fmt(remainingSec)} remaining`}
+                </span>
+              </div>
+
+              <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full ${barColor} transition-all duration-500 ease-out`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+
+              <div className="mb-2 flex items-center gap-2">
+                <span className={`inline-block h-2 w-2 rounded-full ${
+                  isFailed ? "bg-red-500" : isDone ? "bg-green-500" : "animate-pulse bg-primary"
+                }`} />
+                <span className="text-sm font-medium text-foreground">
+                  {workerProgress.stage === "preparing" && "Preparing"}
+                  {workerProgress.stage === "awaiting_signature" && "Awaiting wallet signature"}
+                  {workerProgress.stage === "proving" && "Generating zero-knowledge proof"}
+                  {workerProgress.stage === "broadcasting" && "Broadcasting to network"}
+                  {workerProgress.stage === "confirming" && "Confirming on-chain"}
+                  {workerProgress.stage === "confirmed" && "Confirmed"}
+                  {workerProgress.stage === "failed" && "Failed"}
+                </span>
+                <span className="text-sm text-muted-foreground truncate">
+                  — {workerProgress.stageMessage}
+                </span>
+              </div>
+
+              {progressLog.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    Activity log ({progressLog.length})
+                  </summary>
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded border border-border bg-muted/40 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                    {progressLog.map((line, i) => (
+                      <div key={i} className="truncate">{line}</div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

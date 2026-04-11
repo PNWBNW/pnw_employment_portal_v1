@@ -135,6 +135,46 @@ export type SettlementContext = {
   requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>;
   /** Called when the sequential payroll advances to a new step (for UI updates) */
   onStepChange?: (step: PayrollStep) => void;
+  /** Called repeatedly during a single-worker payroll for live progress UI */
+  onWorkerProgress?: (progress: WorkerProgress) => void;
+};
+
+/**
+ * Live progress for a single worker's monolithic execute_payroll run.
+ * Emitted by the coordinator at each stage transition so the UI can show
+ * a live progress bar without making the user feel like the page froze.
+ */
+export type WorkerProgress = {
+  /** 1-indexed worker number in the run */
+  workerNumber: number;
+  /** Total workers in the run */
+  totalWorkers: number;
+  /** Display label for this worker (.pnw name preferred, falls back to truncated address) */
+  workerLabel: string;
+
+  /** Current pipeline stage */
+  stage:
+    | "preparing"          // fetching token, building merkle proof
+    | "awaiting_signature" // wallet popup is open, waiting for user click
+    | "proving"            // wallet building the ZK proof locally
+    | "broadcasting"       // proof done, broadcasting to network
+    | "confirming"         // broadcast, waiting for finalization
+    | "confirmed"          // settled on-chain
+    | "failed";            // explicit failure
+
+  /** Human-readable status message for the current stage */
+  stageMessage: string;
+
+  /** When this worker's pipeline started (ms epoch) */
+  startedAt: number;
+  /** Estimated total time for one worker's run, ms */
+  estimatedTotalMs: number;
+
+  /** Optional: last log line so the UI can show a console-like feed */
+  lastLogLine?: string;
+
+  /** Optional: real Aleo tx ID once the wallet returns it */
+  txId?: string;
 };
 
 /**
@@ -236,6 +276,10 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
   // ---- Step 3: Execute chunks ----
   let hasFailure = false;
   let settledCount = 0;
+  // Shared across every chunk in this run: tracks USDCx Token records that
+  // have already been spent so later workers don't re-select them while the
+  // wallet cache catches up to the ledger.
+  const consumedUsdcxRecords = new Set<string>();
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i]!;
@@ -304,7 +348,7 @@ export async function executeSettlement(ctx: SettlementContext): Promise<ChunkPl
     callbacks.onRunStatusChange(runStatus);
 
     // Execute chunk with retries
-    const result = await executeChunkWithRetry(manifest, chunk, ctx, credentials, rosterCredentials);
+    const result = await executeChunkWithRetry(manifest, chunk, ctx, credentials, rosterCredentials, consumedUsdcxRecords);
 
     chunks[i] = result;
     callbacks.onChunkUpdate(chunks);
@@ -438,6 +482,7 @@ async function executeChunkWithRetry(
   ctx: SettlementContext,
   credentials: CredentialsRecord | null,
   rosterCredentials?: RosterCredentialsRecord | null,
+  consumedUsdcxRecords?: Set<string>,
 ): Promise<ChunkPlan> {
   let current = { ...chunk };
 
@@ -451,7 +496,7 @@ async function executeChunkWithRetry(
     try {
       // Use wallet executor if available (E10), otherwise fall back to CLI adapter
       const result = ctx.walletExecute
-        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords, ctx.adapterConfig.endpoint, ctx.onStepChange)
+        ? await executeChunkViaWallet(manifest, current, ctx.walletExecute, credentials, rosterCredentials ?? null, ctx.walletTransactionStatus, ctx.requestRecords, ctx.adapterConfig.endpoint, ctx.onStepChange, ctx.onWorkerProgress, consumedUsdcxRecords)
         : await executeChunk(manifest, current, ctx.adapterConfig, credentials, rosterCredentials ?? null);
 
       current.status = "settled";
@@ -537,6 +582,15 @@ async function executeChunkViaWallet(
   requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>,
   endpoint?: string,
   onStepChange?: (step: PayrollStep) => void,
+  onWorkerProgress?: (progress: WorkerProgress) => void,
+  /**
+   * Shared across an entire run. Any USDCx Token record whose `recordPlaintext`
+   * is in this set has already been consumed by an earlier chunk in the same
+   * run — even if the wallet cache still reports it as `spent: false`. Selection
+   * MUST skip these or worker N+1 will try to double-spend worker N's input
+   * and get rejected at broadcast with "input ID already exists in the ledger".
+   */
+  consumedUsdcxRecords?: Set<string>,
 ): Promise<ExecutionResult> {
   const workerArgs = chunk.row_indices.map((rowIdx) => {
     const row = manifest.rows[rowIdx];
@@ -588,37 +642,95 @@ async function executeChunkViaWallet(
     console.log("[PNW-PAYROLL] ===== TEST: Monolithic execute_payroll path with corrected formatting =====");
   }
 
+  // Worker progress reporting — fill the constant fields once and use emit()
+  // to push stage updates to the UI throughout this chunk's execution.
+  const firstRowForLabel = manifest.rows[chunk.row_indices[0]!];
+  const workerLabel =
+    firstRowForLabel?.worker_addr.slice(0, 12) + "..." +
+    firstRowForLabel?.worker_addr.slice(-6) || "worker";
+  const startedAt = Date.now();
+  const ESTIMATED_TOTAL_MS = 170_000; // ~170s based on observed monolithic runs
+  const emit = (
+    stage: WorkerProgress["stage"],
+    stageMessage: string,
+    extra: { lastLogLine?: string; txId?: string } = {},
+  ) => {
+    if (!onWorkerProgress) return;
+    onWorkerProgress({
+      workerNumber: chunk.chunk_index + 1,
+      totalWorkers: manifest.row_count,
+      workerLabel,
+      stage,
+      stageMessage,
+      startedAt,
+      estimatedTotalMs: ESTIMATED_TOTAL_MS,
+      ...extra,
+    });
+  };
+
   let inputs: string[];
 
   if (isPayrollTransition && requestRecords) {
+    emit("preparing", "Selecting USDCx record from your wallet...");
     // Monolithic execute_payroll path: fetch USDCx Token record + build full inputs
     const usdcxProgram = PROGRAMS.external.usdcx;
-    const records = await requestRecords(usdcxProgram, true);
-    const tokenRecords = (records as Array<Record<string, unknown>>).filter(
-      (r) => r.recordName === "Token" && !r.spent && typeof r.recordPlaintext === "string",
-    );
-
-    if (tokenRecords.length === 0) {
-      throw new Error("No unspent USDCx Token records found in wallet.");
-    }
-
     const totalNeeded = workerArgs.reduce((sum, w) => sum + BigInt(w.net_amount), 0n);
+
+    // Shield wallet caches its record view and doesn't always reflect a newly
+    // emitted remainder record immediately after a transition accepts. For any
+    // chunk past the first, poll a few times (up to ~30s) until we see a fresh
+    // unspent record not in the consumed set. This is what lets worker 2 pick
+    // up the change record left by worker 1's transfer.
+    const maxAttempts = (chunk.chunk_index > 0) ? 8 : 1;
+    const delayBetweenMs = 4_000;
     let selectedRecord: Record<string, unknown> | null = null;
-    for (const rec of tokenRecords) {
-      const plaintext = rec.recordPlaintext as string;
-      const amountMatch = plaintext.match(/amount:\s*(\d+)u128/);
-      if (amountMatch?.[1] && BigInt(amountMatch[1]) >= totalNeeded) {
-        selectedRecord = rec;
-        break;
+    let lastDiag = "";
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const records = await requestRecords(usdcxProgram, true);
+      const tokenRecords = (records as Array<Record<string, unknown>>).filter(
+        (r) =>
+          r.recordName === "Token" &&
+          !r.spent &&
+          typeof r.recordPlaintext === "string" &&
+          !(consumedUsdcxRecords?.has(r.recordPlaintext as string) ?? false),
+      );
+
+      for (const rec of tokenRecords) {
+        const plaintext = rec.recordPlaintext as string;
+        const amountMatch = plaintext.match(/amount:\s*(\d+)u128/);
+        if (amountMatch?.[1] && BigInt(amountMatch[1]) >= totalNeeded) {
+          selectedRecord = rec;
+          break;
+        }
+      }
+      if (selectedRecord) break;
+
+      lastDiag = `attempt ${attempt + 1}/${maxAttempts}: ${tokenRecords.length} unspent Token record(s), none ≥ ${totalNeeded}`;
+      console.log(`[PNW-PAYROLL] Waiting for remainder record — ${lastDiag}`);
+      if (attempt < maxAttempts - 1) {
+        emit("preparing", `Waiting for wallet to see remainder record from previous worker... (${attempt + 1}/${maxAttempts})`, {
+          lastLogLine: lastDiag,
+        });
+        await sleep(delayBetweenMs);
       }
     }
+
     if (!selectedRecord) {
-      throw new Error(`No USDCx Token record with sufficient balance (need ${totalNeeded} minor units)`);
+      emit("failed", `No USDCx record large enough (need ${totalNeeded} minor units). ${lastDiag}`);
+      throw new Error(`No USDCx Token record with sufficient balance (need ${totalNeeded} minor units). ${lastDiag}`);
     }
 
     const tokenRecordInput = selectedRecord.recordPlaintext as string;
+    // Mark this record as consumed for the rest of the run so the next worker
+    // won't re-pick it even if the wallet still reports it as unspent.
+    consumedUsdcxRecords?.add(tokenRecordInput);
     console.log("[PNW-PAYROLL] Selected USDCx record:", tokenRecordInput.slice(0, 80) + "...");
     console.log("[PNW-PAYROLL] Total needed:", totalNeeded.toString(), "minor units");
+    console.log("[PNW-PAYROLL] Consumed record set size now:", consumedUsdcxRecords?.size ?? 0);
+    emit("preparing", "Generating Sealance compliance proof...", {
+      lastLogLine: `Selected USDCx record covering ${totalNeeded} minor units`,
+    });
 
     const empNameHash = manifest.employer_name_hash.startsWith("0x")
       ? hexToDecimalField(manifest.employer_name_hash)
@@ -650,6 +762,9 @@ async function executeChunkViaWallet(
     if (transitionName.includes("batch_2")) {
       inputs.push(formattedProof);
     }
+    emit("awaiting_signature", "Waiting for wallet signature... (check your wallet popup)", {
+      lastLogLine: "Sealance Merkle proof generated",
+    });
   } else {
     // Non-payroll transitions use flat serialization
     inputs = serializeWorkerPayArgs(workerArgs, credentials, rosterCredentials);
@@ -666,6 +781,11 @@ async function executeChunkViaWallet(
     inputs,
     500_000, // 0.5 credits
   );
+
+  // Wallet has accepted the request and started building the proof locally.
+  emit("proving", "Building zero-knowledge proof in your wallet... (~2-3 min)", {
+    lastLogLine: `Wallet returned: ${walletTxId.slice(0, 24)}...`,
+  });
 
   // Wallet returns an internal ID (e.g. "shield_...") — need wallet-native polling
   // to get the real Aleo tx ID and confirmation status.
@@ -704,6 +824,7 @@ async function executeChunkViaWallet(
             // the on-chain double-pay assertion. Bail out early so we don't
             // wait 15 minutes for a guaranteed failure.
             if (paidEpochAtStart.includes("true")) {
+              emit("failed", "This worker is already paid for this epoch. Increment epoch_id and try again.");
               throw new Error(
                 "This worker has already been paid for this epoch. The on-chain double-pay guard will reject this transaction. Increment epoch_id and try again.",
               );
@@ -746,16 +867,25 @@ async function executeChunkViaWallet(
 
         const s = status.status?.toLowerCase();
 
-        if (status.transactionId && status.transactionId.startsWith("at1")) {
+        if (status.transactionId && status.transactionId.startsWith("at1") && finalTxId !== status.transactionId) {
           finalTxId = status.transactionId;
           console.log("[PNW-PAYROLL] Got real Aleo tx ID:", finalTxId);
+          emit("broadcasting", "Proof complete. Broadcasting to the network...", {
+            lastLogLine: `Aleo tx: ${finalTxId.slice(0, 24)}...`,
+            txId: finalTxId,
+          });
         }
 
         if (s === "finalized" || s === "confirmed" || s === "accepted" || s === "completed") {
+          emit("confirmed", "Confirmed on-chain ✓", {
+            lastLogLine: `Settled at ${new Date().toLocaleTimeString()}`,
+            txId: finalTxId,
+          });
           return { tx_id: finalTxId, outputs: [], fee: "500000" };
         }
 
         if (s === "rejected" || s === "failed") {
+          emit("failed", status.error ?? "Transaction rejected by network", { txId: finalTxId });
           throw new Error(status.error ?? "Transaction rejected by network");
         }
       } catch (err) {
