@@ -621,45 +621,55 @@ export default function NewPayrollPage() {
         />
       )}
 
-      {/* Sequential signing confirmation dialog */}
-      {showConfirmDialog && (
+      {/* Confirmation dialog: monolithic execute_payroll + execute_payroll_batch_2 path */}
+      {showConfirmDialog && (() => {
+        const rowCount = compiledManifest?.row_count ?? 1;
+        // Each chunk is up to 2 workers in 1 signature.
+        const sigCount = Math.ceil(rowCount / 2);
+        const sigWord = sigCount === 1 ? "Signature" : "Signatures";
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
             <h2 className="mb-3 text-lg font-semibold text-foreground">
-              Payroll Requires {(compiledManifest?.row_count ?? 1) * 4} Wallet Signature{(compiledManifest?.row_count ?? 1) * 4 === 1 ? "" : "s"}
+              Payroll Requires {sigCount} Wallet {sigWord}
             </h2>
             <p className="mb-4 text-sm text-muted-foreground">
-              {(compiledManifest?.row_count ?? 1) > 1 ? (
-                <>
-                  Private payroll is split into 4 sequential on-chain steps <strong>per worker</strong>.
-                  With {compiledManifest?.row_count} workers, that's <strong>{(compiledManifest?.row_count ?? 1) * 4} total signatures</strong>.
-                  You will be prompted to sign each step individually, in order:
-                </>
+              {rowCount === 1 ? (
+                <>This payroll for 1 worker will be settled in a single on-chain transaction.</>
+              ) : rowCount === 2 ? (
+                <>Both workers will be paid in a single batched transaction (one wallet signature for the entire payroll).</>
               ) : (
-                <>Private payroll is split into 4 sequential on-chain steps. You will be prompted to sign each one individually:</>
+                <>
+                  Workers are batched in pairs to minimize signatures.
+                  With {rowCount} workers, that's <strong>{sigCount} signature{sigCount === 1 ? "" : "s"}</strong> total
+                  ({Math.floor(rowCount / 2)} batched pair{Math.floor(rowCount / 2) === 1 ? "" : "s"}{rowCount % 2 === 1 ? " + 1 single" : ""}).
+                </>
               )}
+            </p>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Each signature triggers an on-chain transaction that does the following atomically:
             </p>
             <ol className="mb-4 space-y-2 text-sm">
               <li className="flex gap-2">
                 <span className="font-mono text-xs text-muted-foreground">1.</span>
-                <span><strong className="text-foreground">Verify Employment Agreement</strong> — confirms the agreement is active on-chain</span>
+                <span><strong className="text-foreground">Verify Agreement(s)</strong> — confirms the agreement is active on-chain</span>
               </li>
               <li className="flex gap-2">
                 <span className="font-mono text-xs text-muted-foreground">2.</span>
-                <span><strong className="text-foreground">Transfer USDCx to Worker</strong> — sends the net amount privately via Merkle-proof compliance check</span>
+                <span><strong className="text-foreground">Transfer USDCx privately</strong> — net amount sent via Sealance-compliant private transfer</span>
               </li>
               <li className="flex gap-2">
                 <span className="font-mono text-xs text-muted-foreground">3.</span>
-                <span><strong className="text-foreground">Mint Payroll Receipts</strong> — creates paystub records for worker and employer</span>
+                <span><strong className="text-foreground">Mint Paystub Receipts</strong> — private records for worker and employer</span>
               </li>
               <li className="flex gap-2">
                 <span className="font-mono text-xs text-muted-foreground">4.</span>
-                <span><strong className="text-foreground">Anchor Audit Event</strong> — records an audit trail hash on-chain</span>
+                <span><strong className="text-foreground">Anchor Audit Event</strong> — public tamper-proof timestamp</span>
               </li>
             </ol>
             <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                ⚠ Each step may take 2–5 minutes to generate its ZK proof. <strong>Do not close this page until all {(compiledManifest?.row_count ?? 1) * 4} steps complete.</strong>
+                ⚠ Each signature may take 2–5 minutes to generate its zero-knowledge proof. <strong>Do not close this page until all {sigCount} signature{sigCount === 1 ? "" : "s"} complete.</strong>
               </p>
             </div>
             <div className="flex justify-end gap-2">
@@ -685,7 +695,8 @@ export default function NewPayrollPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Current payroll step indicator */}
       {currentPayrollStep && isSettling && (
@@ -795,7 +806,10 @@ export default function NewPayrollPage() {
                     policy_v: VERSIONS.policy_v,
                   });
 
-                  const chunks = planChunks(manifest);
+                  // Use batch_2 chunks (1 sig per pair) for 2+ workers,
+                  // single-row chunks for 1-worker payroll. Odd worker counts
+                  // produce one trailing single-row chunk that uses execute_payroll.
+                  const chunks = planChunks(manifest, manifest.row_count >= 2 ? 2 : 1);
                   setCompiledManifest(manifest);
                   setCompiledChunks(chunks);
                 } catch (err) {
