@@ -497,6 +497,11 @@ export type PayrollStep = {
   label: string;
   program: string;
   functionName: string;
+  /** Worker context for multi-worker runs (e.g. "Worker 1 of 2 — alice.pnw") */
+  workerContext?: string;
+  /** Overall progress across the entire run (e.g. 5 of 8 for worker 2 step 1) */
+  overallStepNumber?: number;
+  overallTotalSteps?: number;
 };
 
 export const PAYROLL_STEPS: Omit<PayrollStep, "stepNumber" | "totalSteps">[] = [
@@ -542,13 +547,31 @@ async function executeChunkViaWallet(
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
 
-  // Sequential payroll: Shield can't handle execute_payroll's 4 cross-program
-  // calls in one proof. Split into individual transactions that Shield has
-  // proven capable of (e.g. transfer_private alone works).
+  // Sequential vs monolithic execute_payroll path:
+  //
+  // We originally believed Shield silently dropped monolithic execute_payroll
+  // because of multi-program proof complexity. We may have been wrong — many of
+  // the bugs we found in the sequential path (privateFee: false, Sealance proof
+  // depth 16, decimal field encoding, etc.) were never applied to the monolithic
+  // path before we abandoned it. With those fixes in place, monolithic may now
+  // work and would collapse single-worker payroll to ONE signature.
+  //
+  // Set USE_MONOLITHIC_PAYROLL = true to test monolithic execute_payroll.
+  // Default false → uses the proven sequential 4-step path.
+  const USE_MONOLITHIC_PAYROLL = true;
+
   const isPayrollTransition = transitionName.startsWith("execute_payroll");
 
-  if (isPayrollTransition && requestRecords && workerArgs.length > 0) {
+  if (isPayrollTransition && !USE_MONOLITHIC_PAYROLL && requestRecords && workerArgs.length > 0) {
     console.log("[PNW-PAYROLL] ===== Starting SEQUENTIAL payroll execution =====");
+    // Worker context for multi-worker runs: chunk_index is 0-based, so +1 for display.
+    // Total workers = total rows in manifest.
+    const firstRow = manifest.rows[chunk.row_indices[0]!];
+    const workerContext = {
+      workerNumber: chunk.chunk_index + 1,
+      totalWorkers: manifest.row_count,
+      displayName: firstRow?.worker_addr.slice(0, 12) + "...",
+    };
     return executeSequentialPayroll(
       manifest,
       workerArgs[0]!,
@@ -557,7 +580,12 @@ async function executeChunkViaWallet(
       requestRecords,
       endpoint,
       onStepChange,
+      workerContext,
     );
+  }
+
+  if (isPayrollTransition && USE_MONOLITHIC_PAYROLL) {
+    console.log("[PNW-PAYROLL] ===== TEST: Monolithic execute_payroll path with corrected formatting =====");
   }
 
   let inputs: string[];
@@ -779,8 +807,24 @@ async function executeSequentialPayroll(
   requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>,
   endpoint: string | undefined,
   onStepChange: ((step: PayrollStep) => void) | undefined,
+  workerContext?: { workerNumber: number; totalWorkers: number; displayName?: string },
 ): Promise<ExecutionResult> {
   const TOTAL = PAYROLL_STEPS.length;
+  // Build the worker context string for the UI
+  const workerContextStr = workerContext
+    ? `Worker ${workerContext.workerNumber} of ${workerContext.totalWorkers}${workerContext.displayName ? ` — ${workerContext.displayName}` : ""}`
+    : undefined;
+  // Compute overall step numbers for the entire run
+  const overallTotalSteps = workerContext ? TOTAL * workerContext.totalWorkers : TOTAL;
+  const overallStepBase = workerContext ? TOTAL * (workerContext.workerNumber - 1) : 0;
+  const wrapStep = (step: Omit<PayrollStep, "stepNumber" | "totalSteps">, n: number): PayrollStep => ({
+    ...step,
+    stepNumber: n,
+    totalSteps: TOTAL,
+    workerContext: workerContextStr,
+    overallStepNumber: overallStepBase + n,
+    overallTotalSteps,
+  });
   const results: string[] = [];
 
   // Pre-fetch the USDCx Token record (needed for step 2)
@@ -830,10 +874,12 @@ async function executeSequentialPayroll(
     ? hexToDecimalField(worker.worker_name_hash)
     : `${worker.worker_name_hash}field`;
 
+  const ctxLog = workerContextStr ? ` [${workerContextStr}]` : "";
+
   // ----- Step 1: Verify Employment Agreement -----
-  const step1: PayrollStep = { ...PAYROLL_STEPS[0]!, stepNumber: 1, totalSteps: TOTAL };
+  const step1 = wrapStep(PAYROLL_STEPS[0]!, 1);
   onStepChange?.(step1);
-  console.log(`[PNW-PAYROLL] === Step 1/${TOTAL}: ${step1.label} ===`);
+  console.log(`[PNW-PAYROLL] === Step 1/${TOTAL}${ctxLog}: ${step1.label} ===`);
   const tx1 = await executeSingleStep(
     walletExecute,
     walletTransactionStatus,
@@ -846,9 +892,9 @@ async function executeSequentialPayroll(
   results.push(tx1);
 
   // ----- Step 2: Transfer USDCx to Worker -----
-  const step2: PayrollStep = { ...PAYROLL_STEPS[1]!, stepNumber: 2, totalSteps: TOTAL };
+  const step2 = wrapStep(PAYROLL_STEPS[1]!, 2);
   onStepChange?.(step2);
-  console.log(`[PNW-PAYROLL] === Step 2/${TOTAL}: ${step2.label} ===`);
+  console.log(`[PNW-PAYROLL] === Step 2/${TOTAL}${ctxLog}: ${step2.label} ===`);
   const tx2 = await executeSingleStep(
     walletExecute,
     walletTransactionStatus,
@@ -866,9 +912,9 @@ async function executeSequentialPayroll(
   results.push(tx2);
 
   // ----- Step 3: Mint Paystub Receipts -----
-  const step3: PayrollStep = { ...PAYROLL_STEPS[2]!, stepNumber: 3, totalSteps: TOTAL };
+  const step3 = wrapStep(PAYROLL_STEPS[2]!, 3);
   onStepChange?.(step3);
-  console.log(`[PNW-PAYROLL] === Step 3/${TOTAL}: ${step3.label} ===`);
+  console.log(`[PNW-PAYROLL] === Step 3/${TOTAL}${ctxLog}: ${step3.label} ===`);
   const tx3 = await executeSingleStep(
     walletExecute,
     walletTransactionStatus,
@@ -896,9 +942,9 @@ async function executeSequentialPayroll(
   results.push(tx3);
 
   // ----- Step 4: Anchor Audit Event -----
-  const step4: PayrollStep = { ...PAYROLL_STEPS[3]!, stepNumber: 4, totalSteps: TOTAL };
+  const step4 = wrapStep(PAYROLL_STEPS[3]!, 4);
   onStepChange?.(step4);
-  console.log(`[PNW-PAYROLL] === Step 4/${TOTAL}: ${step4.label} ===`);
+  console.log(`[PNW-PAYROLL] === Step 4/${TOTAL}${ctxLog}: ${step4.label} ===`);
   const tx4 = await executeSingleStep(
     walletExecute,
     walletTransactionStatus,

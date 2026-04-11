@@ -65,7 +65,14 @@ export default function NewPayrollPage() {
   const [settlementStatus, setSettlementStatus] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingSettleAction, setPendingSettleAction] = useState<(() => void) | null>(null);
-  const [currentPayrollStep, setCurrentPayrollStep] = useState<{ stepNumber: number; totalSteps: number; label: string } | null>(null);
+  const [currentPayrollStep, setCurrentPayrollStep] = useState<{
+    stepNumber: number;
+    totalSteps: number;
+    label: string;
+    workerContext?: string;
+    overallStepNumber?: number;
+    overallTotalSteps?: number;
+  } | null>(null);
   const workers = useWorkerStore((s) => s.workers);
   const setWorkers = useWorkerStore((s) => s.setWorkers);
   const address = useSessionStore((s) => s.address);
@@ -599,10 +606,18 @@ export default function NewPayrollPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
             <h2 className="mb-3 text-lg font-semibold text-foreground">
-              Payroll Requires 4 Wallet Signatures
+              Payroll Requires {(compiledManifest?.row_count ?? 1) * 4} Wallet Signature{(compiledManifest?.row_count ?? 1) * 4 === 1 ? "" : "s"}
             </h2>
             <p className="mb-4 text-sm text-muted-foreground">
-              Private payroll is split into 4 sequential on-chain steps. You will be prompted to sign each one individually:
+              {(compiledManifest?.row_count ?? 1) > 1 ? (
+                <>
+                  Private payroll is split into 4 sequential on-chain steps <strong>per worker</strong>.
+                  With {compiledManifest?.row_count} workers, that's <strong>{(compiledManifest?.row_count ?? 1) * 4} total signatures</strong>.
+                  You will be prompted to sign each step individually, in order:
+                </>
+              ) : (
+                <>Private payroll is split into 4 sequential on-chain steps. You will be prompted to sign each one individually:</>
+              )}
             </p>
             <ol className="mb-4 space-y-2 text-sm">
               <li className="flex gap-2">
@@ -624,7 +639,7 @@ export default function NewPayrollPage() {
             </ol>
             <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                ⚠ Each step may take 2–5 minutes to generate its ZK proof. <strong>Do not close this page until all 4 steps complete.</strong>
+                ⚠ Each step may take 2–5 minutes to generate its ZK proof. <strong>Do not close this page until all {(compiledManifest?.row_count ?? 1) * 4} steps complete.</strong>
               </p>
             </div>
             <div className="flex justify-end gap-2">
@@ -655,6 +670,14 @@ export default function NewPayrollPage() {
       {/* Current payroll step indicator */}
       {currentPayrollStep && isSettling && (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+          {/* Worker context (multi-worker only) */}
+          {currentPayrollStep.workerContext && (
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
+              {currentPayrollStep.workerContext}
+            </p>
+          )}
+
+          {/* Per-worker step counter + dots */}
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-primary">
               Step {currentPayrollStep.stepNumber} of {currentPayrollStep.totalSteps}
@@ -672,9 +695,29 @@ export default function NewPayrollPage() {
               ))}
             </div>
           </div>
+
           <p className="text-sm font-semibold text-foreground">{currentPayrollStep.label}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Building zero-knowledge proof in your wallet... This can take 2–5 minutes. Do not close this page.
+
+          {/* Overall progress bar (multi-worker only) */}
+          {currentPayrollStep.overallTotalSteps && currentPayrollStep.overallTotalSteps > currentPayrollStep.totalSteps && (
+            <div className="mt-3">
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Overall progress</span>
+                <span>{currentPayrollStep.overallStepNumber} of {currentPayrollStep.overallTotalSteps}</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{
+                    width: `${((currentPayrollStep.overallStepNumber ?? 0) / currentPayrollStep.overallTotalSteps) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            Building zero-knowledge proof in your wallet... This can take 2–5 minutes per signature. Do not close this page.
           </p>
         </div>
       )}
