@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
@@ -38,9 +38,15 @@ export default function PayrollHistoryPage() {
   const [onChainHistory, setOnChainHistory] = useState<HistoricalPayrollRun[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Scan wallet for EmployerPaystubReceipt records on mount
+  // Scan wallet for EmployerPaystubReceipt records on mount.
+  // requestRecords from useWallet() returns a new function reference on every
+  // render — listing it in the deps array creates an infinite loop. Ref guard
+  // ensures we only scan once per address (resets on address change).
+  const scannedAddrRef = useRef<string | null>(null);
   useEffect(() => {
     if (!requestRecords || !address) return;
+    if (scannedAddrRef.current === address) return;
+    scannedAddrRef.current = address;
     setIsLoading(true);
     scanPayrollHistory(requestRecords, address)
       .then(setOnChainHistory)

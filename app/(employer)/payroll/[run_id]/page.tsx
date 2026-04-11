@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
@@ -92,11 +92,17 @@ export default function RunStatusPage() {
     return null;
   }, [manifest, history, runId, scannedManifest]);
 
-  // If we couldn't find it in-store, scan the wallet for matching receipts
+  // If we couldn't find it in-store, scan the wallet for matching receipts.
+  // Use a ref guard so we only ever scan ONCE per (runId + employer) pair —
+  // putting scanLoading or requestRecords in the deps caused an infinite loop
+  // because both change on every render.
+  const scanAttemptedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (resolvedManifest) return; // already found
+    if (resolvedManifest) return;
     if (!requestRecords || !employerAddr) return;
-    if (scanLoading) return;
+    const attemptKey = `${employerAddr}:${runId}`;
+    if (scanAttemptedRef.current === attemptKey) return;
+    scanAttemptedRef.current = attemptKey;
 
     setScanLoading(true);
     scanPayrollHistory(requestRecords, employerAddr)
@@ -109,7 +115,7 @@ export default function RunStatusPage() {
       })
       .catch((err) => console.warn("On-chain run scan failed:", err))
       .finally(() => setScanLoading(false));
-  }, [resolvedManifest, requestRecords, employerAddr, runId, workers, scanLoading]);
+  }, [resolvedManifest, requestRecords, employerAddr, runId, workers]);
 
   const chunks = resolvedManifest?.chunks ?? [];
   const rows = resolvedManifest?.rows ?? [];
