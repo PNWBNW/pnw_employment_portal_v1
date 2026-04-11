@@ -684,6 +684,41 @@ async function executeChunkViaWallet(
     const startTime = Date.now();
     console.log("[PNW-PAYROLL] Starting wallet-native polling for:", walletTxId);
 
+    // Snapshot paid_epoch BEFORE polling so the REST fallback only treats
+    // a transition (false → true) as success. Otherwise a previously-paid
+    // epoch makes a NEW failed run look successful.
+    let paidEpochAtStart: string | null = null;
+    if (endpoint && isPayrollTransition) {
+      try {
+        const row = manifest.rows[chunk.row_indices[0]!];
+        if (row) {
+          const epochKey = `{ agreement_id: ${hexToU8Array(row.agreement_id)}, epoch_id: ${row.epoch_id}u32 }`;
+          const initialResp = await fetch(
+            `${endpoint}/program/payroll_core_v2.aleo/mapping/paid_epoch/${encodeURIComponent(epochKey)}`,
+            { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5_000) },
+          );
+          if (initialResp.ok) {
+            paidEpochAtStart = (await initialResp.text()).trim();
+            console.log("[PNW-PAYROLL] paid_epoch baseline:", paidEpochAtStart);
+            // If already paid for this (agreement, epoch), the new run WILL fail
+            // the on-chain double-pay assertion. Bail out early so we don't
+            // wait 15 minutes for a guaranteed failure.
+            if (paidEpochAtStart.includes("true")) {
+              throw new Error(
+                "This worker has already been paid for this epoch. The on-chain double-pay guard will reject this transaction. Increment epoch_id and try again.",
+              );
+            }
+          }
+        }
+      } catch (snapErr) {
+        // Re-throw double-pay error; swallow network errors
+        if (snapErr instanceof Error && snapErr.message.includes("already been paid")) {
+          throw snapErr;
+        }
+        console.warn("[PNW-PAYROLL] paid_epoch baseline check failed:", snapErr);
+      }
+    }
+
     let pollCount = 0;
     let lastStatusSnapshot = "";
     while (Date.now() - startTime < POLL_TIMEOUT) {
@@ -745,12 +780,12 @@ async function executeChunkViaWallet(
         }
       }
 
-      // Every 10 polls, also check the REST API to see if ANY new payroll tx
-      // landed on-chain (Shield's transactionStatus may not report it).
-      // This is a fallback in case the wallet ID polling is broken.
-      if (pollCount % 10 === 0 && endpoint) {
+      // Every 10 polls, REST-check paid_epoch as a fallback for Shield's
+      // wallet polling. Only treats a TRANSITION (baseline was not-paid, now
+      // is-paid) as success — never trust a stale-true value, which would
+      // be a false positive for a re-run of the same epoch.
+      if (pollCount % 10 === 0 && endpoint && !paidEpochAtStart?.includes("true")) {
         try {
-          // Check the paid_epoch mapping — if our epoch appears, we're done
           const row = manifest.rows[chunk.row_indices[0]!];
           if (row) {
             const epochKey = `{ agreement_id: ${hexToU8Array(row.agreement_id)}, epoch_id: ${row.epoch_id}u32 }`;
@@ -761,16 +796,16 @@ async function executeChunkViaWallet(
               signal: AbortSignal.timeout(5_000),
             });
             if (paidResp.ok) {
-              const paidData = await paidResp.text();
+              const paidData = (await paidResp.text()).trim();
               console.log(`[PNW-PAYROLL] REST check paid_epoch: ${paidData}`);
-              if (paidData.includes("true")) {
-                console.log("[PNW-PAYROLL] Payroll confirmed on-chain via REST check!");
+              // Only count as success if we observe the transition false → true
+              if (paidData.includes("true") && !paidEpochAtStart?.includes("true")) {
+                console.log("[PNW-PAYROLL] Payroll confirmed on-chain (paid_epoch transitioned)");
                 return { tx_id: finalTxId, outputs: [], fee: "500000" };
               }
             }
           }
         } catch (restErr) {
-          // REST check is best-effort, don't fail the run
           if (pollCount <= 10) {
             console.log(`[PNW-PAYROLL] REST fallback check error:`, restErr instanceof Error ? restErr.message : restErr);
           }
