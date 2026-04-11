@@ -105,8 +105,9 @@ cp .env.example .env.local
 | E8 | Done | Receipt viewer, credential issuer |
 | E9 | Done | Audit authorization flow |
 | Post-E9 | Done | Wallet adapters, cinematic landing page |
-| **E10** | **Pending** | End-to-end testnet happy path |
-| **Mobile** | **Pending** | Responsive formatting polish |
+| **E10** | **Done (2026-04-10)** | End-to-end testnet happy path |
+| E11 | In progress | Multi-worker hardening, double-pay guard, step recovery |
+| Mobile | Pending | Responsive formatting polish |
 
 ---
 
@@ -127,11 +128,12 @@ cp .env.example .env.local
 | Document | Purpose |
 |----------|---------|
 | [CLAUDE.md](./CLAUDE.md) | Full project context — architecture, tech decisions, file map, invariants |
-| [BUILD_ORDER.md](./BUILD_ORDER.md) | Phase-by-phase build plan with exit criteria |
-| [EMPLOYER_FLOWS.md](./EMPLOYER_FLOWS.md) | All employer UX flows (session → payroll → credentials → audit) |
-| [HANDSHAKE.md](./HANDSHAKE.md) | Two-phase agreement handshake protocol |
-| [INTEROP.md](./INTEROP.md) | Cross-repo sync contract with pnw_mvp_v2 |
-| [PAYROLL_RUN_MANIFEST.md](./PAYROLL_RUN_MANIFEST.md) | Manifest data contract (locked spec) |
+| [docs/BUILD_ORDER.md](./docs/BUILD_ORDER.md) | Phase-by-phase build plan with exit criteria |
+| [docs/EMPLOYER_FLOWS.md](./docs/EMPLOYER_FLOWS.md) | All employer UX flows (session → payroll → credentials → audit) |
+| [docs/HANDSHAKE.md](./docs/HANDSHAKE.md) | Agreement handshake protocol (direct on-chain broadcast) |
+| [docs/INTEROP.md](./docs/INTEROP.md) | Cross-repo sync contract with pnw_mvp_v2 |
+| [docs/PAYROLL_RUN_MANIFEST.md](./docs/PAYROLL_RUN_MANIFEST.md) | Manifest data contract (locked spec) |
+| [docs/DESIGN_BRIEF.md](./docs/DESIGN_BRIEF.md) | Visual design brief for UI improvements |
 
 ---
 

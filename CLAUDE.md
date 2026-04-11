@@ -450,7 +450,7 @@ Was `@noupgrade` with `employer_agreement_v2` imports. `payroll_nfts_v2.aleo` re
 - [ ] Mobile/responsive polish
 - [ ] Worker portal paystub viewer (scans `WorkerPaystubReceipt` records the same way)
 
-See `BUILD_ORDER.md` for exit criteria on each phase.
+See `docs/BUILD_ORDER.md` for exit criteria on each phase.
 
 ---
 
@@ -458,8 +458,9 @@ See `BUILD_ORDER.md` for exit criteria on each phase.
 
 | Document | Purpose |
 |----------|---------|
-| `BUILD_ORDER.md` | Phase-by-phase build plan with exit criteria |
-| `EMPLOYER_FLOWS.md` | All employer UX flows (session → payroll → credentials → audit) |
-| `HANDSHAKE.md` | Two-phase agreement handshake protocol |
-| `INTEROP.md` | Cross-repo sync contract with pnw_mvp_v2 |
-| `PAYROLL_RUN_MANIFEST.md` | Manifest data contract (locked spec) |
+| `docs/BUILD_ORDER.md` | Phase-by-phase build plan with exit criteria |
+| `docs/EMPLOYER_FLOWS.md` | All employer UX flows (session → payroll → credentials → audit) |
+| `docs/HANDSHAKE.md` | Agreement handshake protocol (direct on-chain broadcast) |
+| `docs/INTEROP.md` | Cross-repo sync contract with pnw_mvp_v2 |
+| `docs/PAYROLL_RUN_MANIFEST.md` | Manifest data contract (locked spec) |
+| `docs/DESIGN_BRIEF.md` | Visual design brief for UI improvements |
