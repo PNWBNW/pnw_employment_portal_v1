@@ -621,11 +621,11 @@ export default function NewPayrollPage() {
         />
       )}
 
-      {/* Confirmation dialog: monolithic execute_payroll + execute_payroll_batch_2 path */}
+      {/* Confirmation dialog: monolithic execute_payroll path (1 sig per worker) */}
       {showConfirmDialog && (() => {
         const rowCount = compiledManifest?.row_count ?? 1;
-        // Each chunk is up to 2 workers in 1 signature.
-        const sigCount = Math.ceil(rowCount / 2);
+        // Each worker = 1 monolithic execute_payroll signature.
+        const sigCount = rowCount;
         const sigWord = sigCount === 1 ? "Signature" : "Signatures";
         return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -636,13 +636,11 @@ export default function NewPayrollPage() {
             <p className="mb-4 text-sm text-muted-foreground">
               {rowCount === 1 ? (
                 <>This payroll for 1 worker will be settled in a single on-chain transaction.</>
-              ) : rowCount === 2 ? (
-                <>Both workers will be paid in a single batched transaction (one wallet signature for the entire payroll).</>
               ) : (
                 <>
-                  Workers are batched in pairs to minimize signatures.
-                  With {rowCount} workers, that's <strong>{sigCount} signature{sigCount === 1 ? "" : "s"}</strong> total
-                  ({Math.floor(rowCount / 2)} batched pair{Math.floor(rowCount / 2) === 1 ? "" : "s"}{rowCount % 2 === 1 ? " + 1 single" : ""}).
+                  Each worker is settled in its own on-chain transaction
+                  ({rowCount} workers = {sigCount} signatures). You will be prompted
+                  to sign each one in order.
                 </>
               )}
             </p>
@@ -806,10 +804,22 @@ export default function NewPayrollPage() {
                     policy_v: VERSIONS.policy_v,
                   });
 
-                  // Use batch_2 chunks (1 sig per pair) for 2+ workers,
-                  // single-row chunks for 1-worker payroll. Odd worker counts
-                  // produce one trailing single-row chunk that uses execute_payroll.
-                  const chunks = planChunks(manifest, manifest.row_count >= 2 ? 2 : 1);
+                  // FORCED single-row chunks (1 sig per worker).
+                  //
+                  // execute_payroll_batch_2 fails at the AVM level because it
+                  // tries to consume the chained 'remainder' Token from the
+                  // first transfer as input to the second transfer in the
+                  // SAME transition — Aleo doesn't allow consuming records
+                  // that were created in the same transition. Error:
+                  // "Input record for 'test_usdcx_stablecoin.aleo' must
+                  //  belong to the signer"
+                  //
+                  // Until we redesign execute_payroll_batch_2 to take 2
+                  // independent Token records, force chunkSize=1 so each
+                  // worker uses the working single-worker execute_payroll.
+                  // Multi-worker payroll = N signatures, but each settles
+                  // correctly with the recipient fix in place.
+                  const chunks = planChunks(manifest, 1);
                   setCompiledManifest(manifest);
                   setCompiledChunks(chunks);
                 } catch (err) {
