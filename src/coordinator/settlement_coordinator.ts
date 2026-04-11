@@ -547,12 +547,22 @@ async function executeChunkViaWallet(
   const transitionName = chunk.transition;
   const transition = LAYER1_TRANSITIONS[transitionName];
 
-  // Sequential payroll: Shield can't handle execute_payroll's 4 cross-program
-  // calls in one proof. Split into individual transactions that Shield has
-  // proven capable of (e.g. transfer_private alone works).
+  // Sequential vs monolithic execute_payroll path:
+  //
+  // We originally believed Shield silently dropped monolithic execute_payroll
+  // because of multi-program proof complexity. We may have been wrong — many of
+  // the bugs we found in the sequential path (privateFee: false, Sealance proof
+  // depth 16, decimal field encoding, etc.) were never applied to the monolithic
+  // path before we abandoned it. With those fixes in place, monolithic may now
+  // work and would collapse single-worker payroll to ONE signature.
+  //
+  // Set USE_MONOLITHIC_PAYROLL = true to test monolithic execute_payroll.
+  // Default false → uses the proven sequential 4-step path.
+  const USE_MONOLITHIC_PAYROLL = true;
+
   const isPayrollTransition = transitionName.startsWith("execute_payroll");
 
-  if (isPayrollTransition && requestRecords && workerArgs.length > 0) {
+  if (isPayrollTransition && !USE_MONOLITHIC_PAYROLL && requestRecords && workerArgs.length > 0) {
     console.log("[PNW-PAYROLL] ===== Starting SEQUENTIAL payroll execution =====");
     // Worker context for multi-worker runs: chunk_index is 0-based, so +1 for display.
     // Total workers = total rows in manifest.
@@ -572,6 +582,10 @@ async function executeChunkViaWallet(
       onStepChange,
       workerContext,
     );
+  }
+
+  if (isPayrollTransition && USE_MONOLITHIC_PAYROLL) {
+    console.log("[PNW-PAYROLL] ===== TEST: Monolithic execute_payroll path with corrected formatting =====");
   }
 
   let inputs: string[];
