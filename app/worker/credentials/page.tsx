@@ -42,6 +42,7 @@ export default function WorkerCredentialsPage() {
   // on-chain scan. We also allow manual refresh via a button.
   const credentials = useCredentialStore((s) => s.credentials);
   const addCredential = useCredentialStore((s) => s.addCredential);
+  const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -66,12 +67,20 @@ export default function WorkerCredentialsPage() {
     (c) => address && c.worker_addr === address,
   );
 
-  // Auto-scan on first visit
+  // Auto-scan on first visit AND on a 30s interval so newly-minted
+  // credentials show up without a manual refresh, and status changes
+  // (e.g. pending → active after confirmation, active → revoked after
+  // the employer revokes) propagate automatically.
   useEffect(() => {
-    if (scannedRef.current) return;
     if (!address || !requestRecords) return;
-    scannedRef.current = true;
-    void runScan();
+    if (!scannedRef.current) {
+      scannedRef.current = true;
+      void runScan();
+    }
+    const interval = setInterval(() => {
+      void runScan();
+    }, 30_000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, requestRecords]);
 
@@ -85,12 +94,20 @@ export default function WorkerCredentialsPage() {
         address,
         ENV.ALEO_ENDPOINT,
       );
-      // Deduplicate against any credentials already in the local store
-      // (same credential_id)
-      const existing = new Set(credentials.map((c) => c.credential_id));
+      // Sync the store: add new credentials, update changed statuses.
+      // Use getState() so we read the LATEST store contents each time
+      // (the `credentials` closure captures the first render's snapshot).
+      const storeState = useCredentialStore.getState().credentials;
+      const existingById = new Map(storeState.map((c) => [c.credential_id, c]));
       for (const cred of found) {
-        if (!existing.has(cred.credential_id)) {
+        const existing = existingById.get(cred.credential_id);
+        if (!existing) {
           addCredential(cred);
+        } else if (existing.status !== cred.status) {
+          updateCredentialStatus(cred.credential_id, cred.status);
+          console.log(
+            `[PNW-CRED] Status updated: ${cred.credential_id.slice(0, 14)} ${existing.status} → ${cred.status}`,
+          );
         }
       }
       setLastScanAt(Date.now());

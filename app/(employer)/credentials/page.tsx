@@ -35,6 +35,8 @@ export default function CredentialsPage() {
   const credentials = useCredentialStore((s) => s.credentials);
   const addCredential = useCredentialStore((s) => s.addCredential);
 
+  const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
+
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [lastScanAt, setLastScanAt] = useState<number | null>(null);
@@ -46,15 +48,22 @@ export default function CredentialsPage() {
     rehydrateCredentials();
   }, []);
 
-  // Auto-scan the wallet for CredentialNFT records on first load. The
+  // Auto-scan the wallet for CredentialNFT records on first load AND
+  // on a 30s interval so the list stays fresh as credentials get
+  // broadcast + finalized without requiring a manual refresh. The
   // employer's wallet holds its own copy of every credential it minted
   // via the dual-record design, so the same scanner used by the worker
   // page works here too.
   useEffect(() => {
-    if (scannedRef.current) return;
     if (!address || !requestRecords) return;
-    scannedRef.current = true;
-    void runScan();
+    if (!scannedRef.current) {
+      scannedRef.current = true;
+      void runScan();
+    }
+    const interval = setInterval(() => {
+      void runScan();
+    }, 30_000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, requestRecords]);
 
@@ -68,12 +77,22 @@ export default function CredentialsPage() {
         address,
         ENV.ALEO_ENDPOINT,
       );
-      const existing = new Set(
-        useCredentialStore.getState().credentials.map((c) => c.credential_id),
-      );
+      const storeState = useCredentialStore.getState().credentials;
+      const existingById = new Map(storeState.map((c) => [c.credential_id, c]));
       for (const cred of found) {
-        if (!existing.has(cred.credential_id)) {
+        const existing = existingById.get(cred.credential_id);
+        if (!existing) {
+          // New credential → add to store
           addCredential(cred);
+        } else if (existing.status !== cred.status) {
+          // Known credential whose on-chain status has changed (e.g.
+          // pending → active after confirmation, or active → revoked
+          // after the issuer flipped the public mapping). Sync the
+          // store so the UI reflects the current truth.
+          updateCredentialStatus(cred.credential_id, cred.status);
+          console.log(
+            `[PNW-CRED] Status updated: ${cred.credential_id.slice(0, 14)} ${existing.status} → ${cred.status}`,
+          );
         }
       }
       setLastScanAt(Date.now());
