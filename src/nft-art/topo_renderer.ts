@@ -24,6 +24,8 @@ import type {
 
 export type CredentialCardInfo = {
   workerName: string; // e.g. "pnw_dao.pnw"
+  /** Full worker Aleo address; drawn as a truncated monospace string below the .pnw name */
+  workerAddr?: string;
   credentialTypeLabel: string; // e.g. "CLEARANCE"
   credentialType: CredentialType;
   scope: string; // e.g. "Diamond Security Clearance"
@@ -31,6 +33,12 @@ export type CredentialCardInfo = {
   /** Short display fingerprint (first 8 hex chars of credential_id, "0x..." prefix optional) */
   fingerprint: string;
 };
+
+/** Truncate an Aleo address into the "aleo1abcd…xyz6" shape used on the card */
+function truncateAddr(addr: string | undefined): string | null {
+  if (!addr || addr.length < 14) return null;
+  return `${addr.slice(0, 10)}…${addr.slice(-6)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Card dimensions (locked — matches the plan)
@@ -498,12 +506,23 @@ export function renderTopoCard(
     jitterRng,
   );
 
-  // .pnw name (top-right)
+  // .pnw name (top-right, bold) + truncated Aleo address (smaller, below)
+  const truncatedAddr = truncateAddr(info.workerAddr);
   ctx.fillStyle = params.palette.ink;
   ctx.font = 'bold 20px ui-sans-serif, -apple-system, "Segoe UI", sans-serif';
   ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
-  ctx.fillText(info.workerName, CARD_WIDTH - 16, 34);
+  ctx.textBaseline = "alphabetic";
+  if (truncatedAddr) {
+    // Two-line header: .pnw name on top, address below
+    ctx.fillText(info.workerName, CARD_WIDTH - 16, 28);
+    ctx.fillStyle = params.palette.inkDim;
+    ctx.font = '11px ui-monospace, "SF Mono", Menlo, monospace';
+    ctx.fillText(truncatedAddr, CARD_WIDTH - 16, 46);
+  } else {
+    // Fallback: just the .pnw name centered vertically in the header strip
+    ctx.textBaseline = "middle";
+    ctx.fillText(info.workerName, CARD_WIDTH - 16, 34);
+  }
   ctx.restore();
 
   // Header rule

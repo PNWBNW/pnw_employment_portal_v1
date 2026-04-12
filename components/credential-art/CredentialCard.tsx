@@ -32,6 +32,11 @@ import {
 
 type BaseProps = {
   workerName: string; // e.g. "pnw_dao.pnw"
+  /** Full Aleo address of the worker — rendered as a truncated monospace
+   *  string under the .pnw name in the header strip. Optional; when the
+   *  card is rendered from a full CredentialRecord, this defaults to
+   *  `credential.worker_addr`. */
+  workerAddr?: string;
   width?: number;
   height?: number;
   className?: string;
@@ -120,6 +125,9 @@ export const CredentialCard = forwardRef<CredentialCardHandle, CredentialCardPro
         );
         info = {
           workerName: props.workerName,
+          // Default to the credential's on-chain worker_addr if the caller
+          // didn't override workerAddr explicitly
+          workerAddr: props.workerAddr ?? credential.worker_addr,
           credentialType: credential.credential_type,
           credentialTypeLabel:
             credential.credential_type_label ||
@@ -132,6 +140,7 @@ export const CredentialCard = forwardRef<CredentialCardHandle, CredentialCardPro
         params = deriveTerrainParams(props.seed, props.credentialType);
         info = {
           workerName: props.workerName,
+          workerAddr: props.workerAddr,
           credentialType: props.credentialType,
           credentialTypeLabel: CREDENTIAL_TYPE_LABELS[props.credentialType],
           scope: props.scope,
