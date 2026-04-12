@@ -41,155 +41,77 @@ dashboard integration) landed as-written.
 
 ---
 
-## Uniqueness & Anti-Collision — how the terrain is unique per worker
+## Visual Uniqueness — the guarantees we make
 
-This is the guarantee the whole art system rests on: **every credential
-gets a mathematically unique mountain shape, anchored to the worker's
-`.pnw` identity.** Here's exactly how.
+The art system rests on one guarantee: **every credential has a
+mathematically unique visual fingerprint, anchored to the worker's
+`.pnw` identity.** The specific derivation logic — how we turn an
+identity hash into a mountain shape — is intentionally not documented
+here.
 
-### The hash chain
+### What the guarantee is
 
-```
-alice's .pnw name ("alice.pnw")
-        │
-        ▼
-BLAKE3(domain="PNW::NAME", "alice.pnw") → worker_name_hash   ← 32 bytes
-        │
-        ▼ (set once at onboarding — immutable for the lifetime of the name)
-        │
-At credential issue time:
-┌──────────────────────────────────────────────────────────┐
-│ credential_id = BLAKE3(                                  │
-│     domain="PNW::DOC",                                   │
-│     TLV([                                                │
-│         tag=0x01  employer_addr                          │
-│         tag=0x02  worker_name_hash   ← IDENTITY BINDING  │
-│         tag=0x03  worker_addr                            │
-│         tag=0x04  scope                                  │
-│         tag=0x05  issue_time         ← uniqueness per mint│
-│     ])                                                   │
-│ )                                                        │
-│                                                          │
-│ → 32 raw bytes ∈ [0, 255]^32                             │
-└──────────────────────────────────────────────────────────┘
-        │
-        ▼
-deriveTerrainParams(credential_id, credential_type)
-        │
-        ├── bytes[0..7]  → heightmap noise seed  (FNV-1a → mulberry32 PRNG)
-        ├── bytes[9]     → contour ring count    (6-12)
-        ├── bytes[10,11] → ridge center (x, y)   (normalized [0.3, 0.7])
-        ├── bytes[12]    → slice axis offset     (±0.04 from ridge y)
-        ├── bytes[13]    → profile exaggeration  (0.8-1.3)
-        ├── bytes[14]    → hatch density         (20-40)
-        ├── bytes[15]    → hatch angle jitter    (0-0.08 rad)
-        └── bytes[16..23]→ stroke jitter PRNG seed
-        │
-        ▼
-buildHeightmap(params)
-  → Three octaves of value noise at (3×4, 6×8, 12×16) grids,
-     all seeded by bytes[0..7]
-  → Bilinearly interpolated onto a 40×60 sample grid
-  → Biased toward ridgeCenter so the peak is an actual mountain
-     instead of a flat noisy field
-        │
-        ▼
-marchingSquares at 6-12 thresholds → contour line segments → canvas
-```
+- **Identity binding.** The visual is a deterministic function of the
+  credential's on-chain hash. That hash in turn incorporates the
+  worker's `.pnw` name identity as a first-class input, so the art is
+  bound to *who the credential is for*, not just to the wallet address
+  that happens to hold it at any moment.
+- **Per-credential uniqueness.** Two credentials issued to the same
+  worker look visibly distinct. They share only the color family that
+  corresponds to the credential type; their terrain shapes are
+  unrelated.
+- **Cross-worker uniqueness for the same type.** Two different workers
+  holding credentials of the same type render in the same color family
+  but with completely different terrain shapes.
 
-### Why this produces uncorrelated shapes across workers
+### Why we're confident the uniqueness holds
 
-BLAKE3 has an **avalanche property**: flipping a single bit of input
-produces a completely different 32-byte output (~50% of the output bits
-change on average). Because the BLAKE3 output feeds directly into the
-heightmap noise seed, two workers with different `worker_name_hash`
-values get two completely uncorrelated noise seeds — not "similar with
-small differences", **mathematically uncorrelated**, which is BLAKE3's
-entire job.
+The seed behind the visual is a 32-byte BLAKE3 output. BLAKE3 is a
+modern cryptographic hash with an avalanche property (flipping a single
+input bit changes roughly half the output bits), so any change at all
+in the credential's inputs — a different `.pnw` name, a different
+wallet, a different scope, a different mint timestamp — produces a
+completely different hash, not a near-neighbor.
 
-Concretely, any one of these makes `credential_id` (and therefore the
-terrain) completely different:
+From there, the visual generator is a deterministic pure function of
+that hash. Same hash → same image, pixel-for-pixel. Different hash →
+uncorrelated image.
 
-| Workers differ by | Hash result |
-|---|---|
-| Any bit of the `.pnw` name | Completely different `credential_id` |
-| Any bit of the wallet address | Completely different `credential_id` |
-| Any bit of the scope string | Completely different `credential_id` |
-| One second of issue time | Completely different `credential_id` |
+The BLAKE3 output space is 2<sup>256</sup>. Accidental collisions
+between two independently generated credentials are not a practical
+concern.
 
-### Worked example
+### Color palette resolution
 
-Two workers, same employer, same scope `"Full-time WA"`, same moment
-in time:
+Credential type determines the palette. Four types, four palettes:
+`employment_verified`, `skills`, `clearance`, `custom`. Type → palette
+is a fixed client-side table in the portal.
 
-```
-alice.pnw   worker_name_hash = 0x7a3f4b2c8e91...
-  → credential_id = BLAKE3(... alice's name_hash ...)
-  → credential_id ≈ 0x5b2e9f7a8c1d4e32...
-  → bytes[0..7] = 0x5b2e9f7a8c1d4e32
-  → noise seed via FNV-1a → mulberry32 → unique random grid
-  → heightmap: peak at (62%, 44%), 8 contour rings, moderate stroke wobble
-  → alice's mountain: asymmetric northwest-leaning peak
+Because the on-chain record holds only a hash of the scope (not
+plaintext), the worker-side scanner needs some way to know which
+palette to pick. Rather than relying on a sidecar lookup or plaintext
+gossip, we piggy-back a small type hint onto an otherwise-reserved
+field in the on-chain `CredentialNFT` record. The portal reads it
+back during the scan. This means:
 
-bob.pnw     worker_name_hash = 0x9c1e6d5b2a47...
-  → credential_id = BLAKE3(... bob's name_hash ...)
-  → credential_id ≈ 0xe7b1c84f92a3d016...
-  → bytes[0..7] = 0xe7b1c84f92a3d016
-  → different FNV seed → different mulberry32 → different random grid
-  → heightmap: peak at (45%, 58%), 11 contour rings, subtle stroke wobble
-  → bob's mountain: twin-peak ridge with steep southeast slope
-```
+- The palette is recoverable from on-chain data alone
+- No sidecar database is required
+- No plaintext scope ever needs to leave the issuer's browser
 
-Zero overlap in terrain shape.
+The exact encoding lives in the source code — `credential_actions.ts`
+on the mint side and `credential_scanner.ts` on the read side — and
+is not documented here.
 
-### What stays the same across a worker's own credentials
+### What stays proprietary
 
-Only the **color palette**, if the credential type matches. Two
-`clearance` credentials for `alice.pnw` both render in parchment/white.
-Two `skills` credentials for `alice.pnw` both render in gold. **But the
-mountain shapes are completely different** because `issue_time` changes
-between mints, which flips `credential_id`, which flips the noise seed,
-which flips the entire terrain.
-
-### What's constant across different workers for the same credential type
-
-Only the **color palette** (type → palette is a fixed table). Cyan for
-all `employment_verified` regardless of worker. Gold for all `skills`.
-Parchment for all `clearance`. Forest green for all `custom`. The
-type → palette mapping lives in `BLUEPRINT_PALETTES` in
-`hash_params.ts`.
-
-### Anti-collision in practice
-
-BLAKE3's output space is 2<sup>256</sup>. For two credentials to
-accidentally produce the same terrain:
-
-1. The first 8 bytes of their `credential_id`s would need to collide
-   (2<sup>64</sup> brute-force takes centuries of compute)
-2. And bytes 9-23 (contours, ridge, slice, jitter seed) would **also**
-   need to match — effectively 2<sup>192</sup> additional work
-
-Probability is negligible. "Every credential has a unique visual
-fingerprint" is a hard guarantee, not a statistical hope.
-
-### Palette resolution on the worker side
-
-Credential type is not plaintext on-chain (only `scope_hash` is), so the
-worker-side scanner would have no way to pick the right palette from
-pure chain data. Fix: encode `credential_type_code` into the first byte
-of the existing `root` field at mint time, and read it back in the
-scanner.
-
-```
-root[0]     = 0x01 employment_verified  → cyan
-              0x02 skills                → gold
-              0x03 clearance             → parchment
-              0x63 custom                → forest green
-root[1..31] = 0x00...  (reserved for a real attestation Merkle root later)
-```
-
-Pre-fix credentials have `root = 0x00...` so they fall back to
-`"custom"` / green. New mints get the correct palette.
+The exact byte-to-parameter mapping, the PRNG implementation, the
+specific terrain-generation algorithm, the worked-example hash values,
+and the noise-grid dimensions are all client-side implementation
+details. They are not part of any public API or contract, and are not
+documented in this plan. Anyone curious about the exact derivation
+can read the code — but we don't publish it in the plan so that the
+visual system remains a creative artifact that has to be
+re-implemented from scratch by anyone who wants to reproduce it.
 
 ---
 
