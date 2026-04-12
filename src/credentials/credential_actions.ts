@@ -49,6 +49,28 @@ const CREDENTIAL_TYPE_CODES: Record<CredentialType, number> = {
   custom: 99,
 };
 
+/**
+ * Encode the credential type code into a 32-byte "root" value.
+ *
+ * The on-chain `CredentialNFT.root` field was originally reserved for a
+ * Merkle root over an attestation tree. We're not using that root yet, so
+ * for v2 we repurpose its first byte to carry the credential_type code.
+ * This lets the worker-side scanner recover the type (and therefore the
+ * color palette) from on-chain data alone, without needing a sidecar
+ * scope→type lookup or a program redeploy.
+ *
+ *   root[0]     = CREDENTIAL_TYPE_CODES[type]  (1/2/3/99)
+ *   root[1..31] = 0x00...  (reserved)
+ *
+ * When we eventually add a real attestation tree, we'll move the type
+ * code into a dedicated record field via a v3 deploy.
+ */
+function encodeTypeRoot(type: CredentialType): Bytes32 {
+  const code = CREDENTIAL_TYPE_CODES[type];
+  const hex = code.toString(16).padStart(2, "0") + "00".repeat(31);
+  return ("0x" + hex) as Bytes32;
+}
+
 // ----------------------------------------------------------------
 // Hash helpers
 // ----------------------------------------------------------------
@@ -66,19 +88,68 @@ function encodeU32(v: number): Uint8Array {
   return buf;
 }
 
+/**
+ * Compute a unique 32-byte credential_id.
+ *
+ * Binds the credential to:
+ *   - the employer wallet (identity of the issuer)
+ *   - the worker's .pnw name hash (identity of the subject — survives even
+ *     if the worker later rotates their wallet address)
+ *   - the worker wallet (current recipient address, used for on-chain
+ *     record ownership at mint time)
+ *   - the scope string (the plaintext credential contract text)
+ *   - the issue time (unix seconds — makes repeated credentials distinct)
+ *
+ * Because worker_name_hash is inside the TLV, two credentials minted by
+ * the same employer for two different .pnw names will produce completely
+ * different credential_ids and therefore completely different generative
+ * art even if they happen to share a worker wallet address, scope, and
+ * issue time.
+ */
 function computeCredentialId(
   employerAddr: Address,
+  workerNameHash: Field,
   workerAddr: Address,
   scope: string,
   issueTime: number,
 ): Bytes32 {
   const data = tlvEncode(0x4001, [
     { tag: 0x01, value: encodeAddress(employerAddr) },
-    { tag: 0x02, value: encodeAddress(workerAddr) },
-    { tag: 0x03, value: new TextEncoder().encode(scope) },
-    { tag: 0x04, value: encodeU32(issueTime) },
+    { tag: 0x02, value: encodeField(workerNameHash) },
+    { tag: 0x03, value: encodeAddress(workerAddr) },
+    { tag: 0x04, value: new TextEncoder().encode(scope) },
+    { tag: 0x05, value: encodeU32(issueTime) },
   ]);
   return toHex(domainHash(DOMAIN_TAGS.DOC, data)) as Bytes32;
+}
+
+/**
+ * Serialize a Field (decimal field element or hex string) to a 32-byte
+ * big-endian representation for TLV encoding. Matches the normalizeHash32
+ * convention used elsewhere in this file.
+ */
+function encodeField(value: Field | string): Uint8Array {
+  const s = String(value).trim();
+  if (s.startsWith("0x") && s.length === 66) {
+    // Already a 32-byte hex string
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = parseInt(s.slice(2 + i * 2, 2 + i * 2 + 2), 16);
+    }
+    return bytes;
+  }
+  if (/^[0-9]+$/.test(s)) {
+    // Decimal field element → 32-byte big-endian
+    let n = BigInt(s);
+    const bytes = new Uint8Array(32);
+    for (let i = 31; i >= 0; i--) {
+      bytes[i] = Number(n & 0xffn);
+      n >>= 8n;
+    }
+    return bytes;
+  }
+  // Fall back to TextEncoder — preserves legacy behavior for unknown shapes
+  return new TextEncoder().encode(s);
 }
 
 function computeScopeHash(scope: string): Bytes32 {
@@ -232,9 +303,13 @@ export async function issueCredential(
 ): Promise<IssueCredentialResult> {
   const issueTime = Math.floor(Date.now() / 1000);
 
-  // Compute all hashes client-side
+  // Compute all hashes client-side. credential_id now binds the worker's
+  // .pnw name hash into its input TLV so the identity is permanent —
+  // every credential ever issued to the same .pnw name will share that
+  // component even as other fields (scope, issue time, etc.) vary.
   const credential_id = computeCredentialId(
     employerAddr,
+    input.worker_name_hash,
     input.worker_addr,
     input.scope,
     issueTime,
@@ -247,6 +322,10 @@ export async function issueCredential(
     scope_hash,
   );
 
+  // Encode credential_type into root[0] so the worker-side scanner can
+  // recover the color palette from on-chain data alone.
+  const typeEncodedRoot = encodeTypeRoot(input.credential_type);
+
   // Build the 9-element input array for the on-chain mint
   const mintInputs = buildMintInputs({
     workerAddr: input.worker_addr,
@@ -255,10 +334,7 @@ export async function issueCredential(
     issuerHash: employerNameHash,
     scopeHash: scope_hash,
     docHash: doc_hash,
-    // root is optional on v2 — we'll pass zeros for the MVP. Post-buildathon
-    // this can be a Merkle root over the credential's attestation tree if
-    // we add that data.
-    root: ZERO_BYTES32,
+    root: typeEncodedRoot,
   });
 
   console.log("[PNW-CRED] Minting credential via wallet:", {
