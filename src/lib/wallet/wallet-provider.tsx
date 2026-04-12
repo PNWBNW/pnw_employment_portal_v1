@@ -174,7 +174,13 @@ export function AleoWalletProviderWrapper({
         "payroll_nfts.aleo",
         // New v2 (imports employer_agreement_v4 instead of v2)
         "payroll_nfts_v2.aleo",
+        // Legacy v1 credential NFT (still listed for read compatibility
+        // with credentials minted before the v2 cutover)
         "credential_nft.aleo",
+        // New v2 credential NFT — dual-record mint so worker wallets see
+        // credentials issued to them. This is the one the current portal
+        // calls for all new mints, revokes, and scans.
+        "credential_nft_v2.aleo",
         "audit_nft.aleo",
       ]}
       onError={(error) => console.error("[Wallet]", error.message)}

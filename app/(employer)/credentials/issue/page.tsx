@@ -13,6 +13,8 @@ import {
 import { issueCredential } from "@/src/credentials/credential_actions";
 import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
 
 const CREDENTIAL_TYPES = Object.entries(CREDENTIAL_TYPE_LABELS) as [
   CredentialType,
@@ -29,6 +31,7 @@ export default function IssueCredentialPage() {
   const issueError = useCredentialStore((s) => s.issueError);
   const setIssueError = useCredentialStore((s) => s.setIssueError);
   const { canSign, signForCredential } = useWalletSigner();
+  const { executeTransaction } = useWallet();
 
   const activeWorkers = workers.filter((w) => w.status === "active");
 
@@ -59,6 +62,10 @@ export default function IssueCredentialPage() {
       setIssueError("No active session. Please connect your wallet.");
       return;
     }
+    if (!executeTransaction) {
+      setIssueError("Wallet not connected. Connect a wallet first.");
+      return;
+    }
 
     setIssuing(true);
     try {
@@ -69,7 +76,26 @@ export default function IssueCredentialPage() {
         domainHash(DOMAIN_TAGS.NAME, new TextEncoder().encode(employerAddr)),
       );
 
-      const { credential, command_preview } = await issueCredential(
+      // Wrap the wallet adapter's executeTransaction so it passes
+      // `privateFee: false` — same pattern as the settlement coordinator.
+      // Without this Shield silently drops proof generation.
+      const walletExecute: WalletExecuteFn = async (params) => {
+        const result = await executeTransaction({
+          program: params.program,
+          function: params.function,
+          inputs: params.inputs,
+          fee: params.fee,
+          privateFee: false,
+        });
+        const txId = typeof result === "string"
+          ? result
+          : (result as Record<string, unknown>)?.transactionId as string
+            ?? (result as Record<string, unknown>)?.id as string
+            ?? String(result);
+        return txId;
+      };
+
+      const { credential, tx_id } = await issueCredential(
         {
           worker_addr: selectedWorker.worker_addr,
           worker_name_hash: selectedWorker.worker_name_hash,
@@ -80,9 +106,11 @@ export default function IssueCredentialPage() {
         employerAddr,
         employerNameHash,
         currentEpoch,
+        walletExecute,
       );
 
-      // If wallet signing is available, get a signature proof
+      // If wallet signing is available, get an off-chain signature proof
+      // (stored alongside the credential for the PDF cert's integrity band)
       if (canSign) {
         try {
           const proof = await signForCredential(credential.credential_id);
@@ -90,19 +118,20 @@ export default function IssueCredentialPage() {
           setSignatureProof(proof.signature);
         } catch {
           // Wallet signing is optional — continue without it
-          // User may have rejected the signing prompt
         }
       }
 
       addCredential(credential);
-      setCommandPreview(command_preview);
+      setCommandPreview(
+        `Mint tx broadcast: ${tx_id}\nCredential ID: ${credential.credential_id}`,
+      );
 
-      // Navigate to detail page after a short delay so user sees the command
+      // Navigate to detail page after a short delay so user sees the tx id
       setTimeout(() => {
         router.push(
           `/credentials/${encodeURIComponent(credential.credential_id)}`,
         );
-      }, 2000);
+      }, 2500);
     } catch (err) {
       setIssueError(
         err instanceof Error ? err.message : "Failed to issue credential.",

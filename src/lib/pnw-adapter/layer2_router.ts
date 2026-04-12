@@ -26,13 +26,34 @@ export type CycleNftParams = {
   total_gross: Field;
 };
 
-/** Parameters for minting a credential NFT. */
+/**
+ * Parameters for minting a credential NFT (credential_nft_v2.aleo).
+ *
+ * Matches the on-chain signature:
+ *   mint_credential_nft(
+ *     worker_addr, credential_id, subject_hash, issuer_hash,
+ *     scope_hash, doc_hash, root, schema_v, policy_v
+ *   )
+ *
+ * The transition emits TWO CredentialNFT records from this single call:
+ * one owned by the caller (employer, authoritative) and one owned by
+ * `worker_addr` (visible in the worker's wallet on scan).
+ */
 export type CredentialNftParams = {
   worker_addr: Address;
-  employer_addr: Address;
-  credential_type: U32;
-  credential_hash: Bytes32;
-  issued_at: U32;
+  credential_id: Bytes32;
+  subject_hash: Bytes32;   // BLAKE3(worker name)
+  issuer_hash: Bytes32;    // BLAKE3(employer name)
+  scope_hash: Bytes32;
+  doc_hash: Bytes32;
+  root: Bytes32;
+  schema_v: U32;
+  policy_v: U32;
+};
+
+/** Parameters for revoking a credential via the public issuer path. */
+export type RevokeCredentialByIssuerParams = {
+  credential_id: Bytes32;
 };
 
 /** Parameters for authorizing an audit. */
@@ -47,7 +68,11 @@ export type AuditAuthParams = {
 /** Build a Layer 2 call plan for the given transition and parameters. */
 export function buildLayer2CallPlan(
   _transition: Layer2Transition,
-  _params: CycleNftParams | CredentialNftParams | AuditAuthParams,
+  _params:
+    | CycleNftParams
+    | CredentialNftParams
+    | RevokeCredentialByIssuerParams
+    | AuditAuthParams,
 ): Layer2CallPlan {
   // Stub: actual implementation synced from pnw_mvp_v2
   throw new Error("Layer 2 router not yet connected. Sync from pnw_mvp_v2.");

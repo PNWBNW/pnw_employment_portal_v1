@@ -16,6 +16,9 @@ import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
 import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
 import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { useState } from "react";
+import { useCredentialStore } from "@/src/stores/credential_store";
+import { useWorkerIdentityStore } from "@/src/stores/worker_identity_store";
+import { CredentialCard } from "@/components/credential-art/CredentialCard";
 
 function truncate(s: string, len = 16): string {
   return s.length <= len ? s : `${s.slice(0, len)}...`;
@@ -47,6 +50,23 @@ export default function WorkerDashboardPage() {
   // Offer stats
   const pendingOffers = receivedOffers.filter((o) => o.status === "sent");
   const activeAgreements = receivedOffers.filter((o) => o.status === "accepted" || o.status === "active");
+
+  // Credentials issued to this worker (populated by the worker credentials
+  // page scanner on first visit; shows up here too once scanned).
+  const allCredentials = useCredentialStore((s) => s.credentials);
+  const chosenName = useWorkerIdentityStore((s) => s.chosenName);
+  const myCredentials = address
+    ? allCredentials.filter((c) => c.worker_addr === address)
+    : [];
+  const recentCredentials = myCredentials.slice(0, 3);
+  const workerDisplayName =
+    chosenName && chosenName.length > 0
+      ? chosenName.endsWith(".pnw")
+        ? chosenName
+        : `${chosenName}.pnw`
+      : address
+        ? `${address.slice(0, 10)}…${address.slice(-6)}`
+        : "worker.pnw";
 
   async function handleApproveAudit(req: AuditRequest) {
     setSigning(req.auth_id);
@@ -99,7 +119,7 @@ export default function WorkerDashboardPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-2xl font-bold text-foreground">{pendingOffers.length}</p>
           <p className="text-xs text-muted-foreground">Pending Offers</p>
@@ -109,10 +129,52 @@ export default function WorkerDashboardPage() {
           <p className="text-xs text-muted-foreground">Active Agreements</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-2xl font-bold text-foreground">{myCredentials.length}</p>
+          <p className="text-xs text-muted-foreground">Credentials</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-2xl font-bold text-foreground">{pendingAuditRequests.length}</p>
           <p className="text-xs text-muted-foreground">Pending Audit Requests</p>
         </div>
       </div>
+
+      {/* Recent credentials strip */}
+      {recentCredentials.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Recent Credentials ({myCredentials.length})
+            </h2>
+            <Link
+              href="/worker/credentials"
+              className="text-xs text-primary hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {recentCredentials.map((cred) => (
+              <Link
+                key={cred.credential_id}
+                href="/worker/credentials"
+                className="group block"
+              >
+                <div className="rounded-lg border border-border bg-card p-2 shadow-sm transition-transform group-hover:scale-[1.02]">
+                  <CredentialCard
+                    credential={cred}
+                    workerName={workerDisplayName}
+                    width={200}
+                    height={300}
+                  />
+                </div>
+                <p className="mt-1 text-center text-[11px] text-muted-foreground group-hover:text-foreground">
+                  {cred.credential_type_label}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pending offers */}
       {pendingOffers.length > 0 && (
@@ -305,11 +367,12 @@ export default function WorkerDashboardPage() {
       {/* Empty state */}
       {pendingOffers.length === 0 &&
         pendingAuditRequests.length === 0 &&
-        completedAuditRequests.length === 0 && (
+        completedAuditRequests.length === 0 &&
+        myCredentials.length === 0 && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              No activity yet. When employers send you offers or audit requests,
-              they will appear here.
+              No activity yet. When employers send you offers, issue credentials,
+              or request audit authorizations, they will appear here.
             </p>
           </div>
         )}

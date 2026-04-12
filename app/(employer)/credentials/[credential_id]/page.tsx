@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useCredentialStore } from "@/src/stores/credential_store";
 import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
 import { generateCredentialCertPdf } from "@/components/pdf/CredentialCertPDF";
-import { buildRevokeCommand } from "@/src/credentials/credential_actions";
+import { revokeCredentialByIssuer } from "@/src/credentials/credential_actions";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
 
 function truncate(s: string, len = 20): string {
   if (s.length <= len) return s;
@@ -31,6 +33,7 @@ export default function CredentialDetailPage({
 
   const credentials = useCredentialStore((s) => s.credentials);
   const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
+  const { executeTransaction } = useWallet();
 
   const cred = credentials.find((c) => c.credential_id === decodedId);
 
@@ -59,18 +62,40 @@ export default function CredentialDetailPage({
 
   async function handleRevoke() {
     if (!cred) return;
+    if (!executeTransaction) {
+      setRevokeError("Wallet not connected. Connect a wallet first.");
+      return;
+    }
     setRevoking(true);
     setRevokeError(null);
 
     try {
-      // Build command preview (on-chain call stubbed pending pnw_mvp_v2 sync)
-      const cmd = buildRevokeCommand(cred);
-      setRevokeCommand(cmd);
+      // Wrap wallet executeTransaction with privateFee: false (Shield quirk)
+      const walletExecute: WalletExecuteFn = async (params) => {
+        const result = await executeTransaction({
+          program: params.program,
+          function: params.function,
+          inputs: params.inputs,
+          fee: params.fee,
+          privateFee: false,
+        });
+        const txId = typeof result === "string"
+          ? result
+          : (result as Record<string, unknown>)?.transactionId as string
+            ?? (result as Record<string, unknown>)?.id as string
+            ?? String(result);
+        return txId;
+      };
 
-      // Update local state to revoked
-      // In production: wait for tx confirmation, set revoke_tx_id to actual tx
-      const mockRevokeTxId = `revoke_pending_${cred.credential_id.slice(0, 12)}`;
-      updateCredentialStatus(cred.credential_id, "revoked", mockRevokeTxId);
+      // Call credential_nft_v2::revoke_by_issuer(credential_id)
+      // This flips the public credential_status mapping to REVOKED without
+      // consuming either record copy. Both wallets (employer + worker) keep
+      // their CredentialNFT record but the portal renders them as revoked
+      // when the scanner reads the public status.
+      const { tx_id } = await revokeCredentialByIssuer(cred, walletExecute);
+
+      setRevokeCommand(`revoke_by_issuer broadcast: ${tx_id}`);
+      updateCredentialStatus(cred.credential_id, "revoked", tx_id);
       setConfirmRevoke(false);
     } catch (err) {
       setRevokeError(
