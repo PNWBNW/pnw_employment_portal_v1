@@ -239,3 +239,117 @@ export async function checkAgreementStatus(
 ): Promise<AgreementStatus | null> {
   return queryAgreementStatusInternal(agreementId);
 }
+
+// ---------------------------------------------------------------------------
+// Credential auth material lookup
+// ---------------------------------------------------------------------------
+
+/**
+ * Authorization material extracted from an employer's FinalAgreement
+ * record, passed to credential_nft_v3::mint_credential_nft to prove
+ * the caller is authorized to issue credentials for a specific worker.
+ */
+export type CredentialAuthMaterial = {
+  agreement_id: Bytes32;        // hex, "0x..." prefixed
+  parties_key: Bytes32;         // hex, "0x..." prefixed
+  employer_name_hash: string;   // decimal field element
+  worker_name_hash: string;     // decimal field element
+};
+
+/**
+ * Scan the connected employer's wallet for a FinalAgreement record
+ * whose `worker_address` matches the given worker, and return the
+ * four credential_nft_v3 authorization fields.
+ *
+ * Returns null if no matching active agreement is found.
+ *
+ * @param requestRecords - Wallet adapter's requestRecords function
+ * @param employerAddress - Connected employer wallet
+ * @param targetWorkerAddress - Worker the credential is being issued to
+ */
+export async function fetchCredentialAuthForWorker(
+  requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>,
+  employerAddress: Address,
+  targetWorkerAddress: Address,
+): Promise<CredentialAuthMaterial | null> {
+  try {
+    const records = await requestRecords(
+      PROGRAMS.layer1.employer_agreement,
+      true,
+    );
+    if (!Array.isArray(records)) return null;
+
+    for (const raw of records) {
+      const rec = raw as Record<string, unknown>;
+      const plaintext =
+        typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : null;
+      const recordName =
+        typeof rec.recordName === "string" ? rec.recordName : null;
+      const spent = typeof rec.spent === "boolean" ? rec.spent : false;
+
+      if (!plaintext) continue;
+      if (spent) continue;
+      // Only accept FinalAgreement records for issuing credentials —
+      // PendingAgreement is pre-acceptance and not authorized.
+      if (recordName !== "FinalAgreement") continue;
+
+      // Match this record to the target worker
+      const workerAddrMatch = plaintext.match(
+        /worker_address:\s*(aleo1[a-z0-9]+)/,
+      );
+      if (!workerAddrMatch?.[1]) continue;
+      if (workerAddrMatch[1] !== targetWorkerAddress) continue;
+
+      // Confirm the record is owned by the expected employer
+      const empAddrMatch = plaintext.match(
+        /employer_address:\s*(aleo1[a-z0-9]+)/,
+      );
+      if (!empAddrMatch?.[1] || empAddrMatch[1] !== employerAddress) continue;
+
+      // Extract agreement_id as hex
+      const agreementIdHex = extractByteArrayHex(plaintext, "agreement_id");
+      const partiesKeyHex = extractByteArrayHex(plaintext, "parties_key");
+      if (!agreementIdHex || !partiesKeyHex) continue;
+
+      // Extract the two name hashes (decimal field elements)
+      const empHashMatch = plaintext.match(
+        /employer_name_hash:\s*(\d+)field/,
+      );
+      const wrkHashMatch = plaintext.match(
+        /worker_name_hash:\s*(\d+)field/,
+      );
+      if (!empHashMatch?.[1] || !wrkHashMatch?.[1]) continue;
+
+      return {
+        agreement_id: ("0x" + agreementIdHex) as Bytes32,
+        parties_key: ("0x" + partiesKeyHex) as Bytes32,
+        employer_name_hash: empHashMatch[1],
+        worker_name_hash: wrkHashMatch[1],
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("[PNW] fetchCredentialAuthForWorker failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Helper — pull a `[u8; 32]` array field out of a record plaintext
+ * and return it as a 64-char hex string (no prefix).
+ */
+function extractByteArrayHex(
+  plaintext: string,
+  fieldName: string,
+): string | null {
+  const section = plaintext.match(
+    new RegExp(`${fieldName}:\\s*\\[([\\s\\S]*?)\\]`),
+  );
+  if (!section?.[1]) return null;
+  const byteMatches = section[1].match(/(\d+)u8/g);
+  if (!byteMatches || byteMatches.length === 0) return null;
+  return byteMatches
+    .map((m) => parseInt(m).toString(16).padStart(2, "0"))
+    .join("");
+}

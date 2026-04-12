@@ -237,24 +237,43 @@ function normalizeHash32(value: string): Bytes32 {
 }
 
 // ----------------------------------------------------------------
-// Mint inputs — 9 params for credential_nft_v2::mint_credential_nft
+// Mint inputs — 13 params for credential_nft_v3::mint_credential_nft
 // ----------------------------------------------------------------
 
 /**
- * Build the 9-element input array for credential_nft_v2::mint_credential_nft:
+ * Build the 13-element input array for credential_nft_v3::mint_credential_nft:
  *
- *   r0: worker_addr address
- *   r1: credential_id [u8;32]
- *   r2: subject_hash  [u8;32]  (worker name hash)
- *   r3: issuer_hash   [u8;32]  (employer name hash)
- *   r4: scope_hash    [u8;32]
- *   r5: doc_hash      [u8;32]
- *   r6: root          [u8;32]
- *   r7: schema_v      u16
- *   r8: policy_v      u16
+ *   Authorization (prove the caller is the employer of an active
+ *   FinalAgreement for this worker):
+ *     r0: agreement_id       [u8;32]  (from the employer's FinalAgreement)
+ *     r1: parties_key        [u8;32]  (private field from the same record)
+ *     r2: employer_name_hash field
+ *     r3: worker_name_hash   field
+ *
+ *   Credential target:
+ *     r4: worker_addr        address
+ *
+ *   Credential content:
+ *     r5: credential_id      [u8;32]
+ *     r6: subject_hash       [u8;32]
+ *     r7: issuer_hash        [u8;32]
+ *     r8: scope_hash         [u8;32]
+ *     r9: doc_hash           [u8;32]
+ *     r10: root              [u8;32]
+ *     r11: schema_v          u16
+ *     r12: policy_v          u16
  */
 export function buildMintInputs(args: {
+  // Authorization — pulled from the employer's FinalAgreement record
+  agreementId: Bytes32;
+  partiesKey: Bytes32;
+  employerNameHash: Field;
+  workerNameHash: Field;
+
+  // Credential target
   workerAddr: Address;
+
+  // Credential content
   credentialId: Bytes32;
   subjectHash: Field;
   issuerHash: Field;
@@ -265,7 +284,17 @@ export function buildMintInputs(args: {
   policyV?: number;
 }): string[] {
   return [
-    args.workerAddr, // address — use raw aleo1... string
+    // Authorization
+    hexToU8Array32(args.agreementId),
+    hexToU8Array32(args.partiesKey),
+    // Field literals use `<decimal>field` suffix
+    `${fieldToDecimal(args.employerNameHash)}field`,
+    `${fieldToDecimal(args.workerNameHash)}field`,
+
+    // Credential target
+    args.workerAddr, // raw aleo1... string
+
+    // Credential content
     hexToU8Array32(args.credentialId),
     hexToU8Array32(normalizeHash32(args.subjectHash)),
     hexToU8Array32(normalizeHash32(args.issuerHash)),
@@ -275,6 +304,25 @@ export function buildMintInputs(args: {
     `${args.schemaV ?? VERSIONS.schema_v}u16`,
     `${args.policyV ?? VERSIONS.policy_v}u16`,
   ];
+}
+
+/**
+ * Normalize a field value (either a decimal string or a hex string)
+ * to its decimal string form so it can be serialized as `Nfield` in
+ * the Aleo input literal.
+ */
+function fieldToDecimal(value: Field | string): string {
+  const s = String(value).trim();
+  if (/^[0-9]+$/.test(s)) return s;
+  if (s.startsWith("0x")) {
+    // hex → bigint → decimal
+    return BigInt(s).toString();
+  }
+  if (/^[0-9a-fA-F]{64}$/.test(s)) {
+    return BigInt("0x" + s).toString();
+  }
+  // Fall back to zero
+  return "0";
 }
 
 // ----------------------------------------------------------------
@@ -287,18 +335,40 @@ export type IssueCredentialResult = {
 };
 
 /**
+ * The authorization material the portal extracts from the employer's
+ * FinalAgreement record for the target worker. These four values are
+ * consumed by the on-chain `employer_agreement_v4::assert_employer_authorized`
+ * cross-program call during the mint.
+ *
+ * Typically pulled from a `FinalAgreement` record via the wallet's
+ * `requestRecords` on the issue page — see
+ * `app/(employer)/credentials/issue/page.tsx`.
+ */
+export type CredentialAuthInput = {
+  agreement_id: Bytes32;
+  parties_key: Bytes32;
+  employer_name_hash: Field;
+  worker_name_hash: Field;
+};
+
+/**
  * Build a CredentialRecord + submit the mint via the connected wallet.
  *
  * The `walletExecute` parameter is expected to already include
  * `privateFee: false` in its closure (same pattern used by the
  * settlement coordinator) — Shield wallet silently drops proof gen
  * without it.
+ *
+ * The `auth` parameter carries the four authorization fields the v3
+ * contract requires. If they don't match an active agreement, the
+ * on-chain mint reverts and the tx is rejected.
  */
 export async function issueCredential(
   input: CredentialIssueInput,
   employerAddr: Address,
   employerNameHash: Field,
   currentEpoch: number,
+  auth: CredentialAuthInput,
   walletExecute: WalletExecuteFn,
 ): Promise<IssueCredentialResult> {
   const issueTime = Math.floor(Date.now() / 1000);
@@ -326,9 +396,18 @@ export async function issueCredential(
   // recover the color palette from on-chain data alone.
   const typeEncodedRoot = encodeTypeRoot(input.credential_type);
 
-  // Build the 9-element input array for the on-chain mint
+  // Build the 13-element input array for the v3 on-chain mint
   const mintInputs = buildMintInputs({
+    // Authorization from the employer's FinalAgreement record
+    agreementId: auth.agreement_id,
+    partiesKey: auth.parties_key,
+    employerNameHash: auth.employer_name_hash,
+    workerNameHash: auth.worker_name_hash,
+
+    // Credential target
     workerAddr: input.worker_addr,
+
+    // Credential content
     credentialId: credential_id,
     subjectHash: input.worker_name_hash,
     issuerHash: employerNameHash,
