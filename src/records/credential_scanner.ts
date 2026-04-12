@@ -165,30 +165,36 @@ async function fetchCredentialStatus(
 // ---------------------------------------------------------------------------
 
 /**
- * Derive a human-readable CredentialType from a scope string. For the MVP
- * we don't carry the numeric type code in the record (we could add it
- * post-buildathon), so we infer it from the scope text. Unknown → "custom".
+ * Recover the CredentialType from the first byte of the on-chain `root` field.
+ *
+ * credential_actions.ts::encodeTypeRoot packs the type code into root[0]
+ * at mint time:
+ *   0x01 → employment_verified
+ *   0x02 → skills
+ *   0x03 → clearance
+ *   0x63 → custom (99 decimal)
+ *
+ * For pre-fix credentials where root is all zeros, root[0] is 0 and we
+ * fall back to "custom" (forest green).
  */
-function inferCredentialType(scope: string): CredentialType {
-  const lower = scope.toLowerCase();
-  if (lower.includes("clearance") || lower.includes("security")) return "clearance";
-  if (
-    lower.includes("skill") ||
-    lower.includes("certif") ||
-    lower.includes("training") ||
-    lower.includes("engineering")
-  ) {
-    return "skills";
+function credentialTypeFromRoot(rootHex: Bytes32 | string): CredentialType {
+  const clean = typeof rootHex === "string" && rootHex.startsWith("0x")
+    ? rootHex.slice(2)
+    : rootHex as string;
+  if (clean.length < 2) return "custom";
+  const firstByte = parseInt(clean.slice(0, 2), 16);
+  switch (firstByte) {
+    case 1:
+      return "employment_verified";
+    case 2:
+      return "skills";
+    case 3:
+      return "clearance";
+    case 0x63: // 99 decimal
+      return "custom";
+    default:
+      return "custom";
   }
-  if (
-    lower.includes("employment") ||
-    lower.includes("full-time") ||
-    lower.includes("part-time") ||
-    lower.includes("contract")
-  ) {
-    return "employment_verified";
-  }
-  return "custom";
 }
 
 /**
@@ -208,10 +214,17 @@ export function credentialRecordFromParsed(
   status: CredentialStatus,
   scopePlaintext?: string,
 ): CredentialRecord {
-  const scope = scopePlaintext ?? "(scope available on-chain via hash)";
-  const credentialType = scopePlaintext
-    ? inferCredentialType(scopePlaintext)
-    : "custom";
+  // Recover credential type from root[0] (encoded at mint time by
+  // credential_actions.ts::encodeTypeRoot). For pre-fix records where
+  // root is all zeros this falls through to "custom".
+  const credentialType = credentialTypeFromRoot(parsed.root);
+
+  // Scope display:
+  //   - If the caller has the plaintext scope (e.g. from a sidecar lookup
+  //     or the employer's local store), use it.
+  //   - Otherwise fall back to the credential type label — at least the
+  //     worker sees something meaningful instead of a hash.
+  const scope = scopePlaintext ?? CREDENTIAL_TYPE_LABELS[credentialType];
 
   return {
     credential_id: parsed.credential_id,

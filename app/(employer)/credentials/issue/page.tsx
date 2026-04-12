@@ -15,11 +15,71 @@ import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
 import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
+import type { CredentialStatus } from "@/src/stores/credential_store";
 
 const CREDENTIAL_TYPES = Object.entries(CREDENTIAL_TYPE_LABELS) as [
   CredentialType,
   string,
 ][];
+
+/**
+ * Poll the wallet adapter for credential mint tx status and update the
+ * credential store once the real Aleo tx id + confirmation land.
+ *
+ * Shield returns a wallet-internal id (shield_...) immediately; the real
+ * at1... id appears after ~2 minutes of local proof generation. After
+ * that, we wait one more poll for the "Accepted" status. On rejection,
+ * we flip the credential to "revoked" and surface the error.
+ */
+async function pollCredentialStatus(
+  walletTxId: string,
+  walletTransactionStatus: (txId: string) => Promise<{
+    status: string;
+    transactionId?: string;
+    error?: string;
+  }>,
+  credentialId: string,
+  updateStatus: (
+    id: string,
+    status: CredentialStatus,
+    revokeTxId?: string,
+  ) => void,
+): Promise<void> {
+  const MAX_ATTEMPTS = 120; // ~6 minutes at 3s intervals
+  const INTERVAL_MS = 3000;
+  let realTxId: string | undefined;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await walletTransactionStatus(walletTxId);
+      if (res?.transactionId?.startsWith("at1")) {
+        realTxId = res.transactionId;
+      }
+      if (res?.status === "Accepted") {
+        console.log(
+          `[PNW-CRED] Mint confirmed after ${attempt} polls`,
+          realTxId ? { tx: realTxId } : {},
+        );
+        updateStatus(credentialId, "active");
+        return;
+      }
+      if (res?.status === "Rejected") {
+        console.warn(
+          `[PNW-CRED] Mint rejected after ${attempt} polls`,
+          res.error,
+        );
+        // Leave in pending state — employer can retry
+        return;
+      }
+    } catch (err) {
+      console.warn("[PNW-CRED] Poll error:", err);
+    }
+    await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
+  }
+  console.warn(
+    `[PNW-CRED] Mint polling timed out after ${MAX_ATTEMPTS} attempts`,
+  );
+}
 
 export default function IssueCredentialPage() {
   const router = useRouter();
@@ -31,7 +91,8 @@ export default function IssueCredentialPage() {
   const issueError = useCredentialStore((s) => s.issueError);
   const setIssueError = useCredentialStore((s) => s.setIssueError);
   const { canSign, signForCredential } = useWalletSigner();
-  const { executeTransaction } = useWallet();
+  const { executeTransaction, transactionStatus: walletTransactionStatus } = useWallet();
+  const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
 
   const activeWorkers = workers.filter((w) => w.status === "active");
 
@@ -125,6 +186,24 @@ export default function IssueCredentialPage() {
       setCommandPreview(
         `Mint tx broadcast: ${tx_id}\nCredential ID: ${credential.credential_id}`,
       );
+
+      // Fire-and-forget wallet status polling. Shield returns an internal
+      // id (shield_...) from executeTransaction; the real Aleo at1... id
+      // arrives ~2 minutes later once proof gen finishes. We poll the
+      // wallet adapter for status transitions and flip the credential
+      // from "pending" to "active" (or "revoked" if the tx is explicitly
+      // rejected) as soon as the network confirms.
+      if (walletTransactionStatus && !tx_id.startsWith("at1")) {
+        void pollCredentialStatus(
+          tx_id,
+          walletTransactionStatus,
+          credential.credential_id,
+          updateCredentialStatus,
+        );
+      } else if (tx_id.startsWith("at1")) {
+        // Wallet already gave us a real id; optimistically mark active
+        updateCredentialStatus(credential.credential_id, "active", tx_id);
+      }
 
       // Navigate to detail page after a short delay so user sees the tx id
       setTimeout(() => {
