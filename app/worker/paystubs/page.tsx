@@ -21,6 +21,10 @@ import {
   scanWorkerPaystubs,
   type WorkerPaystub,
 } from "@/src/records/worker_paystub_scanner";
+import { useCredentialStore } from "@/src/stores/credential_store";
+import { deriveTerrainParams } from "@/src/nft-art/hash_params";
+import { renderTopoCard, CARD_WIDTH, CARD_HEIGHT } from "@/src/nft-art/topo_renderer";
+import { CREDENTIAL_TYPE_LABELS } from "@/src/stores/credential_store";
 import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
 import {
   generatePaystubPdf,
@@ -79,6 +83,57 @@ export default function WorkerPaystubsPage() {
       : address
         ? truncate(address)
         : "worker";
+
+  // Pull credential records from the store (populated by the credentials
+  // page scanner) so we can render small thumbnail images on the PDF.
+  const allCredentials = useCredentialStore((s) => s.credentials);
+  const myCredentials = address
+    ? allCredentials.filter((c) => c.worker_addr === address && c.status === "active")
+    : [];
+
+  /**
+   * Render the TOP HALF of each active credential card (header + contour
+   * map only, no info band / profile / fingerprint) to an offscreen canvas
+   * and return the cropped PNG data URLs for embedding in the paystub PDF.
+   *
+   * Only showing the top half means the credential is recognizable but
+   * can't be reproduced from the paystub alone — the full card (with
+   * type, scope, status, and hash fingerprint) stays private.
+   */
+  function renderCredentialDataUrls(): string[] {
+    const cropHeight = 340; // header (60px) + contour panel (280px)
+    return myCredentials.map((cred) => {
+      // Render the full card to a source canvas
+      const srcCanvas = document.createElement("canvas");
+      srcCanvas.width = CARD_WIDTH;
+      srcCanvas.height = CARD_HEIGHT;
+      const params = deriveTerrainParams(cred.credential_id, cred.credential_type);
+      renderTopoCard(srcCanvas, params, {
+        workerName,
+        workerAddr: address ?? undefined,
+        credentialType: cred.credential_type,
+        credentialTypeLabel:
+          cred.credential_type_label || CREDENTIAL_TYPE_LABELS[cred.credential_type],
+        scope: cred.scope,
+        status: cred.status,
+        fingerprint: cred.credential_id.slice(0, 10),
+      });
+
+      // Crop to top half only
+      const cropCanvas = document.createElement("canvas");
+      cropCanvas.width = CARD_WIDTH;
+      cropCanvas.height = cropHeight;
+      const ctx = cropCanvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(
+          srcCanvas,
+          0, 0, CARD_WIDTH, cropHeight, // source rect
+          0, 0, CARD_WIDTH, cropHeight, // dest rect
+        );
+      }
+      return cropCanvas.toDataURL("image/png");
+    });
+  }
 
   // Auto-scan on first visit + 30s interval.
   // Reset and re-scan immediately when the connected address changes
@@ -283,10 +338,16 @@ export default function WorkerPaystubsPage() {
                             created_at: 0,
                             updated_at: 0,
                           };
+                          // Render cropped credential thumbnails (top half
+                          // only — contour map, no info band) so the paystub
+                          // shows the worker's "badge" without exposing the
+                          // full reproducible card.
+                          const credDataUrls = renderCredentialDataUrls();
                           return generatePaystubPdf({
                             manifest,
                             row,
                             workerDisplayName: workerName,
+                            credentialCardDataUrls: credDataUrls,
                           });
                         }}
                         fileName={`paystub-${ps.epoch_id}-${ps.receipt_anchor.slice(0, 8)}`}
