@@ -6,6 +6,7 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { EmployerNav } from "@/components/nav/EmployerNav";
 import { TopBar } from "@/components/nav/TopBar";
 import { EmployerOnboardingGate } from "@/components/employer-onboarding/EmployerOnboardingGate";
+import { useEmployerIdentityStore } from "@/src/stores/employer_identity_store";
 
 /**
  * Employer route group layout.
@@ -13,10 +14,27 @@ import { EmployerOnboardingGate } from "@/components/employer-onboarding/Employe
  * Onboarding gate: blocks portal until employer .pnw name + profile are set up.
  */
 export default function EmployerLayout({ children }: { children: ReactNode }) {
-  const { isConnected } = useAleoSession();
+  const { isConnected, address } = useAleoSession();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const storedWalletAddress = useEmployerIdentityStore((s) => s.walletAddress);
+  const resetIdentity = useEmployerIdentityStore((s) => s.reset);
+
+  // Reset employer identity when the connected wallet changes so the new
+  // wallet goes through its own onboarding. Without this, Employer B
+  // inherits Employer A's completed state and skips the funnel.
+  useEffect(() => {
+    if (!address) return;
+    if (storedWalletAddress && storedWalletAddress !== address) {
+      console.log(
+        "[PNW] Wallet address changed, resetting employer identity store",
+        { old: storedWalletAddress, new: address },
+      );
+      resetIdentity();
+    }
+  }, [address, storedWalletAddress, resetIdentity]);
 
   useEffect(() => {
     if (!isConnected) {
