@@ -13,10 +13,11 @@
  * the on-chain transaction.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useWorkerIdentityStore } from "@/src/stores/worker_identity_store";
+import { queryWorkerName, queryNamePlaintext } from "@/src/registry/name_registry";
 import {
   scanWorkerPaystubs,
   type WorkerPaystub,
@@ -75,14 +76,44 @@ export default function WorkerPaystubsPage() {
   const [lastScanAt, setLastScanAt] = useState<number | null>(null);
   const lastScannedAddrRef = useRef<string | null>(null);
 
-  // Full .pnw name for display. Falls back to the FULL address (not
-  // truncated) so the PDF always shows something meaningful.
-  const workerName =
-    chosenName && chosenName.length > 0
-      ? chosenName.endsWith(".pnw")
-        ? chosenName
-        : `${chosenName}.pnw`
-      : address ?? "worker";
+  // Resolved .pnw name — starts from the identity store, falls back to
+  // an on-chain lookup via the name registry if the store is empty (the
+  // worker may have connected a wallet without going through onboarding
+  // in this browser session, but their name IS registered on-chain).
+  const [resolvedName, setResolvedName] = useState<string | null>(null);
+  const nameResolvedRef = useRef(false);
+
+  useEffect(() => {
+    if (nameResolvedRef.current || !address) return;
+    if (chosenName && chosenName.length > 0) {
+      // Identity store already has the name — use it
+      setResolvedName(
+        chosenName.endsWith(".pnw") ? chosenName : `${chosenName}.pnw`,
+      );
+      nameResolvedRef.current = true;
+      return;
+    }
+    // Query the chain for the worker's .pnw name
+    nameResolvedRef.current = true;
+    void (async () => {
+      try {
+        const nameHash = await queryWorkerName(address);
+        if (nameHash) {
+          const cleanHash = nameHash.replace(/field$/, "").trim();
+          const plaintext = await queryNamePlaintext(cleanHash);
+          if (plaintext) {
+            setResolvedName(`${plaintext}.pnw`);
+            return;
+          }
+        }
+      } catch {
+        // Best-effort — fall through to address
+      }
+    })();
+  }, [address, chosenName]);
+
+  // Display name: resolved .pnw name, or full address as fallback
+  const workerName = resolvedName ?? address ?? "worker";
 
   // Pull credential records from the store so we can render small
   // thumbnail images on the PDF. Also scan the wallet directly if
