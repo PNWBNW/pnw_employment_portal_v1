@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useWorkerStore } from "@/src/stores/worker_store";
@@ -101,6 +101,12 @@ export default function IssueCredentialPage() {
 
   const activeWorkers = workers.filter((w) => w.status === "active");
 
+  // Ref-based double-submit guard. State-based isIssuing can batch with
+  // React's state updates and leave a window where handleSubmit fires
+  // twice before the first setIssuing(true) takes effect. A ref flips
+  // synchronously and survives re-renders.
+  const submittingRef = useRef(false);
+
   const [workerAgreementId, setWorkerAgreementId] = useState("");
   const [credentialType, setCredentialType] =
     useState<CredentialType>("employment_verified");
@@ -113,29 +119,36 @@ export default function IssueCredentialPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return; // prevent double-submit
+    submittingRef.current = true;
     setIssueError(null);
     setCommandPreview(null);
 
     if (!selectedWorker) {
       setIssueError("Select a worker.");
+      submittingRef.current = false;
       return;
     }
     if (!scope.trim()) {
       setIssueError("Scope is required.");
+      submittingRef.current = false;
       return;
     }
     if (!employerAddr) {
       setIssueError("No active session. Please connect your wallet.");
+      submittingRef.current = false;
       return;
     }
     if (!executeTransaction) {
       setIssueError("Wallet not connected. Connect a wallet first.");
+      submittingRef.current = false;
       return;
     }
     if (!requestRecords) {
       setIssueError(
         "Wallet doesn't expose requestRecords — cannot fetch the FinalAgreement needed to authorize this mint.",
       );
+      submittingRef.current = false;
       return;
     }
 
@@ -163,6 +176,7 @@ export default function IssueCredentialPage() {
           "No active FinalAgreement record found in your wallet for this worker. Credentials can only be issued after the worker accepts an agreement and it reaches the ACTIVE state.",
         );
         setIssuing(false);
+        submittingRef.current = false;
         return;
       }
 
@@ -247,6 +261,7 @@ export default function IssueCredentialPage() {
       );
     } finally {
       setIssuing(false);
+      submittingRef.current = false;
     }
   }
 
