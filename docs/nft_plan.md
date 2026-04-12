@@ -17,7 +17,213 @@ The goal is to build a **deterministic generative art system** for credential NF
 
 Both views are derived from the **same heightmap** (seeded by the credential hash), so the topo and the profile are mathematically consistent — the mountain in the profile is literally the cross-section of the contour map above it.
 
-**Scope:** Worker-side credential viewing with generative art. Credential NFT images only (payroll/paystub NFTs deferred). Client-side rendering only (no IPFS, no pnw_mvp_v2 changes).
+**Scope:** Worker-side credential viewing with generative art. Credential NFT images only (payroll/paystub NFTs deferred). Client-side rendering only.
+
+---
+
+## Implementation Status (2026-04-12)
+
+Everything in this plan is **shipped to testnet**. Notable deltas from the
+original draft:
+
+| Original | Shipped |
+|---|---|
+| Client-only, no `pnw_mvp_v2` changes | New program `credential_nft_v2.aleo` deployed (tx `at17ujvtfuw83dzy7hcev3yym6qqy54mz7cerwg9ar7uj5fa23kruysdf5msl`) to fix the ownership + dual-record issue — see section below |
+| `credential_id = BLAKE3(DOC, TLV(employer_addr, worker_addr, scope, issue_time))` | `credential_id = BLAKE3(DOC, TLV(employer_addr, worker_name_hash, worker_addr, scope, issue_time))` — `worker_name_hash` is now a first-class TLV component so the art is identity-bound to the `.pnw` name, not just the wallet address |
+| Single-record mint | Dual-record mint: one `CredentialNFT` owned by the employer (authoritative), one owned by the worker (visible in their wallet on scan). Both carry the same `credential_id`. |
+| Credential type → palette via sidecar lookup or plaintext scope | Credential type code encoded in `root[0]` at mint time; scanner reads it back. Works with on-chain data alone, no sidecar. |
+| Card header: `.pnw` name only | Two-line header: bold `.pnw` name + truncated Aleo address (`aleo1abcd…xyz6`) in monospace below |
+| Revoke consumes the record | Split into three paths: `revoke_by_issuer` (public mapping flip, no record consumption), `revoke_by_owner` (consume + flip), `burn_view` (worker discards their copy without affecting public status) |
+
+The rest of the original plan (canvas renderer, marching squares, jittered
+strokes, palette selection, dev preview page, worker credentials gallery,
+dashboard integration) landed as-written.
+
+---
+
+## Uniqueness & Anti-Collision — how the terrain is unique per worker
+
+This is the guarantee the whole art system rests on: **every credential
+gets a mathematically unique mountain shape, anchored to the worker's
+`.pnw` identity.** Here's exactly how.
+
+### The hash chain
+
+```
+alice's .pnw name ("alice.pnw")
+        │
+        ▼
+BLAKE3(domain="PNW::NAME", "alice.pnw") → worker_name_hash   ← 32 bytes
+        │
+        ▼ (set once at onboarding — immutable for the lifetime of the name)
+        │
+At credential issue time:
+┌──────────────────────────────────────────────────────────┐
+│ credential_id = BLAKE3(                                  │
+│     domain="PNW::DOC",                                   │
+│     TLV([                                                │
+│         tag=0x01  employer_addr                          │
+│         tag=0x02  worker_name_hash   ← IDENTITY BINDING  │
+│         tag=0x03  worker_addr                            │
+│         tag=0x04  scope                                  │
+│         tag=0x05  issue_time         ← uniqueness per mint│
+│     ])                                                   │
+│ )                                                        │
+│                                                          │
+│ → 32 raw bytes ∈ [0, 255]^32                             │
+└──────────────────────────────────────────────────────────┘
+        │
+        ▼
+deriveTerrainParams(credential_id, credential_type)
+        │
+        ├── bytes[0..7]  → heightmap noise seed  (FNV-1a → mulberry32 PRNG)
+        ├── bytes[9]     → contour ring count    (6-12)
+        ├── bytes[10,11] → ridge center (x, y)   (normalized [0.3, 0.7])
+        ├── bytes[12]    → slice axis offset     (±0.04 from ridge y)
+        ├── bytes[13]    → profile exaggeration  (0.8-1.3)
+        ├── bytes[14]    → hatch density         (20-40)
+        ├── bytes[15]    → hatch angle jitter    (0-0.08 rad)
+        └── bytes[16..23]→ stroke jitter PRNG seed
+        │
+        ▼
+buildHeightmap(params)
+  → Three octaves of value noise at (3×4, 6×8, 12×16) grids,
+     all seeded by bytes[0..7]
+  → Bilinearly interpolated onto a 40×60 sample grid
+  → Biased toward ridgeCenter so the peak is an actual mountain
+     instead of a flat noisy field
+        │
+        ▼
+marchingSquares at 6-12 thresholds → contour line segments → canvas
+```
+
+### Why this produces uncorrelated shapes across workers
+
+BLAKE3 has an **avalanche property**: flipping a single bit of input
+produces a completely different 32-byte output (~50% of the output bits
+change on average). Because the BLAKE3 output feeds directly into the
+heightmap noise seed, two workers with different `worker_name_hash`
+values get two completely uncorrelated noise seeds — not "similar with
+small differences", **mathematically uncorrelated**, which is BLAKE3's
+entire job.
+
+Concretely, any one of these makes `credential_id` (and therefore the
+terrain) completely different:
+
+| Workers differ by | Hash result |
+|---|---|
+| Any bit of the `.pnw` name | Completely different `credential_id` |
+| Any bit of the wallet address | Completely different `credential_id` |
+| Any bit of the scope string | Completely different `credential_id` |
+| One second of issue time | Completely different `credential_id` |
+
+### Worked example
+
+Two workers, same employer, same scope `"Full-time WA"`, same moment
+in time:
+
+```
+alice.pnw   worker_name_hash = 0x7a3f4b2c8e91...
+  → credential_id = BLAKE3(... alice's name_hash ...)
+  → credential_id ≈ 0x5b2e9f7a8c1d4e32...
+  → bytes[0..7] = 0x5b2e9f7a8c1d4e32
+  → noise seed via FNV-1a → mulberry32 → unique random grid
+  → heightmap: peak at (62%, 44%), 8 contour rings, moderate stroke wobble
+  → alice's mountain: asymmetric northwest-leaning peak
+
+bob.pnw     worker_name_hash = 0x9c1e6d5b2a47...
+  → credential_id = BLAKE3(... bob's name_hash ...)
+  → credential_id ≈ 0xe7b1c84f92a3d016...
+  → bytes[0..7] = 0xe7b1c84f92a3d016
+  → different FNV seed → different mulberry32 → different random grid
+  → heightmap: peak at (45%, 58%), 11 contour rings, subtle stroke wobble
+  → bob's mountain: twin-peak ridge with steep southeast slope
+```
+
+Zero overlap in terrain shape.
+
+### What stays the same across a worker's own credentials
+
+Only the **color palette**, if the credential type matches. Two
+`clearance` credentials for `alice.pnw` both render in parchment/white.
+Two `skills` credentials for `alice.pnw` both render in gold. **But the
+mountain shapes are completely different** because `issue_time` changes
+between mints, which flips `credential_id`, which flips the noise seed,
+which flips the entire terrain.
+
+### What's constant across different workers for the same credential type
+
+Only the **color palette** (type → palette is a fixed table). Cyan for
+all `employment_verified` regardless of worker. Gold for all `skills`.
+Parchment for all `clearance`. Forest green for all `custom`. The
+type → palette mapping lives in `BLUEPRINT_PALETTES` in
+`hash_params.ts`.
+
+### Anti-collision in practice
+
+BLAKE3's output space is 2<sup>256</sup>. For two credentials to
+accidentally produce the same terrain:
+
+1. The first 8 bytes of their `credential_id`s would need to collide
+   (2<sup>64</sup> brute-force takes centuries of compute)
+2. And bytes 9-23 (contours, ridge, slice, jitter seed) would **also**
+   need to match — effectively 2<sup>192</sup> additional work
+
+Probability is negligible. "Every credential has a unique visual
+fingerprint" is a hard guarantee, not a statistical hope.
+
+### Palette resolution on the worker side
+
+Credential type is not plaintext on-chain (only `scope_hash` is), so the
+worker-side scanner would have no way to pick the right palette from
+pure chain data. Fix: encode `credential_type_code` into the first byte
+of the existing `root` field at mint time, and read it back in the
+scanner.
+
+```
+root[0]     = 0x01 employment_verified  → cyan
+              0x02 skills                → gold
+              0x03 clearance             → parchment
+              0x63 custom                → forest green
+root[1..31] = 0x00...  (reserved for a real attestation Merkle root later)
+```
+
+Pre-fix credentials have `root = 0x00...` so they fall back to
+`"custom"` / green. New mints get the correct palette.
+
+---
+
+## Dual-record mint — why the worker sees their credentials
+
+`credential_nft.aleo` v1 was `@noupgrade` and minted a single record
+owned by `self.caller` (the employer). Workers had no visibility into
+credentials issued to them because the record lived in the employer's
+wallet only.
+
+`credential_nft_v2.aleo` emits **two** `CredentialNFT` records from a
+single `mint_credential_nft` transition:
+
+1. **Employer copy** — `owner = self.caller (employer_addr)`, authoritative.
+   The employer's wallet scans find this copy.
+2. **Worker copy** — `owner = worker_addr` (passed as the first parameter).
+   The worker's wallet scans find this copy.
+
+Both copies carry identical fields (credential_id, subject_hash,
+issuer_hash, scope_hash, doc_hash, root, schema_v, policy_v, issuer_addr,
+worker_addr). Public state is a single source of truth keyed by
+`credential_id` — both wallets render the same status, the same anchor
+height, and (deterministically) the same art.
+
+Revoke is split:
+- `revoke_by_issuer(credential_id)` — employer flips the public
+  `credential_status` mapping. No record consumption. Both wallet
+  copies continue to hold the record but render as revoked (grayscale)
+  when the portal cross-references the status mapping.
+- `revoke_by_owner(nft)` — consume the record AND flip status. Useful
+  if the employer wants to both revoke and prune their wallet.
+- `burn_view(nft)` — worker deletes their own copy without affecting
+  public status. Lets a worker decline or hide a credential that still
+  exists in the employer's records.
 
 ---
 
@@ -308,7 +514,16 @@ status:            active
 
 ### Step A — credential_id vs. name_hash
 
-In the production flow, the art generator keys off `credential_id` (the 32-byte BLAKE3 hash from `credential_actions.ts`), which depends on `employer_addr + worker_addr + scope + issue_time`. Since we don't have those here, this worked example **uses the `worker_name_hash` directly as the 32-byte seed** — this is the deterministic "preview mode" the art generator supports for test rendering.
+In the **shipped** production flow, the art generator keys off
+`credential_id` (the 32-byte BLAKE3 hash from `credential_actions.ts`),
+which depends on
+`employer_addr + worker_name_hash + worker_addr + scope + issue_time`
+(note: `worker_name_hash` was added to the TLV in 2026-04-12; see the
+"Uniqueness & Anti-Collision" section above). Since we don't have an
+actual credential_id for this worked example, the dev preview page
+**uses the `worker_name_hash` directly as the 32-byte seed** — this is
+the deterministic "preview mode" the art generator supports for test
+rendering without a full credential flow.
 
 The field element needs to be serialized to 32 bytes. Two conventions are possible:
 ```
