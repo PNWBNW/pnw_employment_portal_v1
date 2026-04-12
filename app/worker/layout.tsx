@@ -29,6 +29,23 @@ export default function WorkerLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const step = useWorkerIdentityStore((s) => s.step);
+  const storedWalletAddress = useWorkerIdentityStore((s) => s.walletAddress);
+  const resetIdentity = useWorkerIdentityStore((s) => s.reset);
+
+  // When the connected wallet changes (user toggled to a different wallet
+  // in the same browser window), reset the worker identity store so the
+  // new wallet goes through its own onboarding flow. Without this, Worker
+  // B inherits Worker A's "complete" step and skips the funnel entirely.
+  useEffect(() => {
+    if (!address) return;
+    if (storedWalletAddress && storedWalletAddress !== address) {
+      console.log(
+        "[PNW] Wallet address changed, resetting worker identity store",
+        { old: storedWalletAddress, new: address },
+      );
+      resetIdentity();
+    }
+  }, [address, storedWalletAddress, resetIdentity]);
 
   const handleDisconnect = async () => {
     try {
@@ -37,6 +54,7 @@ export default function WorkerLayout({ children }: { children: ReactNode }) {
       // Wallet adapter may throw if already disconnected
     }
     disconnect();
+    resetIdentity();
     router.push("/");
   };
 
