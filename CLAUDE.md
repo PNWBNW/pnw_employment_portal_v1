@@ -464,3 +464,4 @@ See `docs/BUILD_ORDER.md` for exit criteria on each phase.
 | `docs/INTEROP.md` | Cross-repo sync contract with pnw_mvp_v2 |
 | `docs/PAYROLL_RUN_MANIFEST.md` | Manifest data contract (locked spec) |
 | `docs/DESIGN_BRIEF.md` | Visual design brief for UI improvements |
+| `docs/nft_plan.md` | Generative topographic credential NFT art — design, hash chain, anti-collision proof, dual-record mint |

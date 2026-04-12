@@ -17,7 +17,135 @@ The goal is to build a **deterministic generative art system** for credential NF
 
 Both views are derived from the **same heightmap** (seeded by the credential hash), so the topo and the profile are mathematically consistent — the mountain in the profile is literally the cross-section of the contour map above it.
 
-**Scope:** Worker-side credential viewing with generative art. Credential NFT images only (payroll/paystub NFTs deferred). Client-side rendering only (no IPFS, no pnw_mvp_v2 changes).
+**Scope:** Worker-side credential viewing with generative art. Credential NFT images only (payroll/paystub NFTs deferred). Client-side rendering only.
+
+---
+
+## Implementation Status (2026-04-12)
+
+Everything in this plan is **shipped to testnet**. Notable deltas from the
+original draft:
+
+| Original | Shipped |
+|---|---|
+| Client-only, no `pnw_mvp_v2` changes | New program `credential_nft_v2.aleo` deployed (tx `at17ujvtfuw83dzy7hcev3yym6qqy54mz7cerwg9ar7uj5fa23kruysdf5msl`) to fix the ownership + dual-record issue — see section below |
+| `credential_id = BLAKE3(DOC, TLV(employer_addr, worker_addr, scope, issue_time))` | `credential_id = BLAKE3(DOC, TLV(employer_addr, worker_name_hash, worker_addr, scope, issue_time))` — `worker_name_hash` is now a first-class TLV component so the art is identity-bound to the `.pnw` name, not just the wallet address |
+| Single-record mint | Dual-record mint: one `CredentialNFT` owned by the employer (authoritative), one owned by the worker (visible in their wallet on scan). Both carry the same `credential_id`. |
+| Credential type → palette via sidecar lookup or plaintext scope | Credential type code encoded in `root[0]` at mint time; scanner reads it back. Works with on-chain data alone, no sidecar. |
+| Card header: `.pnw` name only | Two-line header: bold `.pnw` name + truncated Aleo address (`aleo1abcd…xyz6`) in monospace below |
+| Revoke consumes the record | Split into three paths: `revoke_by_issuer` (public mapping flip, no record consumption), `revoke_by_owner` (consume + flip), `burn_view` (worker discards their copy without affecting public status) |
+
+The rest of the original plan (canvas renderer, marching squares, jittered
+strokes, palette selection, dev preview page, worker credentials gallery,
+dashboard integration) landed as-written.
+
+---
+
+## Visual Uniqueness — the guarantees we make
+
+The art system rests on one guarantee: **every credential has a
+mathematically unique visual fingerprint, anchored to the worker's
+`.pnw` identity.** The specific derivation logic — how we turn an
+identity hash into a mountain shape — is intentionally not documented
+here.
+
+### What the guarantee is
+
+- **Identity binding.** The visual is a deterministic function of the
+  credential's on-chain hash. That hash in turn incorporates the
+  worker's `.pnw` name identity as a first-class input, so the art is
+  bound to *who the credential is for*, not just to the wallet address
+  that happens to hold it at any moment.
+- **Per-credential uniqueness.** Two credentials issued to the same
+  worker look visibly distinct. They share only the color family that
+  corresponds to the credential type; their terrain shapes are
+  unrelated.
+- **Cross-worker uniqueness for the same type.** Two different workers
+  holding credentials of the same type render in the same color family
+  but with completely different terrain shapes.
+
+### Why we're confident the uniqueness holds
+
+The seed behind the visual is a 32-byte BLAKE3 output. BLAKE3 is a
+modern cryptographic hash with an avalanche property (flipping a single
+input bit changes roughly half the output bits), so any change at all
+in the credential's inputs — a different `.pnw` name, a different
+wallet, a different scope, a different mint timestamp — produces a
+completely different hash, not a near-neighbor.
+
+From there, the visual generator is a deterministic pure function of
+that hash. Same hash → same image, pixel-for-pixel. Different hash →
+uncorrelated image.
+
+The BLAKE3 output space is 2<sup>256</sup>. Accidental collisions
+between two independently generated credentials are not a practical
+concern.
+
+### Color palette resolution
+
+Credential type determines the palette. Four types, four palettes:
+`employment_verified`, `skills`, `clearance`, `custom`. Type → palette
+is a fixed client-side table in the portal.
+
+Because the on-chain record holds only a hash of the scope (not
+plaintext), the worker-side scanner needs some way to know which
+palette to pick. Rather than relying on a sidecar lookup or plaintext
+gossip, we piggy-back a small type hint onto an otherwise-reserved
+field in the on-chain `CredentialNFT` record. The portal reads it
+back during the scan. This means:
+
+- The palette is recoverable from on-chain data alone
+- No sidecar database is required
+- No plaintext scope ever needs to leave the issuer's browser
+
+The exact encoding lives in the source code — `credential_actions.ts`
+on the mint side and `credential_scanner.ts` on the read side — and
+is not documented here.
+
+### What stays proprietary
+
+The exact byte-to-parameter mapping, the PRNG implementation, the
+specific terrain-generation algorithm, the worked-example hash values,
+and the noise-grid dimensions are all client-side implementation
+details. They are not part of any public API or contract, and are not
+documented in this plan. Anyone curious about the exact derivation
+can read the code — but we don't publish it in the plan so that the
+visual system remains a creative artifact that has to be
+re-implemented from scratch by anyone who wants to reproduce it.
+
+---
+
+## Dual-record mint — why the worker sees their credentials
+
+`credential_nft.aleo` v1 was `@noupgrade` and minted a single record
+owned by `self.caller` (the employer). Workers had no visibility into
+credentials issued to them because the record lived in the employer's
+wallet only.
+
+`credential_nft_v2.aleo` emits **two** `CredentialNFT` records from a
+single `mint_credential_nft` transition:
+
+1. **Employer copy** — `owner = self.caller (employer_addr)`, authoritative.
+   The employer's wallet scans find this copy.
+2. **Worker copy** — `owner = worker_addr` (passed as the first parameter).
+   The worker's wallet scans find this copy.
+
+Both copies carry identical fields (credential_id, subject_hash,
+issuer_hash, scope_hash, doc_hash, root, schema_v, policy_v, issuer_addr,
+worker_addr). Public state is a single source of truth keyed by
+`credential_id` — both wallets render the same status, the same anchor
+height, and (deterministically) the same art.
+
+Revoke is split:
+- `revoke_by_issuer(credential_id)` — employer flips the public
+  `credential_status` mapping. No record consumption. Both wallet
+  copies continue to hold the record but render as revoked (grayscale)
+  when the portal cross-references the status mapping.
+- `revoke_by_owner(nft)` — consume the record AND flip status. Useful
+  if the employer wants to both revoke and prune their wallet.
+- `burn_view(nft)` — worker deletes their own copy without affecting
+  public status. Lets a worker decline or hide a credential that still
+  exists in the employer's records.
 
 ---
 
@@ -308,7 +436,16 @@ status:            active
 
 ### Step A — credential_id vs. name_hash
 
-In the production flow, the art generator keys off `credential_id` (the 32-byte BLAKE3 hash from `credential_actions.ts`), which depends on `employer_addr + worker_addr + scope + issue_time`. Since we don't have those here, this worked example **uses the `worker_name_hash` directly as the 32-byte seed** — this is the deterministic "preview mode" the art generator supports for test rendering.
+In the **shipped** production flow, the art generator keys off
+`credential_id` (the 32-byte BLAKE3 hash from `credential_actions.ts`),
+which depends on
+`employer_addr + worker_name_hash + worker_addr + scope + issue_time`
+(note: `worker_name_hash` was added to the TLV in 2026-04-12; see the
+"Uniqueness & Anti-Collision" section above). Since we don't have an
+actual credential_id for this worked example, the dev preview page
+**uses the `worker_name_hash` directly as the 32-byte seed** — this is
+the deterministic "preview mode" the art generator supports for test
+rendering without a full credential flow.
 
 The field element needs to be serialized to 32 bytes. Two conventions are possible:
 ```
