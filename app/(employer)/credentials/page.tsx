@@ -10,11 +10,12 @@ import { useAleoSession } from "@/components/key-manager/useAleoSession";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { scanCredentialRecords } from "@/src/records/credential_scanner";
 import { ENV } from "@/src/config/env";
-
-function truncate(s: string, len = 16): string {
-  if (s.length <= len) return s;
-  return `${s.slice(0, 10)}...${s.slice(-6)}`;
-}
+import {
+  CredentialCard,
+  type CredentialCardHandle,
+} from "@/components/credential-art/CredentialCard";
+import { ExportCardButton } from "@/components/credential-art/ExportCardButton";
+import { useWorkerStore } from "@/src/stores/worker_store";
 
 function StatusBadge({ status }: { status: CredentialRecord["status"] }) {
   const styles = {
@@ -34,8 +35,8 @@ export default function CredentialsPage() {
   const { requestRecords } = useWallet();
   const credentials = useCredentialStore((s) => s.credentials);
   const addCredential = useCredentialStore((s) => s.addCredential);
-
   const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
+  const workers = useWorkerStore((s) => s.workers);
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -167,51 +168,91 @@ export default function CredentialsPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Type</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Scope</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Worker</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Issued Epoch</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {myIssuedCredentials.map((cred) => (
-                <tr key={cred.credential_id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-2 font-medium">{cred.credential_type_label}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{cred.scope}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                    {truncate(cred.worker_addr)}
-                  </td>
-                  <td className="px-4 py-2">{cred.issued_epoch}</td>
-                  <td className="px-4 py-2">
-                    <StatusBadge status={cred.status} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/credentials/${encodeURIComponent(cred.credential_id)}`}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Manage
-                      </Link>
-                      <DownloadPDFButton
-                        generatePdf={() => generateCredentialCertPdf(cred)}
-                        fileName={`credential-${cred.credential_id.slice(0, 12)}`}
-                        label="Print Cert"
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {myIssuedCredentials.map((cred) => {
+            const workerMatch = workers.find(
+              (w) => w.worker_addr === cred.worker_addr,
+            );
+            const workerDisplayName = workerMatch?.display_name
+              ? (workerMatch.display_name.endsWith(".pnw")
+                  ? workerMatch.display_name
+                  : `${workerMatch.display_name}.pnw`)
+              : `${cred.worker_addr.slice(0, 10)}…${cred.worker_addr.slice(-6)}`;
+            return (
+              <EmployerCredentialCardItem
+                key={cred.credential_id}
+                credential={cred}
+                workerDisplayName={workerDisplayName}
+              />
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Single card item on the employer list — art + download + print + manage
+// ---------------------------------------------------------------------------
+
+function EmployerCredentialCardItem({
+  credential,
+  workerDisplayName,
+}: {
+  credential: CredentialRecord;
+  workerDisplayName: string;
+}) {
+  const cardRef = useRef<CredentialCardHandle | null>(null);
+  const shortId = credential.credential_id.slice(2, 14);
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+        <CredentialCard
+          ref={cardRef}
+          credential={credential}
+          workerName={workerDisplayName}
+        />
+      </div>
+
+      <div className="flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-medium text-foreground">
+            {credential.credential_type_label}
+          </span>
+          <StatusBadge status={credential.status} />
+        </div>
+
+        <p className="truncate text-xs text-muted-foreground">
+          Issued to{" "}
+          <span className="font-medium text-foreground">
+            {workerDisplayName}
+          </span>
+        </p>
+
+        <div className="flex gap-2">
+          <ExportCardButton
+            cardRef={cardRef}
+            fileName={`credential-${shortId}`}
+            label="Download Image"
+            className="flex-1 rounded-md border border-input px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+          />
+          <DownloadPDFButton
+            generatePdf={() => generateCredentialCertPdf(credential)}
+            fileName={`credential-cert-${shortId}`}
+            label="Print Cert"
+            className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90"
+          />
+        </div>
+
+        <Link
+          href={`/credentials/${encodeURIComponent(credential.credential_id)}`}
+          className="text-center text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          Manage / revoke →
+        </Link>
+      </div>
     </div>
   );
 }

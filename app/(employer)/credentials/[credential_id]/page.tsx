@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useRef, useState } from "react";
 import Link from "next/link";
 import { useCredentialStore } from "@/src/stores/credential_store";
 import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
@@ -8,6 +8,12 @@ import { generateCredentialCertPdf } from "@/components/pdf/CredentialCertPDF";
 import { revokeCredentialByIssuer } from "@/src/credentials/credential_actions";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
+import {
+  CredentialCard,
+  type CredentialCardHandle,
+} from "@/components/credential-art/CredentialCard";
+import { ExportCardButton } from "@/components/credential-art/ExportCardButton";
+import { useWorkerStore } from "@/src/stores/worker_store";
 
 function truncate(s: string, len = 20): string {
   if (s.length <= len) return s;
@@ -34,6 +40,7 @@ export default function CredentialDetailPage({
   const credentials = useCredentialStore((s) => s.credentials);
   const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
   const { executeTransaction } = useWallet();
+  const workers = useWorkerStore((s) => s.workers);
 
   const cred = credentials.find((c) => c.credential_id === decodedId);
 
@@ -41,6 +48,23 @@ export default function CredentialDetailPage({
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [revokeCommand, setRevokeCommand] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+
+  // Ref to the credential card canvas for PNG export
+  const cardRef = useRef<CredentialCardHandle | null>(null);
+
+  // Resolve a display name for the worker this credential was issued to.
+  // Prefer the .pnw display name if the employer has it in their worker
+  // store (set at onboarding); fall back to a truncated wallet address.
+  const workerDisplayName = (() => {
+    if (!cred) return "worker.pnw";
+    const match = workers.find((w) => w.worker_addr === cred.worker_addr);
+    if (match?.display_name) {
+      return match.display_name.endsWith(".pnw")
+        ? match.display_name
+        : `${match.display_name}.pnw`;
+    }
+    return `${cred.worker_addr.slice(0, 10)}…${cred.worker_addr.slice(-6)}`;
+  })();
 
   if (!cred) {
     return (
@@ -137,6 +161,50 @@ export default function CredentialDetailPage({
         </span>
       </div>
 
+      {/* Generative credential card + PNG export */}
+      <div className="rounded-lg border border-border bg-card p-6">
+        <h2 className="mb-4 text-sm font-medium text-foreground">
+          Credential Card
+        </h2>
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+          <div className="shrink-0 rounded-xl border border-border bg-card p-3 shadow-sm">
+            <CredentialCard
+              ref={cardRef}
+              credential={cred}
+              workerName={workerDisplayName}
+            />
+          </div>
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:pt-2">
+            <p>
+              Generative blueprint derived deterministically from the
+              credential hash. Same credential always produces the same
+              image, pixel-for-pixel.
+            </p>
+            <p>
+              This is the exact image{" "}
+              <span className="font-medium text-foreground">
+                {workerDisplayName}
+              </span>{" "}
+              will see in their worker portal under Credentials.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <ExportCardButton
+                cardRef={cardRef}
+                fileName={`credential-${cred.credential_id.slice(2, 14)}`}
+                label="Download Image"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              />
+              <DownloadPDFButton
+                generatePdf={() => generateCredentialCertPdf(cred)}
+                fileName={`credential-cert-${cred.credential_id.slice(0, 12)}`}
+                label="Print Certificate"
+                className="rounded-md border border-input px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Details grid */}
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-4 text-sm font-medium text-foreground">
@@ -219,12 +287,8 @@ export default function CredentialDetailPage({
       )}
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-card p-4">
-        <DownloadPDFButton
-          generatePdf={() => generateCredentialCertPdf(cred)}
-          fileName={`credential-cert-${cred.credential_id.slice(0, 12)}`}
-          label="Print Certificate"
-        />
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium text-foreground">Actions</h2>
 
         {isActive && !confirmRevoke && (
           <button
