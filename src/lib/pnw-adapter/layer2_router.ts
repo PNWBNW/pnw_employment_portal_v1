@@ -27,23 +27,49 @@ export type CycleNftParams = {
 };
 
 /**
- * Parameters for minting a credential NFT (credential_nft_v2.aleo).
+ * Parameters for minting a credential NFT (credential_nft_v3.aleo).
  *
  * Matches the on-chain signature:
  *   mint_credential_nft(
- *     worker_addr, credential_id, subject_hash, issuer_hash,
+ *     // Authorization — must match the employer's FinalAgreement for
+ *     // the target worker. These 4 fields are pulled from the
+ *     // employer's private FinalAgreement record.
+ *     agreement_id, parties_key, employer_name_hash, worker_name_hash,
+ *
+ *     // Credential target
+ *     worker_addr,
+ *
+ *     // Credential content
+ *     credential_id, subject_hash, issuer_hash,
  *     scope_hash, doc_hash, root, schema_v, policy_v
  *   )
  *
- * The transition emits TWO CredentialNFT records from this single call:
- * one owned by the caller (employer, authoritative) and one owned by
- * `worker_addr` (visible in the worker's wallet on scan).
+ * The transition verifies three on-chain assertions before minting:
+ *   1) caller owns employer_name_hash (pnw_name_registry_v2)
+ *   2) worker_addr owns worker_name_hash (pnw_name_registry_v2)
+ *   3) caller holds the parties_key for an ACTIVE agreement with this
+ *      worker (employer_agreement_v4::assert_employer_authorized)
+ *
+ * If any check fails, the mint reverts on-chain.
+ *
+ * On success, two CredentialNFT records are emitted: one owned by the
+ * caller (employer, authoritative) and one owned by `worker_addr`
+ * (visible in the worker's wallet on scan).
  */
 export type CredentialNftParams = {
+  // Authorization
+  agreement_id: Bytes32;
+  parties_key: Bytes32;
+  employer_name_hash: Field;
+  worker_name_hash: Field;
+
+  // Credential target
   worker_addr: Address;
+
+  // Credential content
   credential_id: Bytes32;
-  subject_hash: Bytes32;   // BLAKE3(worker name)
-  issuer_hash: Bytes32;    // BLAKE3(employer name)
+  subject_hash: Bytes32;
+  issuer_hash: Bytes32;
   scope_hash: Bytes32;
   doc_hash: Bytes32;
   root: Bytes32;

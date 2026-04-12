@@ -21,10 +21,13 @@ export const PROGRAMS = {
   },
   layer2: {
     payroll_nfts: "payroll_nfts_v2.aleo",
-    // credential_nft_v2 emits dual records (employer-owned + worker-owned)
-    // so the worker wallet picks up a copy automatically on scan.
-    // v1 (credential_nft.aleo) was @noupgrade and only minted to the caller.
-    credential_nft: "credential_nft_v2.aleo",
+    // credential_nft_v3 adds hard on-chain authorization: the mint
+    // transition calls employer_agreement_v4::assert_employer_authorized
+    // (parties commitment + ACTIVE status) + two pnw_name_registry_v2
+    // ownership checks, so only the employer of an active agreement
+    // for the target worker can mint a credential. v2 had no auth
+    // check (anyone could mint a fake). v1 was @noupgrade single-record.
+    credential_nft: "credential_nft_v3.aleo",
     audit_nft: "audit_nft.aleo",
   },
   external: {

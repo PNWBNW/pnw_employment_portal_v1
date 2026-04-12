@@ -16,6 +16,7 @@ import { useWalletSigner } from "@/components/key-manager/useWalletSigner";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
 import type { CredentialStatus } from "@/src/stores/credential_store";
+import { fetchCredentialAuthForWorker } from "@/src/records/agreement_reader";
 
 const CREDENTIAL_TYPES = Object.entries(CREDENTIAL_TYPE_LABELS) as [
   CredentialType,
@@ -91,7 +92,11 @@ export default function IssueCredentialPage() {
   const issueError = useCredentialStore((s) => s.issueError);
   const setIssueError = useCredentialStore((s) => s.setIssueError);
   const { canSign, signForCredential } = useWalletSigner();
-  const { executeTransaction, transactionStatus: walletTransactionStatus } = useWallet();
+  const {
+    executeTransaction,
+    transactionStatus: walletTransactionStatus,
+    requestRecords,
+  } = useWallet();
   const updateCredentialStatus = useCredentialStore((s) => s.updateCredentialStatus);
 
   const activeWorkers = workers.filter((w) => w.status === "active");
@@ -127,6 +132,12 @@ export default function IssueCredentialPage() {
       setIssueError("Wallet not connected. Connect a wallet first.");
       return;
     }
+    if (!requestRecords) {
+      setIssueError(
+        "Wallet doesn't expose requestRecords — cannot fetch the FinalAgreement needed to authorize this mint.",
+      );
+      return;
+    }
 
     setIssuing(true);
     try {
@@ -136,6 +147,24 @@ export default function IssueCredentialPage() {
       const employerNameHash = toHex(
         domainHash(DOMAIN_TAGS.NAME, new TextEncoder().encode(employerAddr)),
       );
+
+      // Fetch the authorization material from the employer's wallet —
+      // credential_nft_v3::mint_credential_nft requires the four fields
+      // that prove the caller holds an active FinalAgreement with this
+      // worker. If no matching record is found, the mint would fail
+      // on-chain, so bail out early with a clean error.
+      const auth = await fetchCredentialAuthForWorker(
+        requestRecords,
+        employerAddr,
+        selectedWorker.worker_addr,
+      );
+      if (!auth) {
+        setIssueError(
+          "No active FinalAgreement record found in your wallet for this worker. Credentials can only be issued after the worker accepts an agreement and it reaches the ACTIVE state.",
+        );
+        setIssuing(false);
+        return;
+      }
 
       // Wrap the wallet adapter's executeTransaction so it passes
       // `privateFee: false` — same pattern as the settlement coordinator.
@@ -167,6 +196,7 @@ export default function IssueCredentialPage() {
         employerAddr,
         employerNameHash,
         currentEpoch,
+        auth,
         walletExecute,
       );
 
