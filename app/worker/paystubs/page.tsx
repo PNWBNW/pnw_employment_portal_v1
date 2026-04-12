@@ -75,21 +75,47 @@ export default function WorkerPaystubsPage() {
   const [lastScanAt, setLastScanAt] = useState<number | null>(null);
   const lastScannedAddrRef = useRef<string | null>(null);
 
+  // Full .pnw name for display. Falls back to the FULL address (not
+  // truncated) so the PDF always shows something meaningful.
   const workerName =
     chosenName && chosenName.length > 0
       ? chosenName.endsWith(".pnw")
         ? chosenName
         : `${chosenName}.pnw`
-      : address
-        ? truncate(address)
-        : "worker";
+      : address ?? "worker";
 
-  // Pull credential records from the store (populated by the credentials
-  // page scanner) so we can render small thumbnail images on the PDF.
+  // Pull credential records from the store so we can render small
+  // thumbnail images on the PDF. Also scan the wallet directly if
+  // the store is empty (the worker might not have visited the
+  // credentials page yet which is where the scanner normally runs).
   const allCredentials = useCredentialStore((s) => s.credentials);
+  const addCredential = useCredentialStore((s) => s.addCredential);
   const myCredentials = address
     ? allCredentials.filter((c) => c.worker_addr === address && c.status === "active")
     : [];
+
+  // One-time credential scan if the store has nothing for this worker
+  const credScanRef = useRef(false);
+  useEffect(() => {
+    if (credScanRef.current || !address || !requestRecords) return;
+    if (myCredentials.length > 0) return; // already have credentials
+    credScanRef.current = true;
+    void (async () => {
+      try {
+        const { scanCredentialRecords: scanCreds } = await import(
+          "@/src/records/credential_scanner"
+        );
+        const found = await scanCreds(requestRecords, address);
+        const existing = new Set(allCredentials.map((c) => c.credential_id));
+        for (const cred of found) {
+          if (!existing.has(cred.credential_id)) addCredential(cred);
+        }
+      } catch {
+        // Best-effort — credentials on the PDF are optional
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, requestRecords, myCredentials.length]);
 
   /**
    * Render the TOP HALF of each active credential card (header + contour
