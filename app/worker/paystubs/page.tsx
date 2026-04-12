@@ -69,7 +69,7 @@ export default function WorkerPaystubsPage() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastScanAt, setLastScanAt] = useState<number | null>(null);
-  const scannedRef = useRef(false);
+  const lastScannedAddrRef = useRef<string | null>(null);
 
   const workerName =
     chosenName && chosenName.length > 0
@@ -80,13 +80,20 @@ export default function WorkerPaystubsPage() {
         ? truncate(address)
         : "worker";
 
-  // Auto-scan on first visit + 30s interval
+  // Auto-scan on first visit + 30s interval.
+  // Reset and re-scan immediately when the connected address changes
+  // so we never show stale paystubs from a previous wallet session.
   useEffect(() => {
     if (!address || !requestRecords) return;
-    if (!scannedRef.current) {
-      scannedRef.current = true;
+
+    // Address changed — clear previous wallet's data and force re-scan
+    if (lastScannedAddrRef.current !== address) {
+      lastScannedAddrRef.current = address;
+      setPaystubs([]);
+      setLastScanAt(null);
       void runScan();
     }
+
     const interval = setInterval(() => {
       void runScan();
     }, 30_000);
