@@ -136,8 +136,11 @@ function buildHeightmap(
     return { ...oct, grid: g, gw: oct.freqX + 1, gh: oct.freqY + 1 };
   });
 
-  // Compute normalized elevation at every cell
-  const [rcx, rcy] = params.ridgeCenter;
+  // Compute normalized elevation at every cell using multi-peak contributions.
+  // Each peak acts as an independent radial influence; we take the MAX
+  // contribution at each cell (not sum) so distinct peaks stay visually
+  // separated instead of merging into one blob.
+  const { peaks } = params;
   let maxV = -Infinity;
   let minV = Infinity;
 
@@ -146,7 +149,7 @@ function buildHeightmap(
       const u = x / (GRID_W - 1);
       const v = y / (GRID_H - 1);
 
-      // Sum octaves
+      // Sum octaves for the base noise
       let sum = 0;
       let weightSum = 0;
       for (const oct of octaveGrids) {
@@ -165,15 +168,25 @@ function buildHeightmap(
         sum += (a * (1 - fy) + b * fy) * oct.amp;
         weightSum += oct.amp;
       }
-      let v0 = sum / weightSum;
+      const noise = sum / weightSum;
 
-      // Apply radial falloff biased toward ridgeCenter so we get a single
-      // dominant mountain rather than a flat noisy field
-      const dx = u - rcx;
-      const dy = v - rcy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const falloff = Math.max(0, 1 - dist * 1.45);
-      v0 = v0 * 0.35 + falloff * falloff * 0.85;
+      // Multi-peak radial influence: for each peak, compute a
+      // smooth falloff based on distance. Take the max influence
+      // across all peaks so they remain distinct ridges.
+      let peakInfluence = 0;
+      for (const peak of peaks) {
+        const dx = u - peak.x;
+        const dy = v - peak.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const r = peak.radius || 0.2;
+        const falloff = Math.max(0, 1 - dist / r);
+        const contribution = falloff * falloff * peak.height;
+        if (contribution > peakInfluence) peakInfluence = contribution;
+      }
+
+      // Blend base noise with peak influence. Noise adds texture;
+      // peak influence drives the macro shape.
+      const v0 = noise * 0.25 + peakInfluence * 0.85;
 
       values[y * GRID_W + x] = v0;
       if (v0 > maxV) maxV = v0;

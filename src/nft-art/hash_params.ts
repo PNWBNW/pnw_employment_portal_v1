@@ -30,6 +30,25 @@ export type BlueprintPalette = {
   inkFaint: string;
 };
 
+/**
+ * A single peak in the multi-peak heightmap.
+ *
+ * Each credential's terrain is composed of 1-5 of these, arranged
+ * horizontally along the card so the lower panel's profile silhouette
+ * reads like a unique key shape (different tooth counts, heights, and
+ * spacings per credential).
+ */
+export type Peak = {
+  /** Normalized [0, 1] x-position of the peak center */
+  x: number;
+  /** Normalized [0, 1] y-position of the peak center */
+  y: number;
+  /** Height multiplier [0, 1]. The tallest peak is normalized to 1. */
+  height: number;
+  /** Normalized radius of influence (roughly 0.10-0.35 of card width) */
+  radius: number;
+};
+
 export type TerrainParams = {
   /** 8 bytes seeding the heightmap value-noise function */
   seed: number[];
@@ -39,8 +58,12 @@ export type TerrainParams = {
   palette: BlueprintPalette;
   /** Number of contour rings in the upper panel (6-12) */
   contourLevels: number;
-  /** Normalized (x, y) peak location of the heightmap ridge (each in 0-1) */
-  ridgeCenter: [number, number];
+  /**
+   * Multi-peak array. Length varies per credential so each card has
+   * a unique terrain signature. Peaks are sorted by x for deterministic
+   * rendering.
+   */
+  peaks: Peak[];
   /** Normalized y-position of the cross-section used for the profile (0.35-0.65) */
   sliceAxisY: number;
   /** Vertical scaling factor for the projected profile (0.6-1.2) */
@@ -162,23 +185,84 @@ function bigintToBytesBE(value: bigint, length: number): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-peak generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Simple seeded PRNG (mulberry32) for peak generation — same algorithm
+ * as the renderer uses for heightmap noise, but seeded from different
+ * hash bytes so peaks and noise are independently varied.
+ */
+function peakPrng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Derive 1-5 peaks from hash bytes. Each credential gets a unique
+ * "key shape" when viewed from the profile cross-section.
+ */
+function derivePeaks(bytes: Uint8Array): Peak[] {
+  // Peak count from byte 24: weighted toward 2-3 peaks for visual interest
+  const raw24 = bytes[24]!;
+  let peakCount: number;
+  if (raw24 < 38) peakCount = 1;        // ~15%
+  else if (raw24 < 102) peakCount = 2;   // ~25%
+  else if (raw24 < 178) peakCount = 3;   // ~30%
+  else if (raw24 < 230) peakCount = 4;   // ~20%
+  else peakCount = 5;                     // ~10%
+
+  // Seed the peak PRNG from bytes 10-11 (formerly ridgeCenter)
+  const peakSeed = (bytes[10]! << 8) | bytes[11]!;
+  const rng = peakPrng(peakSeed);
+
+  const peaks: Peak[] = [];
+  for (let i = 0; i < peakCount; i++) {
+    peaks.push({
+      // Spread peaks across the horizontal axis with some randomness.
+      // Base position is evenly spaced; PRNG adds jitter so peaks
+      // aren't perfectly uniform.
+      x: 0.15 + ((i + 0.5) / peakCount) * 0.7 + (rng() - 0.5) * 0.12,
+      // Y positions cluster near the vertical center so the profile
+      // slice passes through them. Small vertical jitter keeps the
+      // contour map from looking like a horizontal line of dots.
+      y: 0.35 + rng() * 0.3,
+      // Heights vary so the tallest peak can be any position (first,
+      // middle, last). One peak is always normalized to ~1.0.
+      height: 0.4 + rng() * 0.6,
+      // Radii vary so some peaks are sharp spires, others broad hills.
+      // Smaller radii for more peaks so they don't merge into one blob.
+      radius: (0.12 + rng() * 0.18) / Math.sqrt(peakCount),
+    });
+  }
+
+  // Normalize: tallest peak = 1.0
+  const maxH = Math.max(...peaks.map((p) => p.height));
+  if (maxH > 0) {
+    for (const p of peaks) p.height /= maxH;
+  }
+
+  // Sort by x for deterministic rendering
+  peaks.sort((a, b) => a.x - b.x);
+
+  return peaks;
+}
+
+// ---------------------------------------------------------------------------
 // Parameter extraction
 // ---------------------------------------------------------------------------
 
 /**
  * Derive deterministic TerrainParams from a seed + credential type.
  *
- * Byte usage (0-indexed):
- *   bytes[0..7]   → heightmap noise seed
- *   bytes[8]      → reserved for future palette variants
- *   bytes[9]      → contour ring count
- *   bytes[10..11] → ridge center (x, y) normalized
- *   bytes[12]     → slice axis y-position (0.35..0.65)
- *   bytes[13]     → profile vertical exaggeration (0.6..1.2)
- *   bytes[14]     → hatch density (20..40)
- *   bytes[15]     → hatch angle jitter (0..0.08 rad)
- *   bytes[16..23] → jitter PRNG seed
- *   bytes[24..31] → reserved
+ * Byte usage is intentionally not documented in detail — see project
+ * policy in docs/nft_plan.md "Visual Uniqueness — what stays proprietary".
  */
 export function deriveTerrainParams(
   seed: string | bigint | Uint8Array,
@@ -192,23 +276,19 @@ export function deriveTerrainParams(
 
   const contourLevels = 6 + (bytes[9]! % 7); // 6..12
 
-  // Ridge center is biased toward the middle of the panel so mountains feel
-  // centered rather than clipped against edges. Byte 10/11 still drives
-  // asymmetry (off-center placement), just within a tighter window.
-  const ridgeCenter: [number, number] = [
-    0.3 + (bytes[10]! / 255) * 0.4, // 0.30..0.70
-    0.3 + (bytes[11]! / 255) * 0.4, // 0.30..0.70
-  ];
+  // Multi-peak generation — each credential gets 1-5 peaks arranged
+  // along the horizontal, so the lower panel's profile silhouette
+  // reads like a unique key shape (different tooth count, heights,
+  // spacings) per credential.
+  const peaks = derivePeaks(bytes);
 
-  // Slice axis is always close to the ridge center y-position so the
-  // cross-section actually passes through the peak and the profile looks
-  // like a mountain for every credential. Byte 12 adds a small offset so
-  // different credentials get slightly different slice angles.
+  // Slice axis y-position — deterministic per credential, biased
+  // toward the vertical center where peaks cluster so the profile
+  // cross-section always passes through meaningful terrain.
+  const peakYMean =
+    peaks.reduce((sum, p) => sum + p.y, 0) / Math.max(1, peaks.length);
   const sliceOffset = ((bytes[12]! / 255) - 0.5) * 0.08; // ±0.04
-  const sliceAxisY = Math.max(
-    0.25,
-    Math.min(0.75, ridgeCenter[1] + sliceOffset),
-  );
+  const sliceAxisY = Math.max(0.25, Math.min(0.75, peakYMean + sliceOffset));
 
   const profileExaggeration = 0.8 + (bytes[13]! / 255) * 0.5; // 0.8..1.3
   const hatchDensity = 20 + (bytes[14]! % 21); // 20..40
@@ -219,7 +299,7 @@ export function deriveTerrainParams(
     jitterSeed,
     palette: BLUEPRINT_PALETTES[credentialType],
     contourLevels,
-    ridgeCenter,
+    peaks,
     sliceAxisY,
     profileExaggeration,
     hatchDensity,
