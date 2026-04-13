@@ -1,75 +1,50 @@
 # PNW Employment Portal
 
-**Privacy-first payroll on Aleo — the employer-facing web portal for Proven National Workers.**
+**Privacy-first payroll on Aleo — the employer and worker web portal for Proven National Workers.**
 
 ---
 
-## Vision
+## What This Is
 
-Proven National Workers (PNW) is a payroll framework where **zero plaintext wage or
-identity data ever leaves the user's session**. Employers onboard workers, run payroll,
-issue credentials, and authorize audits — all through a browser-based portal that
-talks directly to the Aleo blockchain. No server database. No third-party services
-touching private data. Think QuickBooks meets a blockchain payroll client, but with
-real privacy guarantees enforced by zero-knowledge proofs.
+The PNW Employment Portal is a zero-backend Next.js dApp where employers onboard workers, run private payroll, issue verifiable credentials with generative topographic art, and authorize audits — and where workers view their paystubs, credentials, and job offers. No plaintext wages, identities, or employment data ever leave the browser. Everything sensitive lives in private Aleo records decoded locally by the connected wallet.
 
-This repo is the **employer-facing web application** — the UI layer that sits on top
-of the on-chain programs defined in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2).
+This repo is the **UI and orchestration layer** — it sits on top of the on-chain programs defined in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2). The master project repo is [`pnw`](https://github.com/PNWBNW/pnw).
 
 ---
 
 ## How This Repo Fits
 
 ```
-┌───────────────────────────────────────────────────────┐
-│  LAYER 3 — Employment Portal (this repo)              │
-│  UI · Manifest Compiler · Settlement Coordinator      │
-│                        ↓ adapter calls                │
-├───────────────────────────────────────────────────────┤
-│  LAYER 2 — NFT Commitment Programs (pnw_mvp_v2)      │
-│  payroll_nfts.aleo · credential_nft.aleo · audit_nft  │
-├───────────────────────────────────────────────────────┤
-│  LAYER 1 — Core Programs (pnw_mvp_v2)                │
-│  payroll_core.aleo · employer_agreement_v2.aleo · ... │
-├───────────────────────────────────────────────────────┤
-│  Aleo Testnet                                         │
-└───────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│  LAYER 3 — Employment Portal (this repo)                  │
+│  UI · ManifestCompiler · SettlementCoordinator ·          │
+│  CredentialArtEngine · WalletRecordScanners · PDFs        │
+│                        ↓ adapter calls                    │
+├───────────────────────────────────────────────────────────┤
+│  LAYER 2 — NFT Commitment Programs (pnw_mvp_v2)          │
+│  payroll_nfts_v2 · credential_nft_v3 · audit_nft         │
+├───────────────────────────────────────────────────────────┤
+│  LAYER 1 — Core Programs (pnw_mvp_v2)                    │
+│  payroll_core_v2 · employer_agreement_v4 ·                │
+│  paystub_receipts · payroll_audit_log ·                   │
+│  pnw_name_registry_v2 · employer_license_registry · ...   │
+├───────────────────────────────────────────────────────────┤
+│  Aleo Testnet                                             │
+└───────────────────────────────────────────────────────────┘
 ```
 
 | Responsibility | This repo | pnw_mvp_v2 |
-|----------------|-----------|------------|
+|---|---|---|
 | Leo programs (on-chain logic) | Never | Owns all |
 | Adapter / execution boundary | Copies from pnw_mvp_v2 | Source of truth |
 | Payroll manifest compilation | Owns | — |
 | Settlement orchestration | Owns | — |
+| Generative credential art | Owns | — |
+| Wallet record scanning | Owns | — |
+| Client-side PDF generation | Owns | — |
 | UI / UX | Owns | — |
-| Cryptographic commitments | Copies hash + encoder | Source of truth |
 
-The portal **never calls `snarkos` directly**. All on-chain interaction goes through
-the adapter layer in `src/lib/pnw-adapter/`, which is synced from `pnw_mvp_v2`.
-See [INTEROP.md](./INTEROP.md) for the sync protocol.
-
----
-
-## Quick Start
-
-```bash
-# Prerequisites: Node 20+, pnpm 9+
-git clone https://github.com/PNWBNW/pnw_employment_portal_v1.git
-cd pnw_employment_portal_v1
-
-pnpm install
-pnpm dev          # http://localhost:3000
-pnpm test         # Vitest unit tests
-pnpm build        # Production build
-pnpm typecheck    # TypeScript strict check
-```
-
-Create `.env.local` from the template:
-```bash
-cp .env.example .env.local
-# Edit NEXT_PUBLIC_ALEO_ENDPOINT if needed (defaults to Aleo testnet)
-```
+The portal **never calls `snarkos` directly**. All on-chain interaction goes through the adapter layer in `src/lib/pnw-adapter/`, synced from `pnw_mvp_v2`. See [docs/INTEROP.md](./docs/INTEROP.md) for the sync protocol.
 
 ---
 
@@ -86,7 +61,7 @@ cp .env.example .env.local
 | @noble/hashes | 2.x | BLAKE3 hashing (matches pnw_mvp_v2) |
 | jspdf | 4.x | Client-side PDF generation |
 | Framer Motion | 12.x | Landing page animations |
-| @provablehq/aleo-wallet-adaptor-* | 0.3.0-alpha.3 | Wallet connection (5 wallets) |
+| @provablehq/aleo-wallet-adaptor-* | 0.3.0-alpha.3 | Wallet connection (Shield, Puzzle, Leo, Fox, Soter) |
 | Vitest | 4.x | Unit tests |
 
 ---
@@ -95,31 +70,30 @@ cp .env.example .env.local
 
 | Phase | Status | What it delivered |
 |-------|--------|-------------------|
-| E1 | Done | Scaffold, key manager, config |
-| E2 | Done | Worker list, agreement status |
-| E3 | Done | Payroll table UI |
-| E4 | Done | Manifest compiler |
-| E5 | Done | Settlement Coordinator |
-| E6 | Done | Run status UI |
-| E7 | Done | Batch anchor finalizer |
+| E1–E4 | Done | Scaffold, key manager, worker list, payroll table UI, manifest compiler |
+| E5 | Done | Settlement Coordinator (monolithic `execute_payroll` path) |
+| E6 | Done | Run status UI with on-chain receipt scanning |
+| E7 | Done | Batch anchor finalizer via `payroll_nfts_v2.aleo` |
 | E8 | Done | Receipt viewer, credential issuer |
-| E9 | Done | Audit authorization flow |
-| Post-E9 | Done | Wallet adapters, cinematic landing page |
-| **E10** | **Done (2026-04-10)** | End-to-end testnet happy path |
-| E11 | In progress | Multi-worker hardening, double-pay guard, step recovery |
+| E9 | Done | Audit authorization flow, worker portal stubs |
+| Post-E9 | Done | Official wallet adapters (5 wallets), cinematic landing page |
+| **E10** | **Done (2026-04-10)** | End-to-end testnet happy path — payroll + anchor confirmed |
+| **E11** | **Done (2026-04-12)** | Multi-worker payroll (3 workers), USDCx double-spend fix, filling progress bar |
+| **Credentials** | **Done (2026-04-12)** | `credential_nft_v3` with on-chain auth, dual-record mint, generative topographic art, worker + employer galleries, PNG download, PDF print |
+| **Paystubs** | **Done (2026-04-12)** | Worker paystub viewer via wallet scan (no view key), PDF print with credential badge thumbnails |
+| **Identity** | **Done (2026-04-12)** | Wallet-switch identity reset, on-chain `.pnw` name resolution |
 | Mobile | Pending | Responsive formatting polish |
 
 ---
 
 ## Privacy Guarantees
 
-1. **No private keys, view keys, wages, names, or addresses stored in any database.**
-   All sensitive values live in session memory only.
-2. **No plaintext identity or salary on the public chain.** Public mappings hold
-   hashes and anchors only — enforced by pnw_mvp_v2 programs.
-3. **PDFs generated client-side only.** No upload. No third-party PDF service.
-4. **PayrollRunManifest is immutable once compiled.** Content-addressed by BLAKE3;
-   `batch_id` changes if any row changes.
+1. **No sensitive data in any database.** Private keys, view keys, wages, names, and addresses live in session memory only. No backend server, no database.
+2. **No plaintext on public chain state.** Public mappings hold only hashes and anchors — enforced by `pnw_mvp_v2` programs.
+3. **Encrypted agreement terms.** Employment terms are AES-256-GCM encrypted client-side before IPFS pin. Only the two parties hold the decryption key.
+4. **Client-side PDFs.** Paystubs, credential certificates, and audit authorizations are generated entirely in the browser. No upload, no third-party service.
+5. **Deterministic credential art.** Each credential's visual is a pure function of its BLAKE3 hash — rendered on Canvas client-side, no image stored anywhere.
+6. **Immutable manifests.** `PayrollRunManifest` is content-addressed by BLAKE3; `batch_id` changes if any row changes.
 
 ---
 
@@ -127,17 +101,16 @@ cp .env.example .env.local
 
 | Document | Purpose |
 |----------|---------|
-| [CLAUDE.md](./CLAUDE.md) | Full project context — architecture, tech decisions, file map, invariants |
 | [docs/BUILD_ORDER.md](./docs/BUILD_ORDER.md) | Phase-by-phase build plan with exit criteria |
 | [docs/EMPLOYER_FLOWS.md](./docs/EMPLOYER_FLOWS.md) | All employer UX flows (session → payroll → credentials → audit) |
-| [docs/HANDSHAKE.md](./docs/HANDSHAKE.md) | Agreement handshake protocol (direct on-chain broadcast) |
+| [docs/HANDSHAKE.md](./docs/HANDSHAKE.md) | Agreement handshake protocol (encrypted IPFS + on-chain broadcast) |
 | [docs/INTEROP.md](./docs/INTEROP.md) | Cross-repo sync contract with pnw_mvp_v2 |
 | [docs/PAYROLL_RUN_MANIFEST.md](./docs/PAYROLL_RUN_MANIFEST.md) | Manifest data contract (locked spec) |
 | [docs/DESIGN_BRIEF.md](./docs/DESIGN_BRIEF.md) | Visual design brief for UI improvements |
-| [docs/nft_plan.md](./docs/nft_plan.md) | Generative topographic credential NFT art — design, hash chain, anti-collision proof, dual-record mint |
+| [docs/nft_plan.md](./docs/nft_plan.md) | Generative topographic credential NFT art system |
 
 ---
 
 ## License
 
-TBD
+Proprietary — PNW Smart Contract License v1.7. See the master repo [`LICENSE.md`](https://github.com/PNWBNW/pnw/blob/main/LICENSE.md).
