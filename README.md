@@ -6,7 +6,9 @@
 
 ## What This Is
 
-The PNW Employment Portal is a zero-backend Next.js dApp where employers onboard workers, run private payroll, issue verifiable credentials with generative topographic art, and authorize audits — and where workers view their paystubs, credentials, and job offers. No plaintext wages, identities, or employment data ever leave the browser. Everything sensitive lives in private Aleo records decoded locally by the connected wallet.
+The PNW Employment Portal is a Next.js dApp where employers onboard workers, run private payroll, issue verifiable credentials with generative topographic art, and authorize audits — and where workers view their paystubs, credentials, and job offers. No plaintext wages, identities, or employment data ever leave the browser unencrypted. Everything sensitive lives in private Aleo records decoded locally by the connected wallet.
+
+The portal has no traditional backend database. Two lightweight Next.js API routes (`app/api/terms/upload` and `app/api/terms/lookup`) proxy encrypted agreement terms to Pinata IPFS using a server-side `PINATA_JWT` — but these routes only handle already-encrypted ciphertext. The encryption key never leaves the client.
 
 This repo is the **UI and orchestration layer** — it sits on top of the on-chain programs defined in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2). The master project repo is [`pnw`](https://github.com/PNWBNW/pnw).
 
