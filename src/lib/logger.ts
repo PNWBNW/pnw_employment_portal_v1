@@ -57,6 +57,27 @@ const LEVELS: Record<LogLevel, number> = {
 const RING_BUFFER_SIZE = 200;
 
 // ---------------------------------------------------------------------------
+// Circular-safe JSON serializer
+// ---------------------------------------------------------------------------
+
+/** JSON.stringify that replaces circular references with "[Circular]"
+ *  instead of throwing. Safe for arbitrary app state objects. */
+function safeStringify(obj: unknown): string {
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(obj, (_key, value) => {
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) return "[Circular]";
+        seen.add(value);
+      }
+      return value;
+    });
+  } catch {
+    return "[Unserializable]";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Session trace ID — unique per page load, persists across navigations
 // within the same SPA session
 // ---------------------------------------------------------------------------
@@ -210,6 +231,9 @@ export const log = {
 
   /**
    * End a performance timer and emit a debug log with the duration.
+   * Routes through emit() so level/tag filters apply — if the level
+   * is set above debug or the tag is filtered out, the timing entry
+   * is neither printed NOR buffered, matching the advertised behavior.
    * Returns the elapsed milliseconds (or -1 if no matching timer).
    */
   timeEnd(label: string, tag?: string): number {
@@ -218,20 +242,7 @@ export const log = {
     timers.delete(label);
 
     const durationMs = Math.round(performance.now() - start);
-    const entry: LogEntry = {
-      level: "debug",
-      tag: tag ?? "PNW-PERF",
-      event: `${label} completed`,
-      timestamp: new Date().toISOString(),
-      traceId: getTraceId(),
-      durationMs,
-    };
-    pushEntry(entry);
-
-    if (getLevel() <= LEVELS.debug && isTagAllowed(entry.tag)) {
-      console.log(`[${entry.tag}]`, `${label} completed`, `${durationMs}ms`);
-    }
-
+    emit("debug", tag ?? "PNW-PERF", `${label} completed`, { durationMs });
     return durationMs;
   },
 
@@ -254,13 +265,15 @@ export const log = {
   /**
    * Return the ring buffer as a human-readable text block suitable
    * for copy-pasting into a bug report. Includes the trace ID header.
+   * Uses a circular-safe JSON serializer so cyclic objects in data
+   * payloads don't crash the export.
    */
   dumpText(limit?: number): string {
     const entries = log.dump(limit);
     const header = `PNW Debug Log — Trace: ${getTraceId()} — ${new Date().toISOString()}\n${"=".repeat(60)}\n`;
     const lines = entries.map((e) => {
       const dur = e.durationMs !== undefined ? ` (${e.durationMs}ms)` : "";
-      const data = e.data ? ` ${JSON.stringify(e.data)}` : "";
+      const data = e.data ? ` ${safeStringify(e.data)}` : "";
       return `${e.timestamp} [${e.level.toUpperCase()}] [${e.tag}] ${e.event}${dur}${data}`;
     });
     return header + lines.join("\n");
