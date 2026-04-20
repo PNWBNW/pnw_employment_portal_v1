@@ -19,6 +19,7 @@ import { useState } from "react";
 import { useCredentialStore } from "@/src/stores/credential_store";
 import { useWorkerIdentityStore } from "@/src/stores/worker_identity_store";
 import { CredentialCard } from "@/components/credential-art/CredentialCard";
+import { useTimesheetStore } from "@/src/stores/timesheet_store";
 
 function truncate(s: string, len = 16): string {
   return s.length <= len ? s : `${s.slice(0, len)}...`;
@@ -50,6 +51,14 @@ export default function WorkerDashboardPage() {
   // Offer stats
   const pendingOffers = receivedOffers.filter((o) => o.status === "sent");
   const activeAgreements = receivedOffers.filter((o) => o.status === "accepted" || o.status === "active");
+
+  // Timesheet — init for connected wallet + get weekly hours
+  const initTimesheet = useTimesheetStore((s) => s.initForWallet);
+  const isClockedIn = useTimesheetStore((s) => s.isClockedIn);
+  const weekHours = useTimesheetStore((s) => s.getCurrentWeekHours)();
+  useEffect(() => {
+    if (address) initTimesheet(address);
+  }, [address, initTimesheet]);
 
   // Credentials issued to this worker (populated by the worker credentials
   // page scanner on first visit; shows up here too once scanned).
@@ -119,7 +128,7 @@ export default function WorkerDashboardPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-2xl font-bold text-foreground">{pendingOffers.length}</p>
           <p className="text-xs text-muted-foreground">Pending Offers</p>
@@ -128,6 +137,22 @@ export default function WorkerDashboardPage() {
           <p className="text-2xl font-bold text-foreground">{activeAgreements.length}</p>
           <p className="text-xs text-muted-foreground">Active Agreements</p>
         </div>
+        <Link
+          href="/worker/timesheet"
+          className="rounded-lg border border-border bg-card p-4 hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-bold text-foreground">
+              {weekHours.toFixed(1)}h
+            </p>
+            {isClockedIn && (
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500" />
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {isClockedIn ? "Clocked in" : "This week"}
+          </p>
+        </Link>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-2xl font-bold text-foreground">{myCredentials.length}</p>
           <p className="text-xs text-muted-foreground">Credentials</p>
