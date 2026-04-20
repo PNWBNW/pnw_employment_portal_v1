@@ -14,12 +14,23 @@ const columnHelper = createColumnHelper<PayrollTableRow>();
 export const payrollColumns = [
   columnHelper.accessor("worker_name", {
     header: "Worker (.pnw)",
-    size: 180,
+    size: 160,
     meta: { editable: true, placeholder: "alice.pnw", type: "worker" },
+  }),
+  columnHelper.display({
+    id: "rate",
+    header: "Rate",
+    size: 80,
+    meta: { type: "text" },
+  }),
+  columnHelper.accessor("hours_worked", {
+    header: "Hours",
+    size: 70,
+    meta: { editable: true, placeholder: "0", type: "amount" },
   }),
   columnHelper.accessor("gross_amount", {
     header: "Gross ($)",
-    size: 120,
+    size: 110,
     meta: { editable: true, placeholder: "0.00", type: "amount" },
   }),
   columnHelper.accessor("tax_withheld", {
