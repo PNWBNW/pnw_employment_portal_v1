@@ -416,22 +416,17 @@ app/(worker)/paystubs/page.tsx
 **Goal:** Full end-to-end scenario executed against Aleo testnet from the portal UI.
 This is the Phase 4 equivalent for the portal repo.
 
-### Scenario
+### Completed (2026-04-10)
 
-```
-1. Employer connects via key entry (testnet keys)
-2. Employer onboards 1 worker → QR flow → agreement on-chain
-3. Employer runs payroll for that worker → manifest → settlement → anchor
-4. Worker views their paystub
-5. Employer issues a credential to that worker
-6. Employer requests audit authorization for that worker
-7. Worker approves → AuditNFT minted
-8. Employer prints all three documents (paystub, credential cert, audit auth)
-```
+First successful end-to-end private payroll + anchor executed from the portal UI:
 
-### Exit Criteria
-All eight steps complete successfully with real testnet tx IDs.
-This is the Portal Phase 4 exit criteria.
+| Step | Program | Transaction |
+|---|---|---|
+| Verify agreement | `employer_agreement_v4` | `at1mydsktdsr8pk7d4utzrp6n2rvtgkkpavthukyt4kpdadgyx5lg8sgljea3` |
+| Transfer USDCx | `test_usdcx_stablecoin` | `at1yphn8n9zejqnnsktuev7rl9vkv8styq00rjpffa0h7rxnccssyyqdk9ltw` |
+| Mint receipts | `paystub_receipts` | `at1w86wy80c9sgv0e2ukwlzja4r4km0vkld2tna586t9447q6pjvvrqhuvnw4` |
+| Anchor event | `payroll_audit_log` | `at1jp6mertn92hpn79uak8vdy9t4ha2t0f4fwq877uy6rmjl20g0syqdzygp3` |
+| Mint cycle NFT | `payroll_nfts_v2` | `at1d8ht598hqqjgmqfxjwvt0cf47aqafgynzjhazhtreze6j22hzcrq5992r5` |
 
 ---
 
@@ -451,7 +446,64 @@ adapters (Shield, Puzzle, Leo, Fox, Soter) and build an immersive landing page.
 ### Pending
 - Mobile responsive formatting within employer portal pages
 - Shield in-app browser deep-link (waiting on Shield adapter to expose URL scheme)
-- E10 end-to-end testnet happy path
+
+---
+
+## Phase E11 — Multi-Worker Payroll + Hardening (Done 2026-04-11)
+
+**Goal:** Execute payroll for multiple workers in one session with live progress tracking.
+
+### Completed
+- [x] 3-worker sequential payroll with automatic USDCx remainder-record handling between workers
+- [x] `consumedUsdcxRecords: Set<string>` prevents double-spend across workers
+- [x] Remainder-record polling: 8 attempts x 4s backoff between workers
+- [x] Filling progress bar per worker (0→90% during proof, pause at 90%, jump to 100% on confirm)
+- [x] `WorkerProgress` type with `onWorkerProgress` callback for live UI updates
+
+---
+
+## Phase E12 — Credential NFTs + Generative Art (Done 2026-04-12)
+
+**Goal:** Employer issues verifiable credentials with on-chain authorization and generative visual art.
+
+### Completed
+- [x] `credential_nft_v3.aleo` deployed with 3 cross-program authorization checks
+- [x] Dual-record mint (employer + worker copies in one transition)
+- [x] `employer_agreement_v4.aleo` upgraded with `assert_employer_authorized` transition
+- [x] Generative topographic blueprint card art (1-5 peaks, 4 palettes, deterministic from BLAKE3)
+- [x] Worker credential gallery (wallet record scan)
+- [x] Employer credential list (issued credentials per worker)
+- [x] PNG download + PDF certificate print
+- [x] `.pnw` name + truncated Aleo address on card header
+- [x] `credential_nft_v4.aleo` deployed (adds employer license verification, staged)
+
+---
+
+## Phase E13 — Worker Portal Features (Done 2026-04-15)
+
+**Goal:** Full worker experience — tax withholding, timesheet, paystub viewer, pay rates.
+
+### Completed
+- [x] **Federal tax engine** (`src/lib/tax-engine.ts`) — IRS annualization method, 2026 brackets, 4 filing statuses, FICA, Medicare with YTD tracking
+- [x] **W-4 form** (`app/worker/w4/page.tsx`) — Steps 1-4 matching IRS Form W-4, dependent credits ($2,000/$500), adjustments
+- [x] **W-4 encryption** (`src/lib/w4-crypto.ts`) — parties_key AES-256-GCM, IPFS pin via Pinata, cross-browser employer access
+- [x] **Timesheet** (`app/worker/timesheet/page.tsx`) — clock-in/out, weekly hours, daily grouped entries, 40-hour progress bar
+- [x] **Paystub viewer** (`app/worker/paystubs/page.tsx`) — wallet record scan (no view key), PDF print
+- [x] **Pay rates in agreements** — hourly/salary pay type in offer flow, auto-fill payroll table
+- [x] **Tax auto-fill in payroll table** — reads worker W-4 data, computes tax per worker on gross change
+- [x] **Employer W-4 section** on worker detail page — reads encrypted W-4 from IPFS
+
+---
+
+## Phase E14 — Inline W-4 Form (Done 2026-04-20)
+
+**Goal:** Remove PDF download/upload friction — make W-4 fillable directly in the portal.
+
+### Completed
+- [x] Remove PDF upload imports and 3-step download/fill/upload workflow
+- [x] All W-4 fields directly editable in portal (radio buttons, checkboxes, number inputs)
+- [x] Zero friction for mobile workers — no file picker or PDF reader needed
+- [x] Encrypted IPFS upload preserved on submit via `uploadEncryptedW4`
 
 ---
 
@@ -470,4 +522,8 @@ adapters (Shield, Puzzle, Leo, Fox, Soter) and build an immersive landing page.
 | E8 | Docs + Creds | credential_nft | PDFs + credentials | Done |
 | E9 | Audit + Worker | audit_nft | Dual-consent audit | Done |
 | Post-E9 | Wallet + UX | None | Official wallet adapters + landing page | Done |
-| E10 | E2E testnet | All | Happy path confirmed | Pending |
+| E10 | E2E testnet | All | Happy path confirmed (2026-04-10) | Done |
+| E11 | Multi-worker | payroll_core_v2 | 3-worker payroll, USDCx double-spend fix, progress bar | Done |
+| E12 | Credentials | credential_nft_v3/v4 | Dual-record mint, on-chain auth, generative topo art, galleries | Done |
+| E13 | Worker features | — | Tax engine, W-4 form, timesheet, paystub viewer, pay rates | Done |
+| E14 | W-4 inline form | — | Remove PDF upload, inline fillable form, encrypted IPFS share | Done |
