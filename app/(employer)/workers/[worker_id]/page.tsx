@@ -6,6 +6,14 @@ import { useWorkerStore } from "@/src/stores/worker_store";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
 import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
 import { generatePaystubPdf } from "@/components/pdf/PaystubPDF";
+import { loadWorkerW4 } from "@/src/stores/w4_store";
+
+const FILING_LABELS: Record<string, string> = {
+  single: "Single",
+  married_filing_jointly: "Married Filing Jointly",
+  married_filing_separately: "Married Filing Separately",
+  head_of_household: "Head of Household",
+};
 
 function truncate(str: string, len = 16): string {
   if (str.length <= len) return str;
@@ -139,6 +147,9 @@ export default function WorkerDetailPage({
         </div>
       </div>
 
+      {/* W-4 Tax Withholding */}
+      <W4Section workerAddr={worker.worker_addr} />
+
       {/* Agreement Actions */}
       {worker.status === "active" && (
         <div className="rounded-lg border border-border bg-card p-4">
@@ -249,6 +260,114 @@ export default function WorkerDetailPage({
           .
         </p>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// W-4 Section — shows the worker's tax withholding elections
+// ---------------------------------------------------------------------------
+
+function W4Section({ workerAddr }: { workerAddr: string }) {
+  const w4 = loadWorkerW4(workerAddr);
+
+  // Check for IPFS CID (stored when the worker uploaded their W-4 PDF)
+  const ipfsCid =
+    typeof window !== "undefined"
+      ? localStorage.getItem(`pnw_w4_cid_${workerAddr}`)
+      : null;
+
+  if (!w4) {
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+        <h2 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+          W-4 Not On File
+        </h2>
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+          This worker has not completed their W-4 tax withholding form. Tax
+          withholding will use the default filing status (Single, no dependents)
+          until the worker submits their W-4 through the worker portal.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-medium text-foreground">
+          W-4 Tax Withholding
+        </h2>
+        <div className="flex items-center gap-2">
+          {ipfsCid && (
+            <a
+              href={`https://gateway.pinata.cloud/ipfs/${ipfsCid}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-input px-2 py-1 text-xs text-primary hover:bg-accent"
+            >
+              View PDF
+            </a>
+          )}
+          <span className="text-xs text-green-600 dark:text-green-400">
+            On file — {new Date(w4.updatedAt).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <p className="text-xs text-muted-foreground">Filing Status</p>
+          <p className="mt-0.5 text-sm font-medium text-foreground">
+            {FILING_LABELS[w4.filingStatus] ?? w4.filingStatus}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground">Dependent Credit</p>
+          <p className="mt-0.5 text-sm font-medium text-foreground">
+            ${w4.totalDependentCredit.toLocaleString()}
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            {w4.qualifyingChildren} child{w4.qualifyingChildren !== 1 ? "ren" : ""} +{" "}
+            {w4.otherDependents} other
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground">Extra Withholding</p>
+          <p className="mt-0.5 text-sm font-medium text-foreground">
+            {w4.extraWithholding > 0
+              ? `$${w4.extraWithholding.toFixed(2)}/period`
+              : "None"}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground">Adjustments</p>
+          <p className="mt-0.5 text-sm text-foreground">
+            {w4.otherIncome > 0 && (
+              <span className="block text-xs">
+                Other income: ${w4.otherIncome.toLocaleString()}/yr
+              </span>
+            )}
+            {w4.extraDeductions > 0 && (
+              <span className="block text-xs">
+                Extra deductions: ${w4.extraDeductions.toLocaleString()}/yr
+              </span>
+            )}
+            {w4.otherIncome === 0 && w4.extraDeductions === 0 && (
+              <span className="text-xs text-muted-foreground">None</span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {w4.multipleJobsOrSpouseWorks && (
+        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+          Multiple jobs / spouse works — withholding uses higher bracket tables
+        </p>
+      )}
     </div>
   );
 }
