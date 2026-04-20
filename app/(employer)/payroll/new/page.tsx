@@ -145,16 +145,38 @@ export default function NewPayrollPage() {
         // pay_type and pay_rate are stored in the encrypted terms
         // (not on-chain), so we pull them from the local offer tracking.
         const enriched = records.map((r) => {
+          // Try to recover pay info from two sources:
+          // 1. The offer store (sessionStorage — available if the offer was
+          //    created in this browser session)
+          // 2. A durable localStorage cache keyed by agreement_id (survives
+          //    tab close / browser restart)
           const matchingOffer = sentOffers.find(
-            (o) => o.offer.worker_address === r.worker_addr,
+            (o) => o.computed.agreement_id === r.agreement_id,
           );
           if (matchingOffer?.offer.pay_type && matchingOffer?.offer.pay_rate) {
+            // Cache durably so it survives session loss
+            try {
+              localStorage.setItem(
+                `pnw_pay_${r.agreement_id}`,
+                JSON.stringify({ pay_type: matchingOffer.offer.pay_type, pay_rate: matchingOffer.offer.pay_rate }),
+              );
+            } catch { /* storage full — non-critical */ }
             return {
               ...r,
               pay_type: matchingOffer.offer.pay_type as "hourly" | "salary",
               pay_rate: matchingOffer.offer.pay_rate,
             };
           }
+          // Fallback: check durable cache
+          try {
+            const cached = localStorage.getItem(`pnw_pay_${r.agreement_id}`);
+            if (cached) {
+              const { pay_type, pay_rate } = JSON.parse(cached);
+              if (pay_type && pay_rate) {
+                return { ...r, pay_type, pay_rate };
+              }
+            }
+          } catch { /* parse error — skip */ }
           return r;
         });
         setWorkers(enriched);
