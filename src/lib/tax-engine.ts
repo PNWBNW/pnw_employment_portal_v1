@@ -130,7 +130,7 @@ const PERIODS_PER_YEAR: Record<PayPeriod, number> = {
 export type TaxInput = {
   /** Gross pay for THIS pay period (dollars) */
   gross: number;
-  /** Worker's filing status */
+  /** Worker's filing status (from their W-4 Step 1) */
   filingStatus: FilingStatus;
   /** How often they're paid */
   payPeriod: PayPeriod;
@@ -138,6 +138,18 @@ export type TaxInput = {
   ytdGross?: number;
   /** Year-to-date SS tax already withheld */
   ytdSsTax?: number;
+
+  // --- W-4 adjustments (all optional, default to 0) ---
+
+  /** W-4 Step 3: total dependent tax credit (children × $2,000 + other × $500).
+   *  Reduces the computed annual federal tax before de-annualizing. */
+  dependentCredit?: number;
+  /** W-4 Step 4a: other income not from jobs (added to projected annual). */
+  otherIncome?: number;
+  /** W-4 Step 4b: deductions beyond standard deduction (subtracted from income). */
+  extraDeductions?: number;
+  /** W-4 Step 4c: extra withholding per pay period (flat add-on). */
+  extraWithholding?: number;
 };
 
 export type TaxResult = {
@@ -215,22 +227,32 @@ export function computePayrollTax(input: TaxInput): TaxResult {
   const periods = PERIODS_PER_YEAR[pp];
   const ytdGross = input.ytdGross ?? 0;
 
-  // Step 1: Annualize
-  const projectedAnnual = gross * periods;
+  // W-4 adjustments (all default to 0 if not provided)
+  const otherIncome = input.otherIncome ?? 0;
+  const extraDeductions = input.extraDeductions ?? 0;
+  const dependentCredit = input.dependentCredit ?? 0;
+  const extraWithholding = input.extraWithholding ?? 0;
 
-  // Step 2: Standard deduction
+  // Step 1: Annualize — include W-4 Step 4a (other income)
+  const projectedAnnual = gross * periods + otherIncome;
+
+  // Step 2: Standard deduction + W-4 Step 4b (extra deductions)
   const stdDed = STANDARD_DEDUCTIONS[fs];
-  const projectedTaxable = Math.max(0, projectedAnnual - stdDed);
+  const totalDeductions = stdDed + extraDeductions;
+  const projectedTaxable = Math.max(0, projectedAnnual - totalDeductions);
 
   // Step 3: Marginal federal income tax (annual)
   const brackets = BRACKETS[fs];
-  const [annualFedTax, marginalRate] = computeMarginalTax(
+  const [annualFedTaxRaw, marginalRate] = computeMarginalTax(
     projectedTaxable,
     brackets,
   );
 
-  // Step 4: De-annualize to per-period
-  const fedTax = round2(annualFedTax / periods);
+  // Step 3b: Apply W-4 Step 3 dependent credits (reduce annual tax)
+  const annualFedTax = Math.max(0, annualFedTaxRaw - dependentCredit);
+
+  // Step 4: De-annualize to per-period + W-4 Step 4c (extra withholding)
+  const fedTax = round2(annualFedTax / periods + extraWithholding);
 
   // Step 5: Social Security (per-period, respecting YTD cap)
   const ssRemainingCap = Math.max(0, SS_WAGE_BASE - ytdGross);

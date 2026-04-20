@@ -34,6 +34,7 @@ import {
   type FilingStatus,
   type PayPeriod,
 } from "@/src/lib/tax-engine";
+import { loadWorkerW4 } from "@/src/stores/w4_store";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
@@ -344,13 +345,16 @@ export default function NewPayrollPage() {
           );
 
           if (!isNaN(gross) && gross > 0) {
-            // Determine pay period from the worker's pay frequency
-            // (stored on the worker record from the agreement). Default
-            // to biweekly if unknown.
-            const workerMatch = workers.find(
-              (w) => w.agreement_id === newRow.agreement_id,
-            );
-            // Pay frequency isn't on WorkerRecord yet — default to biweekly
+            // Load the worker's W-4 for filing status + adjustments.
+            // If no W-4 on file, fall back to the global filing status
+            // from the toolbar dropdown.
+            const w4 = newRow.worker_addr
+              ? loadWorkerW4(newRow.worker_addr)
+              : null;
+            const workerFilingStatus: FilingStatus =
+              w4?.filingStatus ?? filingStatus;
+
+            // Pay period default — biweekly unless we know better
             const payPeriod: PayPeriod = "biweekly";
 
             // Compute YTD gross from other rows in this table (rough
@@ -364,9 +368,14 @@ export default function NewPayrollPage() {
 
             const taxResult = computePayrollTax({
               gross,
-              filingStatus,
+              filingStatus: workerFilingStatus,
               payPeriod,
               ytdGross: ytdFromOtherRows,
+              // W-4 adjustments — all default to 0 if no W-4
+              dependentCredit: w4?.totalDependentCredit ?? 0,
+              otherIncome: w4?.otherIncome ?? 0,
+              extraDeductions: w4?.extraDeductions ?? 0,
+              extraWithholding: w4?.extraWithholding ?? 0,
             });
 
             // Auto-fill the tax column from the engine
