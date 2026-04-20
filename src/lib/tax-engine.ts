@@ -240,13 +240,24 @@ export function computePayrollTax(input: TaxInput): TaxResult {
   // Step 6: Medicare (per-period)
   const medTax = round2(gross * MEDICARE_RATE);
 
-  // Additional Medicare: based on projected annual vs threshold
-  const addMedThreshold = ADDITIONAL_MEDICARE_THRESHOLDS[fs];
+  // Additional Medicare Tax (0.9%): per IRS rules, employer withholding
+  // is triggered when CUMULATIVE YTD wages exceed $200,000 — flat
+  // threshold regardless of filing status. Filing-status-specific
+  // thresholds only apply when the employee reconciles on their 1040.
+  //
+  // The tax applies only to the portion of THIS paycheck that pushes
+  // cumulative wages above the $200K employer withholding threshold.
+  const EMPLOYER_ADD_MED_THRESHOLD = 200_000;
   let addMedTax = 0;
-  if (projectedAnnual > addMedThreshold) {
-    const annualAddMed =
-      (projectedAnnual - addMedThreshold) * ADDITIONAL_MEDICARE_RATE;
-    addMedTax = round2(annualAddMed / periods);
+  const ytdAfterThisPay = ytdGross + gross;
+  if (ytdAfterThisPay > EMPLOYER_ADD_MED_THRESHOLD) {
+    // Only the portion of THIS paycheck above the threshold is taxed.
+    // If YTD was already above, the entire paycheck is subject.
+    const subjectToAddMed = Math.min(
+      gross,
+      ytdAfterThisPay - EMPLOYER_ADD_MED_THRESHOLD,
+    );
+    addMedTax = round2(subjectToAddMed * ADDITIONAL_MEDICARE_RATE);
   }
 
   // Totals
