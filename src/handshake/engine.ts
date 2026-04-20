@@ -205,6 +205,8 @@ export type BuildOfferIntentInput = {
   end_epoch: number;
   review_epoch: number;
   terms_text: string;
+  pay_type: "hourly" | "salary";
+  pay_rate: number;
 };
 
 /**
@@ -243,6 +245,8 @@ export function buildOfferIntent(
     start_epoch: input.start_epoch,
     end_epoch: input.end_epoch,
     review_epoch: input.review_epoch,
+    pay_type: input.pay_type,
+    pay_rate: input.pay_rate,
     terms_text: input.terms_text,
     terms_doc_hash: computed.terms_doc_hash,
     offer_time_utc: offerTimeUtc,

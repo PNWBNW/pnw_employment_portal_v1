@@ -7,6 +7,8 @@ import type { Address, Field, Bytes32 } from "@/src/lib/pnw-adapter/aleo_types";
 // Worker Store — cached decoded worker records for the session
 // ---------------------------------------------------------------------------
 
+export type PayType = "hourly" | "salary";
+
 export type WorkerRecord = {
   worker_addr: Address;
   worker_name_hash: Field;
@@ -14,6 +16,10 @@ export type WorkerRecord = {
   status: "active" | "paused" | "terminated";
   display_name?: string; // User-chosen label (session only, not from chain)
   last_payroll_epoch?: number;
+  /** Compensation type — set during offer creation, stored in encrypted terms */
+  pay_type?: PayType;
+  /** Pay rate in dollars — per hour (hourly) or per pay period (salary) */
+  pay_rate?: number;
 };
 
 type WorkerState = {
