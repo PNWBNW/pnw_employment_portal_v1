@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useWorkerStore } from "@/src/stores/worker_store";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
 import { DownloadPDFButton } from "@/components/pdf/DownloadPDFButton";
 import { generatePaystubPdf } from "@/components/pdf/PaystubPDF";
-import { loadWorkerW4 } from "@/src/stores/w4_store";
+import { loadWorkerW4, type W4Data } from "@/src/stores/w4_store";
+import { fetchAndDecryptW4, w4CidKey } from "@/src/lib/w4-crypto";
+import { useAleoSession } from "@/components/key-manager/useAleoSession";
 
 const FILING_LABELS: Record<string, string> = {
   single: "Single",
@@ -269,13 +271,52 @@ export default function WorkerDetailPage({
 // ---------------------------------------------------------------------------
 
 function W4Section({ workerAddr }: { workerAddr: string }) {
-  const w4 = loadWorkerW4(workerAddr);
+  const { address: employerAddr } = useAleoSession();
 
-  // Check for IPFS CID (stored when the worker uploaded their W-4 PDF)
+  // Try localStorage first (same-browser, fast)
+  const localW4 = loadWorkerW4(workerAddr);
+
+  // If not in localStorage, try fetching from IPFS (cross-browser)
+  const [ipfsW4, setIpfsW4] = useState<W4Data | null>(null);
+  const [ipfsLoading, setIpfsLoading] = useState(false);
+  const [ipfsError, setIpfsError] = useState<string | null>(null);
+
   const ipfsCid =
     typeof window !== "undefined"
-      ? localStorage.getItem(`pnw_w4_cid_${workerAddr}`)
+      ? localStorage.getItem(w4CidKey(workerAddr))
       : null;
+
+  useEffect(() => {
+    if (localW4 || !ipfsCid || !employerAddr || ipfsW4) return;
+    setIpfsLoading(true);
+    fetchAndDecryptW4(ipfsCid, employerAddr, workerAddr)
+      .then((data) => {
+        setIpfsW4(data);
+        // Cache locally so subsequent loads are instant
+        try {
+          localStorage.setItem(
+            `pnw_w4_${workerAddr}`,
+            JSON.stringify(data),
+          );
+        } catch { /* non-critical */ }
+      })
+      .catch((err) => {
+        setIpfsError(err instanceof Error ? err.message : "Decryption failed");
+      })
+      .finally(() => setIpfsLoading(false));
+  }, [localW4, ipfsCid, employerAddr, workerAddr, ipfsW4]);
+
+  const w4 = localW4 ?? ipfsW4;
+
+  if (ipfsLoading) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          Loading W-4 from encrypted IPFS...
+        </p>
+      </div>
+    );
+  }
 
   if (!w4) {
     return (
@@ -288,6 +329,9 @@ function W4Section({ workerAddr }: { workerAddr: string }) {
           withholding will use the default filing status (Single, no dependents)
           until the worker submits their W-4 through the worker portal.
         </p>
+        {ipfsError && (
+          <p className="mt-1 text-xs text-red-600">{ipfsError}</p>
+        )}
       </div>
     );
   }

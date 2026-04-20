@@ -14,9 +14,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAleoSession } from "@/components/key-manager/useAleoSession";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useW4Store, type W4Data } from "@/src/stores/w4_store";
 import type { FilingStatus } from "@/src/lib/tax-engine";
 import { parseW4Pdf, type W4ParseResult } from "@/src/lib/w4-pdf-parser";
+import { uploadEncryptedW4, w4CidKey } from "@/src/lib/w4-crypto";
+import { useOfferStore } from "@/src/stores/offer_store";
 
 const FILING_OPTIONS: { value: FilingStatus; label: string; desc: string }[] = [
   { value: "single", label: "Single", desc: "or Married filing separately" },
@@ -75,41 +78,33 @@ export default function WorkerW4Page() {
     }
   }
 
-  // Upload the PDF to IPFS (encrypted) via the existing Pinata proxy
-  async function handleIpfsUpload() {
-    if (!pdfBytes || !address) return;
+  // Find the employer address from the worker's received offers so we
+  // can derive the shared parties_key for encryption.
+  const receivedOffers = useOfferStore((s) => s.receivedOffers);
+  const employerAddress = receivedOffers.find(
+    (o) => o.status === "accepted" || o.status === "active",
+  )?.offer.employer_address;
+
+  // Upload the W-4 data (encrypted with parties_key) to IPFS
+  async function handleEncryptedUpload() {
+    if (!address || !employerAddress) return;
     setIpfsUploading(true);
     try {
-      // Encrypt the PDF bytes before uploading
-      // For now, we use a simple base64 encoding as a placeholder.
-      // The full encryption (AES-256-GCM with parties_key) will be
-      // wired once the W-4 sharing mechanism is finalized.
-      const base64 = btoa(
-        String.fromCharCode(...new Uint8Array(pdfBytes)),
+      const currentW4 = useW4Store.getState().w4;
+      const cid = await uploadEncryptedW4(
+        currentW4,
+        employerAddress,
+        address,
       );
-
-      const response = await fetch("/api/terms/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: base64,
-          filename: `w4-${address.slice(0, 12)}.pdf.enc`,
-        }),
-      });
-
-      if (!response.ok) throw new Error("IPFS upload failed");
-
-      const data = await response.json();
-      const cid = data.cid ?? data.IpfsHash ?? data.hash;
       if (cid) {
         setIpfsCid(cid);
-        // Store the CID in localStorage for the employer to find
+        // Store the CID locally so both parties can find it
         try {
-          localStorage.setItem(`pnw_w4_cid_${address}`, cid);
+          localStorage.setItem(w4CidKey(address), cid);
         } catch { /* non-critical */ }
       }
     } catch (err) {
-      console.error("[PNW-W4] IPFS upload failed:", err);
+      console.error("[PNW-W4] Encrypted IPFS upload failed:", err);
     } finally {
       setIpfsUploading(false);
     }
@@ -118,10 +113,8 @@ export default function WorkerW4Page() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     submitW4();
-    // If we have a PDF, also upload to IPFS
-    if (pdfBytes) {
-      void handleIpfsUpload();
-    }
+    // Upload encrypted W-4 to IPFS for the employer
+    void handleEncryptedUpload();
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   }
