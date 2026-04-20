@@ -259,11 +259,14 @@ app/
 │   └── dev/verify-employer/page.tsx     ← dev-only employer verification tool
 │
 └── worker/                              ← worker route group
-    ├── layout.tsx                       ← worker session guard
-    ├── dashboard/page.tsx               ← worker dashboard
+    ├── layout.tsx                       ← worker session guard + onboarding gate
+    ├── dashboard/page.tsx               ← worker overview, weekly hours, active agreement
     ├── offers/page.tsx                  ← pending job offers
-    ├── offers/review/page.tsx           ← review + accept offer
-    └── paystubs/page.tsx                ← paystub list (decoded via view key)
+    ├── offers/review/page.tsx           ← review encrypted terms + accept offer
+    ├── w4/page.tsx                      ← inline W-4 tax withholding form (Steps 1-4)
+    ├── timesheet/page.tsx               ← clock-in/out, daily entries, 40-hr progress bar
+    ├── credentials/page.tsx             ← credential gallery (wallet scan, generative art)
+    └── paystubs/page.tsx                ← paystub list (wallet scan, no view key needed)
 ```
 
 ### Components
@@ -273,12 +276,13 @@ components/
 ├── ui/                                  ← shadcn/ui (generated, do not edit)
 ├── key-manager/                         ← session context: KeyManagerProvider, useAleoSession
 ├── landing/                             ← cinematic landing: hero, doors, animations, CTA
-├── onboarding/                          ← offer form, QR display, acceptance, verification
-├── employer-onboarding/                 ← employer profile + name registration
-├── worker-onboarding/                   ← worker profile + name registration
-├── payroll-table/                       ← TanStack Table spreadsheet editor
+├── onboarding/                          ← offer form, acceptance, verification
+├── employer-onboarding/                 ← employer profile + name registration funnel
+├── worker-onboarding/                   ← OnboardingGate, worker profile + name registration funnel
+├── payroll-table/                       ← TanStack Table: columns, types, toolbar, validation
+├── credential-art/                      ← CredentialCard React wrapper + PNG export + print
 ├── run-status/                          ← chunk-level status tracker
-├── pdf/                                 ← paystub, credential, audit PDFs (jspdf)
+├── pdf/                                 ← paystub, credential cert, audit auth PDFs (jspdf)
 └── nav/                                 ← EmployerNav sidebar, TopBar
 ```
 
@@ -301,13 +305,22 @@ src/
 │   ├── worker_store.ts                  ←   cached decoded worker records
 │   ├── credential_store.ts              ←   credential lifecycle
 │   ├── audit_store.ts                   ←   audit request state
-│   ├── offer_store.ts                   ←   job offer state
-│   ├── employer_identity_store.ts       ←   employer identity
-│   └── worker_identity_store.ts         ←   worker identity
+│   ├── offer_store.ts                   ←   job offer state (sent/received)
+│   ├── w4_store.ts                      ←   W-4 tax withholding data per wallet
+│   ├── timesheet_store.ts              ←   clock-in/out time entries per wallet
+│   ├── employer_identity_store.ts       ←   employer .pnw identity
+│   └── worker_identity_store.ts         ←   worker .pnw identity + onboarding step
 ├── config/
 │   ├── programs.ts                      ← program ID registry (mirrors testnet.manifest.json)
 │   └── env.ts                           ← env var loading
+├── nft-art/
+│   ├── hash_params.ts               ← credential_id → terrain parameters (multi-peak)
+│   └── topo_renderer.ts             ← heightmap → contours → profile → card (Canvas 2D)
 └── lib/
+    ├── tax-engine.ts                    ← federal payroll tax (IRS annualization, 2026 brackets)
+    ├── w4-crypto.ts                     ← parties_key AES-256-GCM for W-4 IPFS sharing
+    ├── w4-pdf-parser.ts                 ← IRS W-4 PDF AcroForm reader (pdf-lib)
+    ├── logger.ts                        ← structured logger with tag filtering + trace IDs
     ├── pnw-adapter/                     ← COPIED from pnw_mvp_v2 (see INTEROP.md)
     │   ├── aleo_cli_adapter.ts          ← execution boundary
     │   ├── layer1_adapter.ts            ← L1 program/transition mapping
@@ -412,8 +425,11 @@ Each copied file starts with:
 | E9 | Done | Audit authorization flow |
 | Post-E9 | Done | Official wallet adapters + cinematic landing page |
 | **E10** | **Done (2026-04-10)** | **End-to-end testnet happy path succeeded** |
-| E11 | In progress | Hardening: multi-worker, double-pay protection, error recovery |
-| Mobile polish | Pending | Responsive formatting in employer portal |
+| **E11** | **Done (2026-04-11)** | Multi-worker payroll (3 workers), USDCx double-spend fix, progress bar |
+| **E12** | **Done (2026-04-12)** | Credential NFTs: dual-record mint, on-chain auth, generative topo art |
+| **E13** | **Done (2026-04-15)** | Tax engine, W-4 form, timesheet, paystub viewer, pay rates |
+| **E14** | **Done (2026-04-20)** | Inline W-4 form, removed PDF upload friction |
+| Mobile polish | Pending | Responsive formatting in employer + worker portals |
 
 ### E10 Milestone Log (2026-04-10)
 
@@ -442,13 +458,23 @@ Shield wallet's in-browser WASM prover silently drops `execute_payroll` (5-progr
 **Deprecated: `payroll_nfts.aleo` (v1)**
 Was `@noupgrade` with `employer_agreement_v2` imports. `payroll_nfts_v2.aleo` replaces it (imports v4). See `pnw_mvp_v2/src/layer2/payroll_nfts_v2.aleo/`.
 
-### E11 Next Steps
-- [ ] Multi-worker payroll (batch_2 path via sequential flow)
-- [ ] Double-pay protection — the original `execute_payroll` wrote to `paid_epoch` in its finalize. The sequential flow lost this. Options: portal-side guard via manifest, or deploy a standalone `mark_epoch_paid` transition
-- [ ] Step failure recovery — if Step 3 fails after Step 2 committed USDCx, we need a "resume from step 3" UI instead of restarting the whole run
-- [ ] Local PDF storage in IndexedDB keyed by `batch_id` + BLAKE3 `doc_hash` passed to `mint_cycle_nft` (doc_hash is already a private field in the PayrollNFT record)
+### E11-E14 Completed
+- [x] Multi-worker payroll — 3 workers sequential with USDCx remainder polling ✅ (2026-04-11)
+- [x] Credential NFTs — dual-record mint, generative art, on-chain auth ✅ (2026-04-12)
+- [x] Worker paystub viewer (wallet scan, no view key) ✅ (2026-04-12)
+- [x] Federal tax engine (IRS annualization, 2026 brackets, FICA, Medicare) ✅ (2026-04-15)
+- [x] W-4 form + encrypted IPFS sharing via parties_key ✅ (2026-04-15)
+- [x] Timesheet (clock-in/out, weekly hours, 40-hour bar) ✅ (2026-04-15)
+- [x] Pay rates in agreements (hourly/salary), payroll auto-fill ✅ (2026-04-15)
+- [x] Inline W-4 form (removed PDF upload friction) ✅ (2026-04-20)
+
+### Mainnet Preparation (Next)
+- [ ] Double-pay protection — `paid_epoch` finalize lost in 4-step split. Portal-side guard or standalone transition
+- [ ] Step failure recovery — resume from step N instead of restarting
+- [ ] Local PDF storage in IndexedDB keyed by `batch_id` + BLAKE3 `doc_hash`
 - [ ] Mobile/responsive polish
-- [ ] Worker portal paystub viewer (scans `WorkerPaystubReceipt` records the same way)
+- [ ] State tax engine expansion (top 10 US states)
+- [ ] External security audit
 
 See `docs/BUILD_ORDER.md` for exit criteria on each phase.
 
