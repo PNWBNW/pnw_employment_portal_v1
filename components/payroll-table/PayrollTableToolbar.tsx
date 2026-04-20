@@ -3,6 +3,14 @@
 import { useRef, useCallback } from "react";
 import type { PayrollTableRow } from "./types";
 import { createEmptyRow, parseDollar, formatDollar } from "./types";
+import type { FilingStatus } from "@/src/lib/tax-engine";
+
+const FILING_STATUS_OPTIONS: { value: FilingStatus; label: string }[] = [
+  { value: "single", label: "Single" },
+  { value: "married_filing_jointly", label: "Married Filing Jointly" },
+  { value: "married_filing_separately", label: "Married Filing Separately" },
+  { value: "head_of_household", label: "Head of Household" },
+];
 
 type Props = {
   rows: PayrollTableRow[];
@@ -13,6 +21,8 @@ type Props = {
   allValid: boolean;
   epochId: string;
   onEpochChange: (epoch: string) => void;
+  filingStatus: FilingStatus;
+  onFilingStatusChange: (status: FilingStatus) => void;
 };
 
 export function PayrollTableToolbar({
@@ -24,6 +34,8 @@ export function PayrollTableToolbar({
   allValid,
   epochId,
   onEpochChange,
+  filingStatus,
+  onFilingStatusChange,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,6 +153,21 @@ export function PayrollTableToolbar({
         <span className="rounded-md border border-input bg-muted px-2 py-1 text-sm text-muted-foreground">
           USDCx
         </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label className="text-sm text-muted-foreground">Filing:</label>
+        <select
+          value={filingStatus}
+          onChange={(e) => onFilingStatusChange(e.target.value as FilingStatus)}
+          className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+        >
+          {FILING_STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="ml-auto flex items-center gap-2">

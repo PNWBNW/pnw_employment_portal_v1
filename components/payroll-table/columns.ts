@@ -36,7 +36,7 @@ export const payrollColumns = [
   columnHelper.accessor("tax_withheld", {
     header: "Tax ($)",
     size: 100,
-    meta: { editable: true, placeholder: "0.00", type: "amount" },
+    meta: { editable: true, placeholder: "auto", type: "amount" },
   }),
   columnHelper.accessor("fee_amount", {
     header: "Fee ($)",

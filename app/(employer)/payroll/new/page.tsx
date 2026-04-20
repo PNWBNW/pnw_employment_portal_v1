@@ -29,6 +29,11 @@ import {
 } from "@/src/coordinator/settlement_coordinator";
 import { getPrivateKey } from "@/src/stores/session_store";
 import { ENV } from "@/src/config/env";
+import {
+  computePayrollTax,
+  type FilingStatus,
+  type PayPeriod,
+} from "@/src/lib/tax-engine";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { scanAgreementRecords, readAgreementRecords } from "@/src/records/agreement_reader";
 import type { WalletExecuteFn } from "@/src/lib/wallet/wallet-executor";
@@ -76,6 +81,17 @@ function formatEpochAsDate(epochId: string | number): string {
 export default function NewPayrollPage() {
   const [rows, setRows] = useState<PayrollTableRow[]>([]);
   const [epochId, setEpochId] = useState(todayEpoch);
+  const [filingStatus, setFilingStatus] = useState<FilingStatus>("single");
+
+  // Map PNW pay frequency codes to tax engine pay period types.
+  // Used to determine how many periods per year for annualization.
+  const PAY_FREQ_TO_PERIOD: Record<number, PayPeriod> = {
+    1: "daily",
+    2: "weekly",
+    3: "biweekly",
+    4: "monthly",
+    5: "quarterly",
+  };
   const [draftSaved, setDraftSaved] = useState(false);
   const [draftSaveMsg, setDraftSaveMsg] = useState<string | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<DraftEnvelope[]>([]);
@@ -315,22 +331,65 @@ export default function NewPayrollPage() {
           }
         }
 
-        // Auto-calculate net when gross/tax/fee change
+        // Auto-compute tax when gross changes (or hours change for hourly)
+        // Uses the tax engine's annualization method to determine the
+        // correct marginal bracket based on projected annual income.
         if (
           field === "gross_amount" ||
-          field === "tax_withheld" ||
-          field === "fee_amount" ||
-          field === "hours_worked"
+          field === "hours_worked" ||
+          field === "fee_amount"
         ) {
           const gross = parseDollar(
             field === "gross_amount" ? value : newRow.gross_amount,
           );
-          const tax = parseDollar(
-            field === "tax_withheld" ? value : newRow.tax_withheld,
-          );
+
+          if (!isNaN(gross) && gross > 0) {
+            // Determine pay period from the worker's pay frequency
+            // (stored on the worker record from the agreement). Default
+            // to biweekly if unknown.
+            const workerMatch = workers.find(
+              (w) => w.agreement_id === newRow.agreement_id,
+            );
+            // Pay frequency isn't on WorkerRecord yet — default to biweekly
+            const payPeriod: PayPeriod = "biweekly";
+
+            // Compute YTD gross from other rows in this table (rough
+            // approximation — real YTD would come from on-chain receipts)
+            const ytdFromOtherRows = rows
+              .filter((r, i) => i !== index && r.resolved)
+              .reduce((sum, r) => {
+                const g = parseDollar(r.gross_amount);
+                return sum + (isNaN(g) ? 0 : g);
+              }, 0);
+
+            const taxResult = computePayrollTax({
+              gross,
+              filingStatus,
+              payPeriod,
+              ytdGross: ytdFromOtherRows,
+            });
+
+            // Auto-fill the tax column from the engine
+            newRow.tax_withheld = formatDollar(taxResult.totalTax);
+          }
+
+          // Recompute net = gross - tax - fee
+          const grossFinal = parseDollar(newRow.gross_amount);
+          const taxFinal = parseDollar(newRow.tax_withheld);
           const fee = parseDollar(
             field === "fee_amount" ? value : newRow.fee_amount,
           );
+          if (!isNaN(grossFinal) && !isNaN(taxFinal) && !isNaN(fee)) {
+            newRow.net_amount = formatDollar(grossFinal - taxFinal - fee);
+          }
+        }
+
+        // Manual tax override — if the employer explicitly edits the
+        // tax field, just recompute net without re-running the engine
+        if (field === "tax_withheld") {
+          const gross = parseDollar(newRow.gross_amount);
+          const tax = parseDollar(value);
+          const fee = parseDollar(newRow.fee_amount);
           if (!isNaN(gross) && !isNaN(tax) && !isNaN(fee)) {
             newRow.net_amount = formatDollar(gross - tax - fee);
           }
@@ -341,7 +400,7 @@ export default function NewPayrollPage() {
       });
       setDraftSaved(false);
     },
-    [workers],
+    [workers, filingStatus, rows],
   );
 
   const removeRow = useCallback((index: number) => {
@@ -629,6 +688,8 @@ export default function NewPayrollPage() {
         allValid={allValid}
         epochId={epochId}
         onEpochChange={setEpochId}
+        filingStatus={filingStatus}
+        onFilingStatusChange={setFilingStatus}
       />
 
       {/* Draft saved indicator */}
