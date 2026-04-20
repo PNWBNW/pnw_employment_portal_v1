@@ -332,14 +332,16 @@ export default function NewPayrollPage() {
           }
         }
 
-        // Auto-compute tax when gross changes (or hours change for hourly)
-        // Uses the tax engine's annualization method to determine the
-        // correct marginal bracket based on projected annual income.
-        if (
+        // Auto-compute tax when gross changes, hours change, fee changes,
+        // OR when the worker is resolved/changed (so the correct W-4 is
+        // picked up immediately, not left stale from the previous worker).
+        const shouldRecomputeTax =
           field === "gross_amount" ||
           field === "hours_worked" ||
-          field === "fee_amount"
-        ) {
+          field === "fee_amount" ||
+          (field === "worker_name" && newRow.resolved);
+
+        if (shouldRecomputeTax) {
           const gross = parseDollar(
             field === "gross_amount" ? value : newRow.gross_amount,
           );
