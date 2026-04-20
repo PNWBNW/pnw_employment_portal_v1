@@ -175,6 +175,46 @@ export function PayrollTable({
                       );
                     }
 
+                    // Rate display column (read-only, from agreement)
+                    if (columnId === "rate") {
+                      const rate = rowData.pay_rate;
+                      const type = rowData.pay_type;
+                      return (
+                        <TableCell key={cell.id} className="px-2 py-1 text-right text-xs text-muted-foreground">
+                          {rate && rate > 0
+                            ? type === "hourly"
+                              ? `$${rate.toFixed(2)}/hr`
+                              : `$${rate.toFixed(2)}`
+                            : "—"}
+                        </TableCell>
+                      );
+                    }
+
+                    // Hours column — editable for hourly, shows "—" for salary
+                    if (columnId === "hours_worked") {
+                      if (rowData.pay_type === "salary") {
+                        return (
+                          <TableCell key={cell.id} className="px-2 py-1 text-center text-xs text-muted-foreground">
+                            —
+                          </TableCell>
+                        );
+                      }
+                      const cellValue = cell.getValue() as string;
+                      return (
+                        <TableCell key={cell.id} className="p-1">
+                          <input
+                            type="text"
+                            value={cellValue}
+                            onChange={(e) =>
+                              onUpdateRow(rowIndex, "hours_worked", e.target.value)
+                            }
+                            placeholder="0"
+                            className="w-full rounded border border-input bg-background px-2 py-1 text-right text-sm"
+                          />
+                        </TableCell>
+                      );
+                    }
+
                     // Editable amount cells
                     if (meta?.editable) {
                       const fieldName = columnId as keyof PayrollTableRow;
@@ -237,6 +277,10 @@ export function PayrollTable({
               <TableCell className="text-right text-xs">
                 Totals:
               </TableCell>
+              {/* Rate column — empty in footer */}
+              <TableCell />
+              {/* Hours column — empty in footer */}
+              <TableCell />
               <TableCell className="p-2 text-right text-xs">
                 ${formatDollar(totals.gross)}
               </TableCell>

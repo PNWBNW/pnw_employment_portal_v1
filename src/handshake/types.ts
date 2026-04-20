@@ -28,6 +28,10 @@ export type OfferIntent = {
   end_epoch: number; // 0 = open-ended
   review_epoch: number;
 
+  // Compensation
+  pay_type: PayType;            // "hourly" | "salary"
+  pay_rate: number;             // dollars per hour (hourly) or per pay period (salary)
+
   // Terms
   terms_text: string;           // plaintext for worker review (never on-chain)
   terms_doc_hash: Bytes32;      // BLAKE3("PNW::DOC", TLV(terms_text))
@@ -75,6 +79,17 @@ export type ComputedAgreementValues = {
   terms_doc_hash: Bytes32;
   terms_root: Bytes32;
   offer_time_hash: Bytes32;
+};
+
+// ----------------------------------------------------------------
+// Pay type (hourly vs salary)
+// ----------------------------------------------------------------
+
+export type PayType = "hourly" | "salary";
+
+export const PAY_TYPE_LABELS: Record<PayType, string> = {
+  hourly: "Hourly",
+  salary: "Salary",
 };
 
 // ----------------------------------------------------------------

@@ -8,6 +8,7 @@
 
 import type { WorkerRecord } from "@/src/stores/worker_store";
 import type { PayrollTableRow } from "./types";
+import { formatDollar } from "./types";
 import { computeNameHash } from "@/src/registry/name_registry";
 
 /**
@@ -64,20 +65,32 @@ export function resolveWorker(
 
 /**
  * Apply a resolved worker record to a payroll table row.
- * Auto-fills worker_addr, worker_name_hash, agreement_id, and marks resolved.
+ * Auto-fills worker_addr, worker_name_hash, agreement_id, pay info,
+ * and marks resolved. For salary workers, gross_amount is auto-filled
+ * from the agreement's pay_rate. For hourly workers, gross stays empty
+ * until the employer enters hours_worked.
  */
 export function applyWorkerToRow(
   row: PayrollTableRow,
   worker: WorkerRecord,
 ): PayrollTableRow {
-  return {
+  const applied: PayrollTableRow = {
     ...row,
     worker_addr: worker.worker_addr,
     worker_name_hash: worker.worker_name_hash,
     agreement_id: worker.agreement_id,
     worker_name: worker.display_name ?? row.worker_name,
+    pay_type: worker.pay_type,
+    pay_rate: worker.pay_rate,
     resolved: true,
   };
+
+  // Auto-fill gross for salary workers (fixed per period)
+  if (worker.pay_type === "salary" && worker.pay_rate && worker.pay_rate > 0) {
+    applied.gross_amount = formatDollar(worker.pay_rate);
+  }
+
+  return applied;
 }
 
 /**

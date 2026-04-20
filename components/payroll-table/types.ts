@@ -7,6 +7,8 @@
  * Everything else is auto-resolved from the worker store or defaulted.
  */
 
+export type PayType = "hourly" | "salary";
+
 export type PayrollTableRow = {
   /** Client-side unique ID for React key (not on-chain) */
   id: string;
@@ -20,7 +22,13 @@ export type PayrollTableRow = {
   agreement_id: string;
   /** Epoch identifier (YYYYMMDD format) — set globally via toolbar */
   epoch_id: string;
-  /** Gross pay in display dollars (e.g., "1234.56") — the one number the employer enters */
+  /** Compensation type from the agreement — "hourly" or "salary" */
+  pay_type?: PayType;
+  /** Pay rate from the agreement — $/hr (hourly) or $/period (salary) */
+  pay_rate?: number;
+  /** Hours worked — entered by employer for hourly workers. Ignored for salary. */
+  hours_worked: string;
+  /** Gross pay in display dollars (e.g., "1234.56") — auto-calculated for hourly (rate × hours), fixed for salary */
   gross_amount: string;
   /** Tax withheld in display dollars — defaults to "0.00", editable in detail view */
   tax_withheld: string;
@@ -51,6 +59,9 @@ export function createEmptyRow(): PayrollTableRow {
     worker_name_hash: "",
     agreement_id: "",
     epoch_id: "",
+    pay_type: undefined,
+    pay_rate: undefined,
+    hours_worked: "",
     gross_amount: "",
     tax_withheld: "0.00",
     fee_amount: "0.00",

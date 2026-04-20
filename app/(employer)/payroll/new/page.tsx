@@ -12,6 +12,7 @@ import { createEmptyRow, parseDollar, formatDollar } from "@/components/payroll-
 import { validateTable } from "@/components/payroll-table/validation";
 import { applyWorkerToRow, resolveWorker } from "@/components/payroll-table/worker_resolver";
 import { useWorkerStore } from "@/src/stores/worker_store";
+import { useOfferStore } from "@/src/stores/offer_store";
 import type { WorkerRecord } from "@/src/stores/worker_store";
 import { useSessionStore } from "@/src/stores/session_store";
 import { usePayrollRunStore } from "@/src/stores/payroll_run_store";
@@ -125,7 +126,10 @@ export default function NewPayrollPage() {
   const settlingRef = useRef(false);
   const workersLoadedRef = useRef(false);
 
+  const sentOffers = useOfferStore((s) => s.sentOffers);
+
   // Load workers from on-chain agreement records (once per mount)
+  // Then enrich with pay_type + pay_rate from the offer store
   useEffect(() => {
     if (workersLoadedRef.current || workers.length > 0 || !address) return;
     workersLoadedRef.current = true;
@@ -136,9 +140,27 @@ export default function NewPayrollPage() {
       if (records.length === 0 && viewKey) {
         records = await readAgreementRecords(viewKey, address);
       }
-      if (records.length > 0) setWorkers(records);
+      if (records.length > 0) {
+        // Enrich with pay info from the offer store — the offer's
+        // pay_type and pay_rate are stored in the encrypted terms
+        // (not on-chain), so we pull them from the local offer tracking.
+        const enriched = records.map((r) => {
+          const matchingOffer = sentOffers.find(
+            (o) => o.offer.worker_address === r.worker_addr,
+          );
+          if (matchingOffer?.offer.pay_type && matchingOffer?.offer.pay_rate) {
+            return {
+              ...r,
+              pay_type: matchingOffer.offer.pay_type as "hourly" | "salary",
+              pay_rate: matchingOffer.offer.pay_rate,
+            };
+          }
+          return r;
+        });
+        setWorkers(enriched);
+      }
     })().catch(() => {});
-  }, [viewKey, address, requestRecords, workers.length, setWorkers]);
+  }, [viewKey, address, requestRecords, workers.length, setWorkers, sentOffers]);
 
   // Restore draft from sessionStorage on mount (fast, same-tab recovery)
   useEffect(() => {
@@ -263,11 +285,20 @@ export default function NewPayrollPage() {
           }
         }
 
+        // Auto-calculate gross from hours × rate for hourly workers
+        if (field === "hours_worked" && newRow.pay_type === "hourly" && newRow.pay_rate) {
+          const hours = parseFloat(value);
+          if (!isNaN(hours) && hours >= 0) {
+            newRow.gross_amount = formatDollar(hours * newRow.pay_rate);
+          }
+        }
+
         // Auto-calculate net when gross/tax/fee change
         if (
           field === "gross_amount" ||
           field === "tax_withheld" ||
-          field === "fee_amount"
+          field === "fee_amount" ||
+          field === "hours_worked"
         ) {
           const gross = parseDollar(
             field === "gross_amount" ? value : newRow.gross_amount,

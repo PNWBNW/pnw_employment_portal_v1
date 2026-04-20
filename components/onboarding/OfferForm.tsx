@@ -8,7 +8,8 @@ import { INDUSTRY_SUFFIXES } from "@/src/registry/name_registry";
 import { toHex } from "@/src/lib/pnw-adapter/hash";
 import type { Address, Field } from "@/src/lib/pnw-adapter/aleo_types";
 import type { OfferIntent, ComputedAgreementValues } from "@/src/handshake/types";
-import { PAY_FREQUENCY_LABELS } from "@/src/handshake/types";
+import { PAY_FREQUENCY_LABELS, PAY_TYPE_LABELS } from "@/src/handshake/types";
+import type { PayType } from "@/src/handshake/types";
 
 type Props = {
   employerAddress: Address;
@@ -33,6 +34,8 @@ export function OfferForm({
   const [startEpoch, setStartEpoch] = useState(0);
   const [endEpoch, setEndEpoch] = useState(0);
   const [reviewEpoch, setReviewEpoch] = useState(0);
+  const [payType, setPayType] = useState<PayType>("hourly");
+  const [payRate, setPayRate] = useState("");
   const [termsText, setTermsText] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -43,6 +46,11 @@ export function OfferForm({
   const [employerNameInput, setEmployerNameInput] = useState("");
 
   async function handleCreate() {
+    const parsedRate = parseFloat(payRate);
+    if (isNaN(parsedRate) || parsedRate <= 0) {
+      setError("Pay rate must be a positive number.");
+      return;
+    }
     if (!termsText.trim()) {
       setError("Agreement terms are required.");
       return;
@@ -79,6 +87,8 @@ export function OfferForm({
         end_epoch: endEpoch,
         review_epoch: reviewEpoch,
         terms_text: termsText.trim(),
+        pay_type: payType,
+        pay_rate: parsedRate,
       });
 
       // In preview mode, use a placeholder signature
@@ -185,6 +195,45 @@ export function OfferForm({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Pay type + rate */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Compensation Type
+          </label>
+          <select
+            value={payType}
+            onChange={(e) => setPayType(e.target.value as PayType)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {Object.entries(PAY_TYPE_LABELS).map(([type, label]) => (
+              <option key={type} value={type}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            {payType === "hourly" ? "Hourly Rate ($)" : "Salary per Pay Period ($)"}
+          </label>
+          <input
+            type="number"
+            value={payRate}
+            onChange={(e) => setPayRate(e.target.value)}
+            placeholder={payType === "hourly" ? "e.g. 25.00" : "e.g. 4200.00"}
+            min={0}
+            step="0.01"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <p className="text-xs text-muted-foreground">
+            {payType === "hourly"
+              ? "Dollars per hour. The payroll page will multiply by hours worked."
+              : "Fixed amount per pay period. Auto-fills on the payroll page."}
+          </p>
+        </div>
       </div>
 
       {/* Epochs */}
