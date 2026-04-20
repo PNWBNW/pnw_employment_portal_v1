@@ -98,8 +98,16 @@ function saveEntries(address: string, entries: TimeEntry[]): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Format a timestamp as YYYY-MM-DD in LOCAL time (not UTC).
+ *  Using toISOString() would bucket entries near midnight into the
+ *  wrong date for users west of UTC (e.g. late Sunday in US time
+ *  zones becomes Monday in UTC, dropping hours from weekly totals). */
 function toDateString(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function todayString(): string {

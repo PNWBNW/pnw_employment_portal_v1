@@ -52,13 +52,19 @@ export default function WorkerDashboardPage() {
   const pendingOffers = receivedOffers.filter((o) => o.status === "sent");
   const activeAgreements = receivedOffers.filter((o) => o.status === "accepted" || o.status === "active");
 
-  // Timesheet — init for connected wallet + get weekly hours
+  // Timesheet — init for connected wallet + get weekly hours.
+  // Subscribe to `entries` (not just the function reference) so the
+  // dashboard re-renders when shifts are clocked in/out.
   const initTimesheet = useTimesheetStore((s) => s.initForWallet);
   const isClockedIn = useTimesheetStore((s) => s.isClockedIn);
-  const weekHours = useTimesheetStore((s) => s.getCurrentWeekHours)();
+  const timesheetEntries = useTimesheetStore((s) => s.entries);
+  const getWeekHours = useTimesheetStore((s) => s.getCurrentWeekHours);
+  const weekHours = getWeekHours();
   useEffect(() => {
     if (address) initTimesheet(address);
   }, [address, initTimesheet]);
+  // Force dependency on entries so weekHours recomputes on clock events
+  void timesheetEntries.length;
 
   // Credentials issued to this worker (populated by the worker credentials
   // page scanner on first visit; shows up here too once scanned).
