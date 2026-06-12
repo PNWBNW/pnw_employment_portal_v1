@@ -38,7 +38,11 @@ export const PROGRAMS = {
 
 /** Current version tags — must match deployed program expectations */
 export const VERSIONS = {
-  schema_v: 1,
+  // v2: run_kind + run_memo added to the payroll_inputs_hash / row_hash /
+  // batch_id preimages (double-pay protection). Hashes are computed
+  // portal-side and passed to programs as opaque bytes, so no Leo
+  // redeployment is required.
+  schema_v: 2,
   calc_v: 1,
   policy_v: 1,
 } as const;

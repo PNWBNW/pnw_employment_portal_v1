@@ -25,6 +25,23 @@ export type ManifestVersions = {
 };
 
 // ----------------------------------------------------------------
+// Run kind — the employer's declared payment intent.
+// Part of the payroll_inputs_hash preimage (schema_v >= 2), so two
+// payments to the same worker for the same epoch are distinguishable
+// on-chain as long as kind, memo, or amount differ. Only a byte-identical
+// resubmission produces the same hash — which is the accident the
+// double-pay guard blocks.
+// ----------------------------------------------------------------
+export type RunKind = "regular" | "bonus" | "correction" | "off_cycle";
+
+export const RUN_KINDS: readonly RunKind[] = [
+  "regular",
+  "bonus",
+  "correction",
+  "off_cycle",
+] as const;
+
+// ----------------------------------------------------------------
 // Row status — set by Settlement Coordinator after compilation
 // ----------------------------------------------------------------
 export type PayrollRowStatus =
@@ -49,6 +66,11 @@ export type PayrollRow = {
   // Payroll period
   epoch_id: U32;
   currency: "USDCx";
+
+  // Payment intent (schema_v >= 2; optional for pre-v2 manifests
+  // reconstructed from on-chain receipts, which don't carry these)
+  run_kind?: RunKind;
+  run_memo?: string;
 
   // Amounts (minor units: 1 USDCx = 1_000_000 minor units)
   gross_amount: U128;
@@ -138,6 +160,10 @@ export type PayrollRunManifest = {
   // Period
   epoch_id: U32;
   currency: "USDCx";
+
+  // Payment intent — applies to every row in the run (schema_v >= 2)
+  run_kind?: RunKind;
+  run_memo?: string;
 
   // Rows
   row_count: number;

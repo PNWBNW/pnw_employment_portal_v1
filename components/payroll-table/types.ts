@@ -7,6 +7,8 @@
  * Everything else is auto-resolved from the worker store or defaulted.
  */
 
+import type { RunKind } from "@/src/manifest/types";
+
 export type PayType = "hourly" | "salary";
 
 export type PayrollTableRow = {
@@ -22,6 +24,13 @@ export type PayrollTableRow = {
   agreement_id: string;
   /** Epoch identifier (YYYYMMDD format) — set globally via toolbar */
   epoch_id: string;
+  /** Payment intent — set globally via toolbar, defaults to "regular".
+   *  Optional so drafts saved before schema_v 2 still load. */
+  run_kind?: RunKind;
+  /** Optional reason for the run (e.g. "Q2 bonus") — set globally via toolbar.
+   *  Hashed into payroll_inputs_hash so intentional repeat payments are
+   *  distinguishable from accidental resubmissions. */
+  run_memo?: string;
   /** Compensation type from the agreement — "hourly" or "salary" */
   pay_type?: PayType;
   /** Pay rate from the agreement — $/hr (hourly) or $/period (salary) */
@@ -59,6 +68,8 @@ export function createEmptyRow(): PayrollTableRow {
     worker_name_hash: "",
     agreement_id: "",
     epoch_id: "",
+    run_kind: "regular",
+    run_memo: "",
     pay_type: undefined,
     pay_rate: undefined,
     hours_worked: "",
