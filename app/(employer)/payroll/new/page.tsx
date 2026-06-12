@@ -20,8 +20,13 @@ import { compileManifest } from "@/src/manifest/compiler";
 import { planChunks } from "@/src/manifest/chunk_planner";
 import { VERSIONS } from "@/src/config/programs";
 import { domainHash, toHex, DOMAIN_TAGS } from "@/src/lib/pnw-adapter/hash";
-import type { PayrollRunManifest, PayrollRunStatus } from "@/src/manifest/types";
+import type { PayrollRunManifest, PayrollRunStatus, RunKind } from "@/src/manifest/types";
 import type { ChunkPlan } from "@/src/manifest/types";
+import {
+  checkDoublePay,
+  uncheckedResult,
+  type DoublePayCheckResult,
+} from "@/src/coordinator/double_pay_guard";
 import {
   executeSettlement,
   type CoordinatorCallbacks,
@@ -51,38 +56,31 @@ import type { DraftEnvelope } from "@/src/persistence";
 const DRAFT_STORAGE_KEY = "pnw_payroll_draft";
 
 /**
- * Get a unique epoch_id for this payroll run.
+ * Default epoch_id for a new payroll run: today's pay date as YYYYMMDD.
  *
- * Uses unix timestamp in seconds (fits in u32 until year 2106). This guarantees
- * uniqueness for the on-chain `paid_epoch[(agreement_id, epoch_id)]` double-pay
- * guard, so the same worker can be paid multiple times on the same day for
- * legitimate reasons (regular pay + bonus + reimbursement) — each run gets its
- * own epoch_id.
- *
- * Display the human-readable date alongside via `formatEpochAsDate(epochId)`.
+ * The epoch no longer needs to be unique per run — payment uniqueness is
+ * enforced by payroll_inputs_hash (which commits to epoch, amounts, run_kind,
+ * and memo) plus the portal-side double-pay guard. The same worker can be
+ * paid multiple times for the same epoch as long as the amount, run kind,
+ * or memo differs; only a byte-identical resubmission is blocked.
  */
 function todayEpoch(): string {
-  return Math.floor(Date.now() / 1000).toString();
-}
-
-/** Convert a unix-seconds epoch_id back to a human-readable timestamp */
-function formatEpochAsDate(epochId: string | number): string {
-  const seconds = typeof epochId === "string" ? parseInt(epochId, 10) : epochId;
-  if (!seconds || isNaN(seconds)) return "—";
-  // Sanity: if value looks like YYYYMMDD (8 digits, < 99999999), treat as legacy
-  if (seconds >= 19700101 && seconds <= 99999999) {
-    const y = Math.floor(seconds / 10000);
-    const m = Math.floor((seconds % 10000) / 100);
-    const d = seconds % 100;
-    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")} (legacy)`;
-  }
-  return new Date(seconds * 1000).toLocaleString();
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
 }
 
 export default function NewPayrollPage() {
   const [rows, setRows] = useState<PayrollTableRow[]>([]);
   const [epochId, setEpochId] = useState(todayEpoch);
+  const [runKind, setRunKind] = useState<RunKind>("regular");
+  const [runMemo, setRunMemo] = useState("");
   const [filingStatus, setFilingStatus] = useState<FilingStatus>("single");
+  // Double-pay guard state — populated when the employer confirms the manifest
+  const [guardResult, setGuardResult] = useState<DoublePayCheckResult | null>(null);
+  const [guardChecking, setGuardChecking] = useState(false);
 
   // Map PNW pay frequency codes to tax engine pay period types.
   // Used to determine how many periods per year for annualization.
@@ -214,9 +212,16 @@ export default function NewPayrollPage() {
         "rows" in parsed &&
         "epochId" in parsed
       ) {
-        const draft = parsed as { rows: PayrollTableRow[]; epochId: string };
+        const draft = parsed as {
+          rows: PayrollTableRow[];
+          epochId: string;
+          runKind?: RunKind;
+          runMemo?: string;
+        };
         setRows(draft.rows);
         setEpochId(draft.epochId);
+        if (draft.runKind) setRunKind(draft.runKind);
+        if (typeof draft.runMemo === "string") setRunMemo(draft.runMemo);
       }
     } catch {
       sessionStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -433,7 +438,7 @@ export default function NewPayrollPage() {
     // Always save to sessionStorage for same-tab recovery
     sessionStorage.setItem(
       DRAFT_STORAGE_KEY,
-      JSON.stringify({ rows, epochId }),
+      JSON.stringify({ rows, epochId, runKind, runMemo }),
     );
 
     // If we have a view key, also save encrypted to IndexedDB
@@ -467,7 +472,7 @@ export default function NewPayrollPage() {
       setDraftSaved(false);
       setDraftSaveMsg(null);
     }, 3000);
-  }, [rows, epochId, viewKey, address, activeDraftId]);
+  }, [rows, epochId, runKind, runMemo, viewKey, address, activeDraftId]);
 
   // Load an encrypted draft from IndexedDB
   const loadEncryptedDraft = useCallback(
@@ -699,6 +704,10 @@ export default function NewPayrollPage() {
         allValid={allValid}
         epochId={epochId}
         onEpochChange={setEpochId}
+        runKind={runKind}
+        onRunKindChange={setRunKind}
+        runMemo={runMemo}
+        onRunMemoChange={setRunMemo}
         filingStatus={filingStatus}
         onFilingStatusChange={setFilingStatus}
       />
@@ -777,17 +786,37 @@ export default function NewPayrollPage() {
         <ManifestPreview
           manifest={compiledManifest}
           chunks={compiledChunks}
-          disabled={isSettling}
+          disabled={isSettling || guardChecking}
           onCancel={() => {
             setCompiledManifest(null);
             setCompiledChunks([]);
+            setGuardResult(null);
           }}
-          onConfirm={() => {
-            // Show warning dialog first — payroll requires 4 wallet signatures
+          onConfirm={async () => {
+            // Double-pay guard: check every row against on-chain payment
+            // history before the signature warning dialog opens.
+            setGuardChecking(true);
+            let result: DoublePayCheckResult;
+            if (requestRecords && address) {
+              result = await checkDoublePay(compiledManifest, requestRecords, address);
+            } else {
+              result = uncheckedResult(
+                "No wallet record access — payment history could not be verified.",
+              );
+            }
+            setGuardResult(result);
+            setGuardChecking(false);
             setPendingSettleAction(() => () => startSettlement());
             setShowConfirmDialog(true);
           }}
         />
+      )}
+
+      {/* Double-pay guard: history scan in progress */}
+      {guardChecking && (
+        <div className="rounded-md border border-blue-300 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
+          Checking on-chain payment history for duplicates...
+        </div>
       )}
 
       {/* Confirmation dialog: monolithic execute_payroll path (1 sig per worker) */}
@@ -796,6 +825,14 @@ export default function NewPayrollPage() {
         // Each worker = 1 monolithic execute_payroll signature.
         const sigCount = rowCount;
         const sigWord = sigCount === 1 ? "Signature" : "Signatures";
+        const exactDuplicates = guardResult?.findings.filter((f) => f.kind === "exact_duplicate") ?? [];
+        const warnings = guardResult?.findings.filter((f) => f.kind !== "exact_duplicate") ?? [];
+        const minorToDollar = (m: string) => `$${(Number(m) / 1_000_000).toFixed(2)}`;
+        const workerLabel = (rowIndex: number) => {
+          const row = compiledManifest?.rows[rowIndex];
+          if (!row) return `Row ${rowIndex + 1}`;
+          return `${row.worker_addr.slice(0, 10)}…${row.worker_addr.slice(-6)}`;
+        };
         return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
@@ -834,6 +871,63 @@ export default function NewPayrollPage() {
                 <span><strong className="text-foreground">Anchor Audit Event</strong> — public tamper-proof timestamp</span>
               </li>
             </ol>
+            {/* Double-pay guard: exact duplicate — settlement blocked */}
+            {exactDuplicates.length > 0 && (
+              <div className="mb-4 rounded-md border border-red-500/40 bg-red-500/5 p-3">
+                <p className="mb-1 text-sm font-semibold text-red-700 dark:text-red-300">
+                  Duplicate payment detected — settlement blocked
+                </p>
+                <ul className="mb-2 space-y-1 text-xs text-red-700 dark:text-red-300">
+                  {exactDuplicates.map((f, i) => (
+                    <li key={i}>
+                      {workerLabel(f.row_index)} — an identical payment
+                      ({minorToDollar(f.prior_gross_amount)} gross, epoch {f.prior_epoch_id})
+                      already settled on-chain.
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-red-700/80 dark:text-red-300/80">
+                  If this repeat payment is intentional, change the amount, run
+                  type, or memo so it is distinguishable from the prior payment.
+                </p>
+              </div>
+            )}
+
+            {/* Double-pay guard: same-epoch warnings — proceed allowed */}
+            {exactDuplicates.length === 0 && warnings.length > 0 && (
+              <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="mb-1 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                  Workers already paid for this epoch
+                </p>
+                <ul className="mb-2 space-y-1 text-xs text-amber-700 dark:text-amber-300">
+                  {warnings.map((f, i) => (
+                    <li key={i}>
+                      {workerLabel(f.row_index)} — prior payment of{" "}
+                      {minorToDollar(f.prior_gross_amount)} gross for epoch{" "}
+                      {f.prior_epoch_id}
+                      {f.kind === "same_epoch_same_amount" && (
+                        <strong> (same amount as this run)</strong>
+                      )}
+                      .
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
+                  Confirm these are intentional additional payments (e.g. bonus
+                  or correction) before signing.
+                </p>
+              </div>
+            )}
+
+            {/* Double-pay guard: history unavailable */}
+            {guardResult && !guardResult.checked && (
+              <div className="mb-4 rounded-md border border-border bg-muted/40 p-3">
+                <p className="text-xs text-muted-foreground">
+                  ⚠ Could not verify payment history: {guardResult.message}
+                </p>
+              </div>
+            )}
+
             <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
               <p className="text-xs text-amber-700 dark:text-amber-300">
                 ⚠ Each signature may take 2–5 minutes to generate its zero-knowledge proof. <strong>Do not close this page until all {sigCount} signature{sigCount === 1 ? "" : "s"} complete.</strong>
@@ -849,16 +943,18 @@ export default function NewPayrollPage() {
               >
                 Cancel
               </button>
-              <button
-                onClick={() => {
-                  setShowConfirmDialog(false);
-                  if (pendingSettleAction) pendingSettleAction();
-                  setPendingSettleAction(null);
-                }}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                I Understand — Begin Signing
-              </button>
+              {exactDuplicates.length === 0 && (
+                <button
+                  onClick={() => {
+                    setShowConfirmDialog(false);
+                    if (pendingSettleAction) pendingSettleAction();
+                    setPendingSettleAction(null);
+                  }}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  I Understand — Begin Signing
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -957,10 +1053,12 @@ export default function NewPayrollPage() {
                     ? toHex(domainHash(DOMAIN_TAGS.DOC, new TextEncoder().encode(address)))
                     : "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-                  // Apply epoch_id from toolbar to all rows
+                  // Apply epoch_id + run intent from toolbar to all rows
                   const rowsWithEpoch = rows.map((r) => ({
                     ...r,
                     epoch_id: epochId,
+                    run_kind: runKind,
+                    run_memo: runMemo,
                   }));
 
                   const manifest = compileManifest({
@@ -968,6 +1066,8 @@ export default function NewPayrollPage() {
                     employer_addr: address ?? "aleo1unknown",
                     employer_name_hash: employerNameHash,
                     epoch_id: epochId,
+                    run_kind: runKind,
+                    run_memo: runMemo,
                     schema_v: VERSIONS.schema_v,
                     calc_v: VERSIONS.calc_v,
                     policy_v: VERSIONS.policy_v,

@@ -103,14 +103,21 @@ export function validateRow(row: PayrollTableRow): RowValidationResult {
   return { valid: errors.length === 0, errors };
 }
 
-/** Check for duplicate (agreement_id, epoch_id) pairs across all rows */
+/**
+ * Check for duplicate (agreement_id, epoch_id, gross) tuples across all rows.
+ * The same worker may appear twice in one run with different amounts
+ * (e.g. regular pay + reimbursement); identical amounts are flagged as
+ * accidental duplicates.
+ */
 export function findDuplicates(
   rows: PayrollTableRow[],
 ): Map<string, number[]> {
   const seen = new Map<string, number[]>();
   rows.forEach((row, index) => {
     if (!row.agreement_id.trim() || !row.epoch_id.trim()) return;
-    const key = `${row.agreement_id.trim()}::${row.epoch_id.trim()}`;
+    const gross = parseDollar(row.gross_amount);
+    const grossKey = isNaN(gross) ? row.gross_amount.trim() : gross.toFixed(2);
+    const key = `${row.agreement_id.trim()}::${row.epoch_id.trim()}::${grossKey}`;
     const existing = seen.get(key);
     if (existing) {
       existing.push(index);
@@ -145,7 +152,8 @@ export function validateTable(rows: PayrollTableRow[]): {
       if (result) {
         result.errors.push({
           field: "worker_name",
-          message: "Same worker already in this payroll run for this epoch",
+          message:
+            "Same worker with an identical amount already in this run — change the amount or remove the duplicate row",
         });
         result.valid = false;
       }

@@ -14,6 +14,7 @@ import type {
   PayrollRunManifest,
   PayrollRow,
   RowValidationError,
+  RunKind,
 } from "./types";
 import { PayrollValidationError } from "./types";
 import type { Address, Bytes32, Field, U128 } from "../lib/pnw-adapter/aleo_types";
@@ -39,6 +40,10 @@ export type CompilerInput = {
   employer_addr: Address;
   employer_name_hash: Field;
   epoch_id: string;
+  /** Payment intent for the whole run — defaults to "regular" (schema_v >= 2) */
+  run_kind?: RunKind;
+  /** Optional reason for the run — hashed into payroll_inputs_hash (schema_v >= 2) */
+  run_memo?: string;
   schema_v: number;
   calc_v: number;
   policy_v: number;
@@ -60,6 +65,8 @@ export type CompilerInput = {
 export function compileManifest(input: CompilerInput): PayrollRunManifest {
   const { employer_addr, employer_name_hash, epoch_id: epochIdStr, schema_v, calc_v, policy_v } = input;
   const epoch_id = Number(epochIdStr);
+  const run_kind: RunKind = input.run_kind ?? "regular";
+  const run_memo = (input.run_memo ?? "").trim();
 
   // Step 1: Validate
   const validationErrors = validateRows(input.rows);
@@ -75,7 +82,7 @@ export function compileManifest(input: CompilerInput): PayrollRunManifest {
   // Step 3: Convert to manifest rows with canonical hashes
   const utcEpochSeconds = Math.floor(Date.now() / 1000);
   const manifestRows: PayrollRow[] = sorted.map((tableRow, index) =>
-    buildManifestRow(tableRow, index, employer_addr, employer_name_hash, epochIdStr, epoch_id, utcEpochSeconds, schema_v, calc_v, policy_v),
+    buildManifestRow(tableRow, index, employer_addr, employer_name_hash, epochIdStr, epoch_id, run_kind, run_memo, utcEpochSeconds, schema_v, calc_v, policy_v),
   );
 
   // Step 4: Compute row_root
@@ -105,6 +112,8 @@ export function compileManifest(input: CompilerInput): PayrollRunManifest {
     { tag: 0x08, value: encodeU16(policy_v) },
     { tag: 0x09, value: encodeBigInt(BigInt(total_gross_amount)) },
     { tag: 0x0a, value: encodeBigInt(BigInt(total_net_amount)) },
+    { tag: 0x0b, value: encodeString(run_kind) },
+    { tag: 0x0c, value: encodeString(run_memo) },
   ]);
   const doc_hash = toHex(domainHash(DOMAIN_TAGS.DOC, docBytes));
 
@@ -117,6 +126,8 @@ export function compileManifest(input: CompilerInput): PayrollRunManifest {
     { tag: 0x06, value: encodeU16(schema_v) },
     { tag: 0x07, value: encodeU16(calc_v) },
     { tag: 0x08, value: encodeU16(policy_v) },
+    { tag: 0x09, value: encodeString(run_kind) },
+    { tag: 0x0a, value: encodeString(run_memo) },
   ]);
   const batch_id = toHex(domainHash(DOMAIN_TAGS.DOC, batchBytes));
 
@@ -131,6 +142,8 @@ export function compileManifest(input: CompilerInput): PayrollRunManifest {
     employer_name_hash,
     epoch_id,
     currency: "USDCx",
+    run_kind,
+    run_memo,
     row_count: manifestRows.length,
     rows: manifestRows,
     total_gross_amount,
@@ -157,6 +170,8 @@ function buildManifestRow(
   employerNameHash: Field,
   epochIdStr: string,
   epochId: number,
+  runKind: RunKind,
+  runMemo: string,
   utcEpochSeconds: number,
   schemaV: number,
   calcV: number,
@@ -185,6 +200,12 @@ function buildManifestRow(
     { tag: 0x09, value: encodeU16(schemaV) },
     { tag: 0x0a, value: encodeU16(calcV) },
     { tag: 0x0b, value: encodeU16(policyV) },
+    // schema_v >= 2: payment intent is part of the inputs hash, so an
+    // intentional repeat payment (different kind/memo/amount) produces a
+    // different hash while a byte-identical resubmission collides — that
+    // collision is what the double-pay guard detects.
+    { tag: 0x0c, value: encodeString(runKind) },
+    { tag: 0x0d, value: encodeString(runMemo) },
   ]);
   const payroll_inputs_hash = toHex(domainHash(DOMAIN_TAGS.INPUTS, inputsTlv));
 
@@ -261,6 +282,8 @@ function buildManifestRow(
     { tag: 0x0f, value: encodeU16(schemaV) },
     { tag: 0x10, value: encodeU16(calcV) },
     { tag: 0x11, value: encodeU16(policyV) },
+    { tag: 0x12, value: encodeString(runKind) },
+    { tag: 0x13, value: encodeString(runMemo) },
   ]);
   const row_hash = toHex(domainHash(DOMAIN_TAGS.LEAF, rowTlv));
 
@@ -271,6 +294,8 @@ function buildManifestRow(
     agreement_id: tableRow.agreement_id,
     epoch_id: epochId,
     currency: "USDCx",
+    run_kind: runKind,
+    run_memo: runMemo,
     gross_amount: grossStr,
     tax_withheld: taxStr,
     fee_amount: feeStr,
@@ -297,16 +322,19 @@ function validateRows(rows: PayrollTableRow[]): RowValidationError[] {
     return errors;
   }
 
-  // Check for duplicate (agreement_id, epoch_id) pairs
+  // Check for duplicate (agreement_id, epoch_id, gross) tuples.
+  // The same worker may appear twice in one run only if the amounts differ
+  // — identical amounts for the same epoch are indistinguishable from an
+  // accidental duplicate row.
   const seen = new Map<string, number>();
   rows.forEach((row, index) => {
-    const key = `${row.agreement_id}::${row.epoch_id}`;
+    const key = `${row.agreement_id}::${row.epoch_id}::${dollarToMinor(row.gross_amount)}`;
     const prev = seen.get(key);
     if (prev !== undefined) {
       errors.push({
         row_index: index,
         field: "agreement_id",
-        message: `Duplicate (agreement_id, epoch_id) with row ${prev}`,
+        message: `Duplicate payment (same worker, epoch, and amount) with row ${prev}`,
       });
     } else {
       seen.set(key, index);

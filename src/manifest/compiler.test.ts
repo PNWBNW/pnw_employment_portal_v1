@@ -169,12 +169,58 @@ describe("compileManifest", () => {
     expect(() => compileManifest(makeInput(rows))).toThrow(PayrollValidationError);
   });
 
-  it("throws PayrollValidationError on duplicate agreement+epoch", () => {
+  it("throws PayrollValidationError on duplicate agreement+epoch+amount", () => {
     const rows = [
       makeRow({ agreement_id: "0xsame", epoch_id: "20260302" }),
       makeRow({ agreement_id: "0xsame", epoch_id: "20260302" }),
     ];
     expect(() => compileManifest(makeInput(rows))).toThrow(PayrollValidationError);
+  });
+
+  it("allows the same worker twice in one run with different amounts", () => {
+    const rows = [
+      makeRow({ agreement_id: "0xsame", epoch_id: "20260302" }),
+      makeRow({
+        agreement_id: "0xsame",
+        epoch_id: "20260302",
+        gross_amount: "500.00",
+        tax_withheld: "50.00",
+        fee_amount: "0.00",
+        net_amount: "450.00",
+      }),
+    ];
+    const manifest = compileManifest(makeInput(rows));
+    expect(manifest.row_count).toBe(2);
+  });
+
+  // Run intent (schema_v >= 2)
+  it("defaults run_kind to regular and empty memo", () => {
+    const manifest = compileManifest(makeInput([makeRow()]));
+    expect(manifest.run_kind).toBe("regular");
+    expect(manifest.run_memo).toBe("");
+    expect(manifest.rows[0]!.run_kind).toBe("regular");
+  });
+
+  it("run_kind changes batch_id and payroll_inputs_hash", () => {
+    const m1 = compileManifest(makeInput([makeRow()]));
+    const m2 = compileManifest({ ...makeInput([makeRow()]), run_kind: "bonus" });
+    expect(m2.batch_id).not.toBe(m1.batch_id);
+    expect(m2.rows[0]!.payroll_inputs_hash).not.toBe(m1.rows[0]!.payroll_inputs_hash);
+  });
+
+  it("run_memo changes batch_id and payroll_inputs_hash", () => {
+    const m1 = compileManifest(makeInput([makeRow()]));
+    const m2 = compileManifest({ ...makeInput([makeRow()]), run_memo: "Q2 bonus" });
+    expect(m2.batch_id).not.toBe(m1.batch_id);
+    expect(m2.rows[0]!.payroll_inputs_hash).not.toBe(m1.rows[0]!.payroll_inputs_hash);
+  });
+
+  it("identical run intent is deterministic", () => {
+    const input = { ...makeInput([makeRow()]), run_kind: "bonus" as const, run_memo: "Q2" };
+    const m1 = compileManifest(input);
+    const m2 = compileManifest(input);
+    expect(m1.batch_id).toBe(m2.batch_id);
+    expect(m1.rows[0]!.payroll_inputs_hash).toBe(m2.rows[0]!.payroll_inputs_hash);
   });
 
   it("PayrollValidationError includes row details", () => {

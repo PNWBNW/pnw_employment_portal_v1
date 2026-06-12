@@ -19,6 +19,7 @@ function makeValidRow(overrides?: Partial<PayrollTableRow>): PayrollTableRow {
     tax_withheld: "150.00",
     fee_amount: "20.00",
     net_amount: "830.00",
+    resolved: true,
     ...overrides,
   };
 }
@@ -43,7 +44,7 @@ describe("validateRow", () => {
   });
 
   it("invalid epoch format fails", () => {
-    const result = validateRow(makeValidRow({ epoch_id: "2026" }));
+    const result = validateRow(makeValidRow({ epoch_id: "not-a-number" }));
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.field === "epoch_id")).toBe(true);
   });
@@ -96,14 +97,29 @@ describe("findDuplicates", () => {
     expect(findDuplicates(rows).size).toBe(0);
   });
 
-  it("same agreement+epoch is a duplicate", () => {
+  it("same agreement+epoch+amount is a duplicate", () => {
     const rows = [
       makeValidRow({ agreement_id: "a", epoch_id: "20260301" }),
       makeValidRow({ agreement_id: "a", epoch_id: "20260301" }),
     ];
     const dupes = findDuplicates(rows);
     expect(dupes.size).toBe(1);
-    expect(dupes.get("a::20260301")).toEqual([0, 1]);
+    expect(dupes.get("a::20260301::1000.00")).toEqual([0, 1]);
+  });
+
+  it("same agreement+epoch with different amounts is not a duplicate", () => {
+    const rows = [
+      makeValidRow({ agreement_id: "a", epoch_id: "20260301" }),
+      makeValidRow({
+        agreement_id: "a",
+        epoch_id: "20260301",
+        gross_amount: "500.00",
+        tax_withheld: "50.00",
+        fee_amount: "0.00",
+        net_amount: "450.00",
+      }),
+    ];
+    expect(findDuplicates(rows).size).toBe(0);
   });
 
   it("same agreement different epoch is not a duplicate", () => {
@@ -142,10 +158,10 @@ describe("validateTable", () => {
     expect(allValid).toBe(false);
     // Both rows should have duplicate error
     expect(
-      rowResults[0]?.errors.some((e) => e.message.includes("Duplicate")),
+      rowResults[0]?.errors.some((e) => /duplicate/i.test(e.message)),
     ).toBe(true);
     expect(
-      rowResults[1]?.errors.some((e) => e.message.includes("Duplicate")),
+      rowResults[1]?.errors.some((e) => /duplicate/i.test(e.message)),
     ).toBe(true);
   });
 

@@ -469,7 +469,13 @@ Was `@noupgrade` with `employer_agreement_v2` imports. `payroll_nfts_v2.aleo` re
 - [x] Inline W-4 form (removed PDF upload friction) ✅ (2026-04-20)
 
 ### Mainnet Preparation (Next)
-- [ ] Double-pay protection — `paid_epoch` finalize lost in 4-step split. Portal-side guard or standalone transition
+- [x] Double-pay protection (portal-side) ✅ (2026-06-12) — `run_kind` + `run_memo` hashed into
+  `payroll_inputs_hash`/`batch_id` (schema_v 2), epoch_id restored to YYYYMMDD pay date,
+  `src/coordinator/double_pay_guard.ts` scans `EmployerPaystubReceipt` history before settlement:
+  exact inputs-hash match = blocked, same-epoch payment = confirm dialog. Repeat same-day payments
+  pass by differing in amount, run kind, or memo. See `docs/PAYROLL_RUN_MANIFEST.md` § Run Intent.
+- [ ] Double-pay protection (on-chain) — standalone `payroll_guard.aleo::claim_payment_slot(key)`
+  single-program transition as step 0 of the sequential flow (Shield-compatible)
 - [ ] Step failure recovery — resume from step N instead of restarting
 - [ ] Local PDF storage in IndexedDB keyed by `batch_id` + BLAKE3 `doc_hash`
 - [ ] Mobile/responsive polish

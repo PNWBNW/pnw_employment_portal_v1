@@ -190,8 +190,34 @@ listing which rows are invalid and why.
 
 ### No Duplicate Rows
 
-Two rows with the same `(agreement_id, epoch_id)` pair are rejected. The
-double-pay guard on `payroll_core.aleo` would revert one of them anyway.
+Two rows with the same `(agreement_id, epoch_id, gross_amount)` tuple are
+rejected — identical amounts for the same worker and epoch are
+indistinguishable from an accidental duplicate row. The same worker may
+appear twice in one run with *different* amounts (e.g. regular pay +
+reimbursement).
+
+### Run Intent (schema_v 2)
+
+As of `schema_v: 2`, every manifest carries a run-level payment intent:
+
+```typescript
+run_kind: "regular" | "bonus" | "correction" | "off_cycle";  // default "regular"
+run_memo: string;                                            // optional reason, trimmed
+```
+
+Both fields are TLV-encoded into `payroll_inputs_hash` (tags 0x0c, 0x0d),
+`row_hash` (tags 0x12, 0x13), `doc_hash` (tags 0x0b, 0x0c), and `batch_id`
+(tags 0x09, 0x0a). This makes the inputs hash a full commitment to the
+payment's content *and intent*: an intentional repeat payment (different
+amount, kind, or memo) always produces a new hash, while a byte-identical
+resubmission of an already-settled payment collides with the prior receipt's
+hash — which is exactly what the portal-side double-pay guard
+(`src/coordinator/double_pay_guard.ts`) detects and blocks before settlement.
+
+Hashes are computed portal-side and passed to Leo programs as opaque bytes,
+so schema_v 2 required no program redeployment. Receipts minted under
+schema_v 1 hash a different preimage and can never exact-match a v2 row;
+they still surface through the guard's same-epoch warning tiers.
 
 ### Version Tags
 
