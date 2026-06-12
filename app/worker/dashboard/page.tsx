@@ -52,19 +52,24 @@ export default function WorkerDashboardPage() {
   const pendingOffers = receivedOffers.filter((o) => o.status === "sent");
   const activeAgreements = receivedOffers.filter((o) => o.status === "accepted" || o.status === "active");
 
-  // Timesheet — init for connected wallet + get weekly hours.
-  // Subscribe to `entries` (not just the function reference) so the
+  // Timekeeping — init from IPFS for connected wallet + get weekly hours.
+  // Subscribe to `punches` (not just the function reference) so the
   // dashboard re-renders when shifts are clocked in/out.
-  const initTimesheet = useTimesheetStore((s) => s.initForWallet);
+  const initTimekeeping = useTimesheetStore((s) => s.initFromIPFS);
   const isClockedIn = useTimesheetStore((s) => s.isClockedIn);
-  const timesheetEntries = useTimesheetStore((s) => s.entries);
+  const timekeepingPunches = useTimesheetStore((s) => s.punches);
   const getWeekHours = useTimesheetStore((s) => s.getCurrentWeekHours);
   const weekHours = getWeekHours();
+  const activeOffer = receivedOffers.find(
+    (o) => o.status === "accepted" || o.status === "active",
+  );
+  const employerAddr = activeOffer?.offer.employer_address;
+  const agreementIdForTk = activeOffer?.computed.agreement_id ?? "unknown";
   useEffect(() => {
-    if (address) initTimesheet(address);
-  }, [address, initTimesheet]);
-  // Force dependency on entries so weekHours recomputes on clock events
-  void timesheetEntries.length;
+    if (address && employerAddr) initTimekeeping(address, employerAddr, agreementIdForTk);
+  }, [address, employerAddr, agreementIdForTk, initTimekeeping]);
+  // Force dependency on punches so weekHours recomputes on clock events
+  void timekeepingPunches.length;
 
   // Credentials issued to this worker (populated by the worker credentials
   // page scanner on first visit; shows up here too once scanned).
@@ -144,7 +149,7 @@ export default function WorkerDashboardPage() {
           <p className="text-xs text-muted-foreground">Active Agreements</p>
         </div>
         <Link
-          href="/worker/timesheet"
+          href="/worker/timekeeping"
           className="rounded-lg border border-border bg-card p-4 hover:bg-muted/30 transition-colors"
         >
           <div className="flex items-baseline gap-2">

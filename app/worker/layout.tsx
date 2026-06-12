@@ -13,7 +13,7 @@ const WORKER_NAV = [
   { href: "/worker/dashboard", label: "Dashboard" },
   { href: "/worker/offers", label: "Offers" },
   { href: "/worker/w4", label: "W-4" },
-  { href: "/worker/timesheet", label: "Timesheet" },
+  { href: "/worker/timekeeping", label: "Timekeeping" },
   { href: "/worker/credentials", label: "Credentials" },
   { href: "/worker/paystubs", label: "Paystubs" },
 ] as const;
