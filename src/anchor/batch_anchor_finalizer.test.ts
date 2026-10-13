@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveNftId,
-  buildCycleNftParams,
   serializeAnchorInputs,
   mintBatchAnchor,
 } from "./batch_anchor_finalizer";
@@ -86,44 +85,63 @@ describe("deriveNftId", () => {
   });
 });
 
-describe("buildCycleNftParams", () => {
-  it("extracts correct fields from manifest", () => {
-    const manifest = makeSettledManifest(3);
-    const params = buildCycleNftParams(manifest);
+/** Expected Aleo [u8; 32] literal for a 0x-prefixed hex string. */
+function u8Array32(hex: string): string {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes.push(parseInt(clean.slice(i, i + 2), 16));
+  }
+  while (bytes.length < 32) bytes.push(0);
+  return "[ " + bytes.slice(0, 32).map((b) => `${b}u8`).join(", ") + " ]";
+}
 
-    expect(params.employer_addr).toBe("aleo1employer");
-    expect(params.batch_id).toBe(manifest.batch_id);
-    expect(params.batch_root).toBe(manifest.row_root);
-    expect(params.epoch_id).toBe(manifest.epoch_id);
-    expect(params.worker_count).toBe(3);
-    expect(params.total_gross).toBe(manifest.total_gross_amount);
-  });
-});
+const U8_ARRAY_32 = /^\[ (\d{1,3}u8, ){31}\d{1,3}u8 \]$/;
 
 describe("serializeAnchorInputs", () => {
-  it("produces 7 Aleo-typed input strings", () => {
+  it("produces 10 inputs matching the deployed mint_cycle_nft signature", () => {
     const manifest = makeSettledManifest(2);
-    const params = buildCycleNftParams(manifest);
     const nftId = deriveNftId(manifest.batch_id);
 
-    const inputs = serializeAnchorInputs(params, nftId);
+    const inputs = serializeAnchorInputs(manifest, nftId);
 
-    expect(inputs).toHaveLength(7);
+    expect(inputs).toHaveLength(10);
+    // r0 nft_id
+    expect(inputs[0]).toMatch(U8_ARRAY_32);
+    expect(inputs[0]).toBe(u8Array32(nftId));
+    // r1 agreement_id (first row)
+    expect(inputs[1]).toBe(u8Array32(manifest.rows[0]!.agreement_id));
+    // r2 period_start, r3 period_end (single-epoch run)
+    expect(inputs[2]).toBe(`${manifest.epoch_id}u32`);
+    expect(inputs[3]).toBe(`${manifest.epoch_id}u32`);
+    // r4 doc_hash — batch_id placeholder when no doc hash given
+    expect(inputs[4]).toBe(u8Array32(manifest.batch_id));
+    // r5 root
+    expect(inputs[5]).toBe(u8Array32(manifest.row_root));
+    // r6 audit_event_hash (first row)
+    expect(inputs[6]).toBe(u8Array32(manifest.rows[0]!.audit_event_hash));
+    // r7-r9 versions
+    expect(inputs.slice(7)).toEqual(["1u16", "1u16", "1u16"]);
+  });
 
-    // First input is the employer address (no suffix)
-    expect(inputs[0]).toBe("aleo1employer");
-    // nft_id as field
-    expect(inputs[1]).toMatch(/^0x[0-9a-f]+field$/);
-    // batch_id as field
-    expect(inputs[2]).toMatch(/field$/);
-    // batch_root as field
-    expect(inputs[3]).toMatch(/field$/);
-    // epoch_id as u32
-    expect(inputs[4]).toMatch(/u32$/);
-    // worker_count as u32
-    expect(inputs[5]).toBe("2u32");
-    // total_gross as field
-    expect(inputs[6]).toMatch(/field$/);
+  it("uses the supplied doc_hash instead of the batch_id placeholder", () => {
+    const manifest = makeSettledManifest(1);
+    const nftId = deriveNftId(manifest.batch_id);
+    const docHash =
+      "0x3333333333333333333333333333333333333333333333333333333333333333";
+
+    const inputs = serializeAnchorInputs(manifest, nftId, docHash);
+
+    expect(inputs[4]).toBe(u8Array32(docHash));
+  });
+
+  it("rejects a manifest with no rows", () => {
+    const manifest = { ...makeSettledManifest(1), rows: [] };
+    const nftId = deriveNftId(manifest.batch_id);
+
+    expect(() => serializeAnchorInputs(manifest, nftId)).toThrow(
+      "Manifest has no rows to anchor",
+    );
   });
 });
 
@@ -144,9 +162,9 @@ describe("mintBatchAnchor", () => {
 
     expect(mockExecute).toHaveBeenCalledOnce();
     const [config, program, transition, inputs, fee] = mockExecute.mock.calls[0]!;
-    expect(program).toBe("payroll_nfts.aleo");
+    expect(program).toBe("payroll_nfts_v2.aleo");
     expect(transition).toBe("mint_cycle_nft");
-    expect(inputs).toHaveLength(7);
+    expect(inputs).toHaveLength(10);
     expect(fee).toBe("500000");
     expect(result.tx_id).toBe("at1anchor_tx_123");
     expect(result.nft_id).toMatch(/^0x[0-9a-f]{64}$/);
@@ -196,11 +214,10 @@ describe("mintBatchAnchor", () => {
 
   it("includes batch_root in inputs (verifies NFT root field)", () => {
     const manifest = makeSettledManifest(3);
-    const params = buildCycleNftParams(manifest);
     const nftId = deriveNftId(manifest.batch_id);
-    const inputs = serializeAnchorInputs(params, nftId);
+    const inputs = serializeAnchorInputs(manifest, nftId);
 
-    // inputs[3] should be batch_root (row_root) as field
-    expect(inputs[3]).toBe(`${manifest.row_root}field`);
+    // r5 is the root (row_root) as [u8; 32]
+    expect(inputs[5]).toBe(u8Array32(manifest.row_root));
   });
 });

@@ -258,7 +258,7 @@ describe("Settlement Coordinator", () => {
     await executeSettlement(ctx);
 
     const [config, program, transition, inputs] = mockExecute.mock.calls[0]!;
-    expect(program).toBe("payroll_core.aleo");
+    expect(program).toBe("payroll_core_v2.aleo");
     expect(transition).toBe("execute_payroll");
     expect(inputs).toBeInstanceOf(Array);
     expect(inputs.length).toBe(15); // 15 fields in WorkerPayArgs
