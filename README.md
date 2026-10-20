@@ -1,5 +1,17 @@
 # PNW Employment Portal
 
+> ## Retired: this became Hewn
+>
+> On 2026-10-13 the portal was rebuilt into **[Hewn](https://github.com/PNWBNW/hewn)**, a free,
+> open-source bookkeeping and payroll app on Aleo: the same private payroll, plus the books, a
+> team calendar, hours, hiring and sealed messaging. Nothing new is built here.
+>
+> - The portal's libraries live on in [`hewn/packages/`](https://github.com/PNWBNW/hewn/tree/main/packages).
+> - The Leo programs it called are still in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2).
+> - The story of how it got here is in [Hewn's README](https://github.com/PNWBNW/hewn#where-it-came-from).
+>
+> Everything below is kept as it was, as history.
+
 **Privacy-first payroll on Aleo — the employer and worker web portal for Proven National Workers.**
 
 ---
@@ -10,7 +22,7 @@ The PNW Employment Portal is a Next.js dApp where employers onboard workers, run
 
 The portal has no traditional backend database. Two lightweight Next.js API routes (`app/api/terms/upload` and `app/api/terms/lookup`) proxy encrypted agreement terms to Pinata IPFS using a server-side `PINATA_JWT` — but these routes only handle already-encrypted ciphertext. The encryption key never leaves the client.
 
-This repo is the **UI and orchestration layer** — it sits on top of the on-chain programs defined in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2). The master project repo is [`pnw`](https://github.com/PNWBNW/pnw).
+This repo is the **UI and orchestration layer** — it sits on top of the on-chain programs defined in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2). The master project repo was [`pnw`](https://github.com/PNWBNW/pnw), now [`hewn`](https://github.com/PNWBNW/hewn).
 
 ---
 
